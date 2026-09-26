@@ -39,6 +39,18 @@ uv run python scripts/ablation.py report
 
 对不上就把这条臂按它实际的身份记录，别把不同身份的结论放进同一张表。
 
+## 先说一个信息泄漏：mock 裁判读的是 gold
+
+`MockJudge` 其实就是启发式裁判（`src/sparkjury/judges/client.py:112`），而它的 outcome 判定直接读 trace 的 gold 结果：gold 说成功就给 4 分 pass，说不成功就给 0 分 fail（`src/sparkjury/judges/heuristics.py:148`）。所以 mock 裁判在 outcome 这一维上是一个知道答案的裁判。
+
+这带来三条约束，看结果之前必须记住：
+
+含 mock 的臂（A、B）在「与 gold 一致率」上不能和 judge_c 为真的臂（C、D）直接横向比，那条 gold 后门会让这个指标失真。要比 outcome，就只在不含 mock 的臂之间比，也就是 C 对 D，而那恰好是回答「Jev 有没有用」的那个对比。另外三个维度（tool_use、efficiency、safety）的判定不读 gold，分数可以直接横向比。
+
+pass^1 与 pass^3 不受影响，它们是从 gold 直接算的（`src/sparkjury/regress/passk.py:14`），跟裁判怎么判无关。README 里那两个数字与 mock 无关，可以照用。
+
+还有个反直觉的地方：outcome 维度要求三家 label 完全一致才算一致（`src/sparkjury/judges/panel.py:88`），所以 mock 这个「知道答案的裁判」不只是多投一票，它会把两家真裁判集体判错的情况顶出来，从而改变进入仲裁的频率；而仲裁在降级臂里是 Judge A 做的。看「降级判定条数」这个指标时要记得这一层。
+
 ## 比什么
 
 `scripts/ablation.py report` 把每条臂的这几样并列出来：

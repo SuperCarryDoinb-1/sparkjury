@@ -243,6 +243,10 @@ def cmd_report(args: argparse.Namespace) -> int:
     if args.json:
         print("\n" + json.dumps({k: {kk: vv for kk, vv in v.items() if kk != "decisions"} for k, v in stats.items()}, ensure_ascii=False, indent=2))
 
+    print("\n注意：outcome 与 gold 的一致率对含 mock 裁判的臂有 gold 后门——mock 的 outcome")
+    print("判定直接读 gold（heuristics.py 的 _outcome），所以这条指标只能在不含 mock 的臂之间横比；")
+    print("pass^k 是从 gold 直接算的，不受影响。另见 docs/ABLATION.md。")
+
     print("\n## 每条臂的真实身份（以 manifest 为准，不是以配置为准）")
     print("healthcheck 会把探不通的裁判换成 mock，所以配置说是真、实际可能是 mock；")
     print("下面这节对不上的话，这条臂就按它实际的身份记录，别和别的臂放进同一张表。\n")
