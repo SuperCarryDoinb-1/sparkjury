@@ -146,14 +146,16 @@ def test_jev_labels_clusters_and_falls_back(scored_db):
         return httpx.Response(200, json={"answers": {"label": {"type": "choice", "choice": "wrong_tool", "confidence": 0.71, "probabilities": {}}}})
 
     jev = JevClient(api_key="k", transport=httpx.MockTransport(handler))
-    label_clusters(clusters, bcs, jev)
+    counts = label_clusters(clusters, bcs, jev)
     real = [c for c in clusters if c.cluster_id != -1]
     assert all(c.label == FailureLabel.WRONG_TOOL and c.label_source == "jev" and c.label_confidence == 0.71 for c in real)
+    assert counts == {"jev": len(real), "heuristic": 0, "n_jev_failed": 0}
     assert set(seen["criteria"]) == {l.value for l in FailureLabel} and "Representative evidence" in seen["state"]
-    # Jev down -> heuristic labels
+    # Jev down -> heuristic labels，同时如实回报「本来想用 Jev、实际没用上」的簇有几个
     bad = JevClient(api_key="k", transport=httpx.MockTransport(lambda r: httpx.Response(500)))
-    label_clusters(clusters, bcs, bad)
+    counts = label_clusters(clusters, bcs, bad)
     assert all(c.label_source == "heuristic" for c in real)
+    assert counts == {"jev": 0, "heuristic": len(real), "n_jev_failed": len(real)}
 
 
 # ---- store + CLI -------------------------------------------------------------------------
@@ -162,7 +164,9 @@ def test_store_and_cli(scored_db, monkeypatch):
     monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
     r = runner.invoke(app, ["cluster", "--db", str(scored_db), "--min-cluster-size", "2", "--json"])
     assert r.exit_code == 0, r.output
-    data = json.loads(r.output)
+    # 降级提示走 stderr；typer 的 CliRunner 把两股流混进 r.output，所以这里只认 r.stdout
+    assert "fall back to heuristic" in r.stderr
+    data = json.loads(r.stdout)
     assert data["n_badcases"] == 5 and data["n_clusters"] >= 1 and data["embedder"].startswith("hashing")
     with TraceStore(scored_db) as store:
         run = store.get_cluster_run()

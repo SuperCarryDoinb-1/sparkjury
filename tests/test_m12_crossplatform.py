@@ -222,3 +222,32 @@ def test_certificate_is_wired_into_the_gates():
     assert "certificate.py" in ci, "CI 没有跑 scripts/certificate.py"
     assert "--fast" in pre, "pre-commit 该跑证书快档，全档交给 CI"
 
+
+def test_json_assertions_read_stdout_not_the_mixed_output():
+    """`--json` 的断言必须读 r.stdout，不能读 r.output。
+
+    typer 的 CliRunner 会把 stderr 混进 output（typer/testing.py 里 BytesIOCopy(copy_to=...)，
+    它的类文档第一句就是 "Mixes stdout and stderr streams"）。于是只要命令往 stderr 写一句降级
+    提示，拿 r.output 去 json.loads 就会以 JSONDecodeError 崩掉，而且报错看不出真正原因。本轮就
+    踩过一次：cluster 加了「Jev 没配 key」的提示，六处解析 JSON 的断言里立刻红了一个。stdout 才是
+    「机器可读」这份契约。
+
+    这里用 ast 找真实调用而不是按文本 grep：这段说明本身就写着要禁的那串字符，按文本找会先把自己
+    算成违规。
+    """
+    import ast
+
+    offenders = []
+    for f in sorted((ROOT / "tests").glob("test_*.py")):
+        tree = ast.parse(f.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and node.args):
+                continue
+            fn, arg = node.func, node.args[0]
+            if not (isinstance(fn, ast.Attribute) and fn.attr == "loads"
+                    and isinstance(fn.value, ast.Name) and fn.value.id == "json"):
+                continue
+            if isinstance(arg, ast.Attribute) and arg.attr == "output":
+                offenders.append(f"{f.name}:{node.lineno}")
+    assert offenders == [], f"这些地方连 stderr 一起当 JSON 解析，应改用 r.stdout：{offenders}"
+

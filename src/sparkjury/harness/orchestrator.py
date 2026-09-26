@@ -240,13 +240,22 @@ class Orchestrator:
             clusters, used = cluster_badcases(badcases, emb, min_cluster_size=c.min_cluster_size, method=c.method)
             emb_name = emb.name + " (fallback)"
         jev = None if c.jev == "off" else JevClient()
-        label_clusters(clusters, badcases, jev)
+        # 和 _arbitrate 里同一条件同一写法：没配 key 的 Jev 是降级，要留痕。
+        # 这里曾经什么都不写，而离线 demo 走的正是这条路，于是卡片上的簇标签是启发式算的、
+        # manifest 的 degradations 里却只有一条 ARBITRATE，读 manifest 的人会以为簇标签来自 Jev。
+        if jev is not None and not jev.configured:
+            self._degrade(Stage.CLUSTER, "jev", "TYPESAFE_API_KEY not set", "heuristic cluster label")
+        label_counts = label_clusters(clusters, badcases, jev)
+        if label_counts["n_jev_failed"]:
+            self._degrade(Stage.CLUSTER, "jev", f"{label_counts['n_jev_failed']} cluster label(s) fell back",
+                          "heuristic cluster label")
         run = ClusterRun(n_badcases=len(badcases), n_clusters=sum(1 for x in clusters if x.cluster_id != -1),
                          n_noise=sum(x.size for x in clusters if x.cluster_id == -1), embedder=emb_name, method=used,
                          clusters=clusters, badcases=badcases)
         self._store.put_cluster_run(run)
         self.manifest["models"]["embedder"] = emb_name
         return {"n_badcases": run.n_badcases, "n_clusters": run.n_clusters, "n_noise": run.n_noise, "method": used,
+                "label_sources": label_counts,
                 "labels": {f"#{x.rank}": f"{x.label.value} ({x.size})" for x in clusters if x.cluster_id != -1}}
 
     def _report(self) -> dict[str, Any]:

@@ -54,6 +54,30 @@ def test_demo_run_end_to_end(demo_cfg):
         assert store.get_run("t-demo")["stage"] == "ok"
 
 
+def test_unconfigured_jev_is_recorded_as_a_cluster_degradation(demo_cfg):
+    """簇标签退回启发式时必须留痕，不能只在 ARBITRATE 阶段记。
+
+    这条曾经漏过：ARBITRATE 遇到没配 key 的 Jev 会写一条降级，CLUSTER 遇到同一个条件却什么都
+    不写，而离线 demo 走的正是这条路——卡片上两个簇的 label_source 都是 heuristic，manifest 的
+    degradations 里却只有 ARBITRATE 一条，读 manifest 的人会以为簇标签来自 Jev。
+    AGENTS.md 的诚实降级规则要求每次都记，所以这里同时盯住记录和它对应的实际标签。
+    """
+    manifest = run_config(demo_cfg)
+    cluster_deg = [d for d in manifest["degradations"] if d["stage"] == "CLUSTER" and d["component"] == "jev"]
+    assert cluster_deg, "Jev 没配 key 时 CLUSTER 阶段没有记录降级"
+    assert cluster_deg[0]["reason"] == "TYPESAFE_API_KEY not set"
+    assert cluster_deg[0]["fallback"] == "heuristic cluster label"
+    # 阶段结果里也要能一眼看出标签出自哪条路径
+    st = manifest["stages"]["CLUSTER"]
+    assert st["label_sources"]["jev"] == 0
+    assert st["label_sources"]["heuristic"] == st["n_clusters"]
+
+    # 降级记录要和卡片上的实际标签对得上，否则记了也是白记
+    card = json.loads((demo_cfg.run_dir / "card" / "card.json").read_text(encoding="utf-8"))
+    real = [c for c in card["clusters"] if c["cluster_id"] != -1]
+    assert real and all(c["label_source"] == "heuristic" for c in real)
+
+
 def test_unreachable_llm_judge_is_swapped_for_mock(demo_cfg):
     demo_cfg.panel = PanelConfig(judges=[
         JudgeSpec(name="judge_a", kind="mock", model="mock-qwen"),
