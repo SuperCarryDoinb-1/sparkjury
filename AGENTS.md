@@ -106,6 +106,8 @@ git config core.hooksPath .githooks
 
 `pre-commit` 拦三类问题：不该进仓库的路径（`.env`、`node.env`、`runs/`、`logs/`、`*.db`、`.worktrees/`）、明文密钥、暂存文件里的语法错误（`.py` 编译、`.sh` 跑 `bash -n`）。`commit-msg` 要求提交信息首行是真的描述，`wip`、`fix`、`update` 这类会被拒，本仓统一用中文写清改了什么、为什么。
 
+main 开了分支保护：非管理员的直接推送会被拒，改动一律走分支加 PR；PR 上会自动跑三平台测试（ubuntu、macOS、Windows），三个检查全绿才允许合并，强推和删除分支也禁掉了。PR 描述用 `.github/pull_request_template.md` 的模板，里面「节点部署验证」那一栏就是上面那条硬性规则的落地位置。管理员保留绕过权限，是留给节点出事时紧急处置用的，不是日常通道。
+
 验证按风险相称，不要一律全仓：改一个模块就跑对应测试，碰了共享契约、部署脚本或入口才跑全套。确有理由绕过钩子时用 `--no-verify`，并在提交信息里写明理由。完整流程在 `.agents/skills/sj-worktree/SKILL.md`。
 
 ## 红线（来自节点使用手册，违反会影响全队）

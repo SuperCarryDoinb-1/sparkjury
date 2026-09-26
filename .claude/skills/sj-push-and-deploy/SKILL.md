@@ -61,6 +61,14 @@ git push -u origin HEAD
 
 推完直接开 PR，不需要绕 fork。PR 描述里先留一段「节点部署验证」，第二步的结果填进去。
 
+main 开了分支保护，非管理员直接 `git push origin main` 会被拒，改动只能走分支加 PR，所以上面那条 `git checkout -b` 不是可选项。开 PR 时把模板带上，别用 `--fill`（那会用提交信息当正文，把模板覆盖掉）：
+
+```bash
+gh pr create --title "一句话说清这次改了什么" --body-file .github/pull_request_template.md
+```
+
+PR 描述里「节点部署验证」那一栏就是上面那条硬性规则的落地位置，第二步的结果填进去。PR 上会自动跑三平台测试（ubuntu、macOS、Windows），三个检查全绿才允许合并；红了先看日志，别急着合。不想用命令行就用网页开 PR，模板会自动填好。
+
 ## 第二步：看节点在跑什么、要不要部署
 
 ```bash
