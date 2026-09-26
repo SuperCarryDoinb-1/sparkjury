@@ -151,10 +151,10 @@ class Claim:
 
 # 总测试数。README / 提交清单 / 征文是对外材料，被反复引用也最容易漂，所以逐处盯着。
 HEADLINE_CLAIMS = [
-    Claim("README 测试总数", "README.md", r"\| 测试 \| (\d+) 个 pytest 用例通过 \|", "passed"),
+    Claim("README 测试总数", "README.md", r"\| 测试 \| (\d+) passed、", "passed"),
     Claim("ARCHITECTURE 进度总数", "docs/ARCHITECTURE.md", r"(\d+) 个 pytest 用例通过。一条命令跑通全流程", "passed"),
-    Claim("SUBMISSION_CHECKLIST 总数", "docs/SUBMISSION_CHECKLIST.md", r"\| 完整性 \| 20% \| (\d+) 个测试、", "passed"),
-    Claim("十日谈测试总数", "docs/ESSAY_十日谈.md", r"晚上 (\d+) 个测试全绿", "passed"),
+    Claim("SUBMISSION_CHECKLIST 总数", "docs/SUBMISSION_CHECKLIST.md", r"\| 完整性 \| 20% \| (\d+) passed、", "passed"),
+    Claim("十日谈测试总数", "docs/ESSAY_十日谈.md", r"这个数字是 (\d+) passed", "passed"),
 ]
 
 # 模块表的用例数写的是「这个模块有多少个用例」（收集数，不是通过数）；有跳过的模块在
