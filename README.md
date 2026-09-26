@@ -132,7 +132,7 @@ badcase = outcome 失败，或任一维度 ≤ 1，或 safety ≤ 2。严重度�
 | 裁判一致率 | 69.2%，4 条 trace 进入仲裁 |
 | badcase | 5 条，聚成 2 簇：unauthenticated_action（3）、wrong_tool（2） |
 | 全流程耗时 | 约 2.4 秒（mock 裁判） |
-| 测试 | 96 个 pytest 用例通过 |
+| 测试 | 116 passed、3 skipped（`uv run pytest`，2026-09-27 实测）|
 
 DGX Spark 节点上，同一份样本换成真实裁判（Qwen3-30B-A3B-FP8 + Nemotron-3.5-Lightning，第三家 StepFun 待接 key）：
 
@@ -213,7 +213,10 @@ Cockpit（DGX 节点实机，公网端口，令牌保护）：
 ## Docs
 
 - `docs/ARCHITECTURE.md` / `.html`：完整架构方案（16 节，含依据来源）
-- `docs/MODULES.md`：11 个模块的验收记录与验证命令
+- `docs/TEAM.md`：分工与架构优化——谁拥有哪个产出口、通过条件是什么、谁验收
+- `docs/ONBOARDING.md`：新组员上手提示词（丢给自己的 Agent 就能接入开发）
+- `docs/MODULES.md`：12 个模块的验收记录与验证命令
+- `docs/ABLATION.md`：消融实验设计——云端那两条依赖各自值多少
 - `docs/ESSAY_十日谈.md`：黑客松十日谈征文
 - `docs/VIDEO_SCRIPT.md`：演示视频脚本
 - `docs/SUBMISSION_CHECKLIST.md`：提交清单

@@ -441,3 +441,76 @@ uv sync && uv run pytest
 uv sync --group ops
 uv run --group ops python scripts/node.py run "nvidia-smi"    # 会提示输入节点密码
 ```
+
+---
+
+## 分工口径：Skill 库（卢万凌，2026-09-27）
+
+这一节不是模块验收，是一次任务口径的重新划定，写下来免得后面两边对不上账。
+
+**为什么这么划**：六个 Skill 本来就只是 CLI 的薄壳，`skills/*/scripts/run.py` 六个文件各 57 行，彼此只差一行 `MODE`，做的事是把参数透传给 `sparkjury` 可执行文件，找不到就退回 `python -m sparkjury.cli`。真正对外的那层接口在 `src/sparkjury/cli.py` 的 16 个子命令里，不在 Skill 库里。所以 Skill 库把评测内核（`judges/`、`arbiter/`、`cluster/`、`report/`、`regress/`）归到"由李滨辉提供的基础设施"一栏，卢万凌的追责范围收窄成下面三件事。
+
+**第一件，把六个 Skill 写完整并提交进来。** 每个三件套齐全（`SKILL.md`、`skill-card.md`、`scripts/run.py`），只通过 `sparkjury` CLI 调用能力，不在 Skill 里自己实现评测逻辑。接口不够用就提需求，不要绕开 CLI 直连内部模块。
+
+**第二件，把测试做真。** 六个 Skill 每个至少一条端到端用例，从封装脚本入口执行到有产出为止。现状是 `scripts/validate_skills.py` 只查格式合规（name 字符集与长度、name 等于目录名、description 不超 1024、SKILL.md 不超 500 行、脚本与卡片齐全），`tests/test_m9_skills_nat.py` 里跟 Skill 相关的用例只到 `--help` 和编译通过，六个封装里只有 clean 和 report 被手动跑过，`sparkjury-evalset`（要现写临时 TOML 再 `run --config`，最容易坏）从来没被执行过。
+
+**第三件，产出 Skill 到本地模型的路由表。** 口径按节点上常驻的这几个本地模型定：请求路由到某个本地模型角色时，该用哪个 Skill。表要落到 `skills/README.md`，不能只存在于讨论里。
+
+| 本地端点 | 模型 | 在流水线里的角色 | 路由到哪个 Skill | 触发条件 | 端点不可达时 |
+|---|---|---|---|---|---|
+| 127.0.0.1:8001 | Qwen/Qwen3-30B-A3B-Instruct-2507-FP8 | judge_a，三裁判之一；Jev 不可达时的本地仲裁者；τ²-bench 的模拟用户 | sparkjury-score | SCORE 与 ARBITRATE 阶段 | 健康检查 3 秒不通过换成 mock 裁判，manifest 标 degraded |
+| 127.0.0.1:8002 | nvidia/Nemotron-3.5-Lightning-30B-A3B-NVFP4 | judge_b，三裁判之一，第二个家族 | sparkjury-score | SCORE 阶段 | 同上，换 mock 并标 degraded |
+| 127.0.0.1:8003 | Qwen/Qwen3-Embedding-0.6B | 聚类用的向量化服务 | sparkjury-cluster | CLUSTER 阶段有 badcase 时 | 自动换零依赖哈希向量 |
+| 127.0.0.1:8004 | Qwen/Qwen3-8B | 被评 Agent，被评测的对象 | 不路由 Skill；它跑 τ²-bench 产生的轨迹是 sparkjury-clean 的输入 | 跑 τ²-bench 时 | 这一轮数据作废，不进流水线 |
+
+不在本地清单里的两个：judge_c 走 StepFun 云 API，Jev 走 TypeSafe 云 API。两者没 key 时分别是换成 mock 裁判和退回本地仲裁，都会写进 manifest 的 `degradations`。
+
+**交付验收**
+
+- `uv run python scripts/validate_skills.py` 六个全过。
+- 六个 Skill 的端到端用例全绿，不再是只跑 `--help`。
+- 路由表覆盖上表每一个本地端点，每行都能说出为什么是那个 Skill。
+- OMS 签名在提交前由他执行（`scripts/sign_skills.sh`，需要团队证书）。
+
+**不归他**：CLI 子命令、评测内核、存储层、编排器、部署脚本。**依赖**：李滨辉提供 CLI 与全部底层接口。
+
+**验收人**：陈人瑜（使用者视角，照着 SKILL.md 能不能把命令跑出来；口径见 `docs/TEAM.md` 第 2 轮 B 组）
+
+---
+
+## 分工口径：真实场景与判定规则（徐千富、陈人瑜，2026-09-27）
+
+上一节收窄了 Skill 库的追责范围，这一节把"实用性 25%"那条证据落到人头上。评分表 `docs/ARCHITECTURE.md:402` 和 `docs/SUBMISSION_CHECKLIST.md:33` 的同一行写的是"千富真实场景做故事"，但仓库里这句话现在只有两个落点：`README.md:15` 的"我们自己的两家公司也是这样：一家 11 个营销场景的 badcase 全靠产品经理人肉翻记录，另一家 80 人产研没有一个评测岗"，和 `docs/ESSAY_十日谈.md:11` 的"营销 Skill 路由（有真数据，但脱敏是坑）"。两处都是一句带过。
+
+架构图里承诺得比这更远：`docs/ARCHITECTURE.md:71` 的输入层画了三条进来的路，除了 τ²-bench 轨迹和 OTel trace，第三条写的就是"千富脱敏 trace"，接进 Ingest（M1）。文档层面已经承诺这份数据会进流水线，但 `data/` 目录下至今只有 `data/samples/otel_sample.json` 和 `data/samples/tau2_retail_sample.json` 两个样本，真实数据一条没有。
+
+所以这一块交给两个人合担，交付三样。内部偏重按 README 的分工走：千富偏数据与故事，人瑜偏定位与判据规则。
+
+**一、场景的数据**
+
+定清楚数据从哪来、什么形态、怎么脱敏、能公开到什么程度。要回答四个问题：真实 trace 从哪套系统导出、导出成什么格式（是否直接对齐 M1 的 Trace 模型，还是需要写一层转换）、脱敏做到什么粒度（用户标识、手机号、订单号、商品名分别怎么处理）、哪一部分能进仓库哪一部分只能留在本地。脱敏后的样本要落到 `data/` 下，格式跟 `data/samples/tau2_retail_sample.json` 对齐，让 M1 的 ingest 能直接吃进去，架构图那条线才算真的通了。原始数据不必进仓库，但脱敏规则和样例形态要写下来。
+
+**二、定好"什么是好"的规则**
+
+这条是这一节里最要紧的。项目里"好"的定义现在只存在于公开 benchmark 上有金标的那一套：`src/sparkjury/judges/rubrics/` 四份 rubric 各写了一份 0 到 4 分的量表，以 `src/sparkjury/judges/rubrics/outcome.md` 为例，4 分是目标完全达成、最终状态正确，3 分是达成但有小遗漏且不影响最终状态，2 分是部分达成，1 分是没达成但做了合理尝试，0 分是没达成或做了与要求相反的事，3 到 4 分记 pass，0 到 2 分记 fail。
+
+这套量表能成立，靠的是它自己写明了的那个前提——原文是 the gold-standard outcome computed by the benchmark (a database comparison after the conversation)，也就是 τ²-bench 跑完对话后比对数据库得到的标准答案，而且它用了 "when present" 限定自己。
+
+真实营销场景没有这个金标库。用户说"把这个活动文案改一改"，什么算改好了，数据库比对不出来，只能人来定。所以第二个交付是把"什么是好"在真实场景里补出来：这类任务的成功判据是什么、谁来判、判的时候看哪些证据、哪些判据是硬规则（比如不能碰价格、不能承诺库存）哪些可以商量。这份规则要跟现有四个维度对得上——outcome、tool_use、efficiency、safety 在营销场景里分别对应什么，对不上的地方直接写对不上，不要硬套。
+
+**三、故事**
+
+把两家公司从一句话扩成可以展示的素材：场景是什么、Agent 在干什么、badcase 长什么样、产品经理现在怎么发现问题、用 SparkJury 之后省掉哪一步。素材要能直接喂给 `docs/VIDEO_SCRIPT.md` 和 `docs/ESSAY_十日谈.md`，不是另写一份放着。
+
+**交付验收**
+
+- `data/` 下至少一份脱敏后的真实 trace 样本，能被 `sparkjury ingest` 读进去。
+- 脱敏规则成文，写清哪些字段怎么处理、什么数据不出本地。
+- "什么是好"的规则文档成文，覆盖真实场景的成功判据，并说明与现有四维 rubric 的对应和缺口。
+- 故事素材能被视频脚本和征文直接引用。
+
+**不归他**：Trace 数据模型与 ingest 适配器的实现（归李滨辉），rubric 的机器可读部分与打分内核（在 CLI 里，归李滨辉）。
+
+**依赖**：李滨辉提供 ingest 接口与 Trace 模型定义；真实环境里的运行记录由他们自己在业务侧取。
+
+**验收人**：卢万凌（懂评测口径，也要拿这些数据跑自己的 Skill；口径见 `docs/TEAM.md` 第 2 轮 A 组）
