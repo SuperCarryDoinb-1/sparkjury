@@ -1,4 +1,4 @@
-"""Guard rails so the repo stays usable on Windows and macOS alike."""
+"""仓库约定守卫：跨平台、跨工具，以及那些会悄悄过期的东西。"""
 
 import os
 import py_compile
@@ -136,3 +136,32 @@ def test_skill_mirrors_stay_in_sync():
             body = _without_notice(f.read_text(encoding="utf-8"))
             copy = _without_notice(mirror.read_text(encoding="utf-8"))
             assert body == copy, f"镜像与正文不一致，两边要一起改：{f.relative_to(ROOT)}"
+
+
+# 上手提示词里点名的入口，改名或搬走之后这里会先红，而不是等新人撞墙
+ONBOARDING_PATHS = [
+    "AGENTS.md",
+    "scripts/worktree.sh",
+    "scripts/node.py",
+    "deploy/dgx/node.env.example",
+    ".githooks",
+    ".github/pull_request_template.md",
+    ".agents/skills/sj-worktree/SKILL.md",
+    ".agents/skills/sj-push-and-deploy/SKILL.md",
+    "docs/ARCHITECTURE.md",
+    "docs/MODULES.md",
+    "docs/ABLATION.md",
+    "deploy/README.md",
+]
+
+
+def test_onboarding_paths_are_not_stale():
+    """给新人的上手提示词里点名的入口必须真实存在。
+
+    它只在有人新加入时才会被打开，也正好是那时候最不能出错——第一步就撞墙是最坏的首印象。
+    """
+    text = (ROOT / "docs" / "ONBOARDING.md").read_text(encoding="utf-8")
+    for required in ("AGENTS.md", "scripts/worktree.sh", "scripts/node.py"):
+        assert required in text, f"ONBOARDING.md 漏了 {required}"
+    missing = [p for p in ONBOARDING_PATHS if p in text and not (ROOT / p).exists()]
+    assert missing == [], f"ONBOARDING.md 指向了不存在的路径：{missing}"

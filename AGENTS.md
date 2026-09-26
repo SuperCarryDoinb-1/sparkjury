@@ -17,6 +17,8 @@ git config core.hooksPath .githooks # 每人配一次，提交门禁才会生效
 cp deploy/dgx/node.env.example deploy/dgx/node.env   # 填节点密码，找队里要
 ```
 
+给新组员的、可以直接丢给他们 Agent 的上手提示词在 `docs/ONBOARDING.md`；下面这些规矩它就是摘要。
+
 开工前这三条要能跑通：`uv run pytest` 全绿、`uv run sparkjury run --demo` 两秒出结果（离线 mock 裁判，不碰节点）、`uv run --group ops python scripts/node.py check` 能看到节点状态。
 
 ## 硬性规则：每一次主动提 PR，都要在节点上部署一次
