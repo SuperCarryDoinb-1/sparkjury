@@ -156,12 +156,17 @@ ONBOARDING_PATHS = [
 
 
 def test_onboarding_paths_are_not_stale():
-    """给新人的上手提示词里点名的入口必须真实存在。
+    """上手提示词和它指向的契约文件里点名的入口必须真实存在。
 
-    它只在有人新加入时才会被打开，也正好是那时候最不能出错——第一步就撞墙是最坏的首印象。
+    提示词只有一句话，新人第一次打开它时也正是最不能出错的时候——第一步就撞墙是最坏的首印象。
     """
-    text = (ROOT / "docs" / "ONBOARDING.md").read_text(encoding="utf-8")
-    for required in ("AGENTS.md", "scripts/worktree.sh", "scripts/node.py"):
-        assert required in text, f"ONBOARDING.md 漏了 {required}"
-    missing = [p for p in ONBOARDING_PATHS if p in text and not (ROOT / p).exists()]
-    assert missing == [], f"ONBOARDING.md 指向了不存在的路径：{missing}"
+    onboarding = (ROOT / "docs" / "ONBOARDING.md").read_text(encoding="utf-8")
+    contract = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    assert "AGENTS.md" in onboarding, "上手提示词没有指向 AGENTS.md"
+    assert "github.com/VioletScar-Hui/sparkjury" in onboarding, "上手提示词没给仓库地址"
+    # 提示词把细节都交给 AGENTS.md，所以那两个入口得由契约文件点名
+    for required in ("scripts/worktree.sh", "scripts/node.py"):
+        assert required in contract, f"AGENTS.md 漏了 {required}"
+    named = [p for p in ONBOARDING_PATHS if p in onboarding or p in contract]
+    missing = sorted({p for p in named if not (ROOT / p).exists()})
+    assert missing == [], f"点到了不存在的路径：{missing}"
