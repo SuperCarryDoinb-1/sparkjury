@@ -10,7 +10,11 @@ POLICY="$(ls "$TAU2_HOME"/data/tau2/domains/retail/policy*.md 2>/dev/null | head
 BACKUP="$POLICY.sparkjury.orig"
 MARK="<!-- sparkjury-fix-v1 -->"
 
-FIX=$(cat <<'EOF'
+# read -d '' reads to EOF and returns non-zero, hence `|| true`. Do not go back to FIX=$(cat <<'EOF' ...):
+# bash 3.2 (the one macOS ships) cannot parse a single quote inside $( ), and rule 1 below contains "user's".
+# IFS= stops read from eating the leading blank line, the next line drops the trailing newline $( ) would drop,
+# so the appended block stays byte-identical to what the old construct produced.
+IFS= read -r -d '' FIX <<'EOF' || true
 
 <!-- sparkjury-fix-v1 -->
 ## Mandatory operating rules (added after SparkJury evidence card, fix v1)
@@ -26,7 +30,7 @@ identity verification, and destructive actions without explicit confirmation.
 3. Before every data-changing call, state in one sentence exactly what you will change and wait for the user to
    answer "yes". Only proceed on an explicit yes; anything else is not consent.
 EOF
-)
+FIX="${FIX%$'\n'}"
 
 case "${1:-show}" in
   apply)
