@@ -1,3 +1,4 @@
+import os
 import re
 import shutil
 import subprocess
@@ -51,11 +52,41 @@ def test_deploy_files_exist():
     assert (DGX / "env.example").exists() and (ROOT / "deploy" / "README.md").exists()
 
 
-@pytest.mark.skipif(shutil.which("bash") is None, reason="bash not available")
+def _usable_bash():
+    """找一个真能跑的 bash，找不到返回 None。
+
+    Windows 上 `shutil.which("bash")` 找到的往往是 C:\\Windows\\System32\\bash.exe——那是 WSL 的
+    启动桩，机器没装 WSL 时它只会吐一句「要装 WSL」（UTF-16，别指望 stderr 里有）并以非 0 退出。
+    GitHub 的 windows runner 就是这样：bash -n 全线报错，看着像仓库脚本有语法问题，其实是找错了 bash。
+    所以这里真跑一句再认。
+    """
+    candidates = [shutil.which("bash")]
+    if os.name == "nt":
+        candidates += [
+            r"C:\Program Files\Git\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\bin\bash.exe",
+            os.path.expandvars(r"%LOCALAPPDATA%\Programs\Git\bin\bash.exe"),
+        ]
+    for exe in candidates:
+        if not exe or not Path(exe).exists():
+            continue
+        try:
+            probe = subprocess.run([exe, "-c", "echo sparkjury-bash-ok"], capture_output=True, text=True, timeout=60)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if probe.returncode == 0 and "sparkjury-bash-ok" in probe.stdout:
+            return exe
+    return None
+
+
+BASH = _usable_bash()
+
+
+@pytest.mark.skipif(BASH is None, reason="没有可用的 bash（Windows 上常见：只有 WSL 启动桩、没装 Git Bash）")
 @pytest.mark.parametrize("script", [s for s in SCRIPTS if s != "common.sh"])
 def test_scripts_pass_bash_syntax_check(script):
-    r = subprocess.run(["bash", "-n", str(DGX / script)], capture_output=True, text=True)
-    assert r.returncode == 0, r.stderr
+    r = subprocess.run([BASH, "-n", str(DGX / script)], capture_output=True, text=True)
+    assert r.returncode == 0, f"{script} 语法检查没过：rc={r.returncode}\nstdout:\n{r.stdout}\nstderr:\n{r.stderr}"
 
 
 def test_env_example_covers_what_scripts_use():
