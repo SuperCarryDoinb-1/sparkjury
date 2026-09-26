@@ -1,5 +1,7 @@
 # SparkJury
 
+[![tests](https://github.com/VioletScar-Hui/sparkjury/actions/workflows/tests.yml/badge.svg)](https://github.com/VioletScar-Hui/sparkjury/actions/workflows/tests.yml)
+
 **一台 DGX Spark，顶一个评测组。** 给别人的 Agent 做体检的 Agent：读入 trace，本地三家模型打分，分歧交云端 Jev 仲裁，badcase 聚类排优先级，出一张证据卡片让人拍板，改完自动回归对比 pass^3。
 
 第三届 NVIDIA DGX Spark 黑客松 · Agent Skills 开发挑战赛 参赛作品
