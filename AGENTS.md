@@ -6,6 +6,19 @@
 
 SparkJury 是给别人的 Agent 做体检的评测 Agent：读入 trace，本地三家模型打分，分歧交云端 Jev 仲裁，badcase 聚类排优先级，出证据卡片让人拍板，改完自动回归对比 pass^3。它跑在团队 80 号 DGX Spark 节点上。节点部署说明见 `deploy/README.md`，不依赖系统 ssh/scp 的连节点小工具是 `scripts/node.py`。
 
+## 第一次上手
+
+队友都在自己的机器上从 GitHub 克隆这个仓库，改完推分支开 PR。节点那台机器只当部署目标用：它连不上 GitHub，代码是 `scripts/node.py sync` 走 SSH 推过去的。
+
+```bash
+git clone https://github.com/VioletScar-Hui/sparkjury && cd sparkjury
+uv sync --group ops                 # ops 组里有连节点用的 paramiko
+git config core.hooksPath .githooks # 每人配一次，提交门禁才会生效
+cp deploy/dgx/node.env.example deploy/dgx/node.env   # 填节点密码，找队里要
+```
+
+开工前这三条要能跑通：`uv run pytest` 全绿、`uv run sparkjury run --demo` 两秒出结果（离线 mock 裁判，不碰节点）、`uv run --group ops python scripts/node.py check` 能看到节点状态。
+
 ## 硬性规则：每一次主动提 PR，都要在节点上部署一次
 
 你每开一个 PR（修 bug、加模块、改脚本、改部署都算），不要停在 `git push`。提交之后接着做一件事：连上那台 DGX Spark 节点，把这次改动同步过去、部署起来、跑一次确认它真的能跑，然后把结果写进 PR 描述。这是本仓库对 Agent 最硬的一条要求。
