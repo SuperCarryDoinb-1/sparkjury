@@ -146,6 +146,8 @@ DGX Spark 节点上，同一份样本换成真实裁判（Qwen3-30B-A3B-FP8 + Ne
 
 τ²-bench retail 30 任务 x 3 次的完整跑数：进行中，数字待补。
 
+节点的两个云端 key 拿不到时，第三裁判会退化成 mock、分歧仲裁退化成本地裁判。那一轮不当废数据扔掉，而是当消融实验的对照组，和另外三条臂并列比较，见 `docs/ABLATION.md`。
+
 ## Failure Recovery
 
 | 故障 | 行为 |

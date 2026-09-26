@@ -17,3 +17,7 @@ run/
 deploy/panel_local2.toml
 .synced-from
 .worktrees/
+
+# 消融实验的臂配置是生成出来的（scripts/ablation.py configs），不提交
+# 提交了会在基线配置改动后悄悄过期，那正是 tests/test_ablation.py 想拦的事
+deploy/ablation/
