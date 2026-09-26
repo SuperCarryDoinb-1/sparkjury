@@ -55,10 +55,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _run(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
-    """跑一条外部命令。COLUMNS 拉大是为了让 rich 表格不折行，好按单元格取数。"""
+    """跑一条外部命令。
+
+    COLUMNS 拉大是为了让 rich 表格不折行，好按单元格取数。
+    解码固定用 UTF-8 且 errors="replace"：子进程在 Windows 上可能按 cp1252 输出，
+    固定 locale 解码会在读日志时炸掉，而这里要断言的子串全是 ASCII，替换掉个别字符不影响判断。
+    """
     env = dict(os.environ)
     env["COLUMNS"] = "500"
-    return subprocess.run(cmd, cwd=cwd or ROOT, capture_output=True, text=True, env=env)
+    return subprocess.run(cmd, cwd=cwd or ROOT, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", env=env)
 
 
 def _cli(*args: str) -> list[str]:
@@ -69,6 +75,25 @@ def _cli(*args: str) -> list[str]:
 
 def _read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
+
+
+def _force_utf8_stdout() -> None:
+    """把 stdout/stderr 切到 UTF-8，否则 Windows 控制台会直接崩。
+
+    Windows 上 Python 默认按控制台的 cp1252/GBK 编码输出，print 中文字符会抛
+    UnicodeEncodeError: 'charmap' codec can't encode characters——证书的条目名全是中文，
+    一进 CI 的 windows-latest 就死在这里（这个仓库在 CLI 输出上踩过同一个坑，
+    见 docs/ESSAY_十日谈.md 末尾那条教训）。
+
+    与其把条目名改成英文来绕开，不如把输出流切到 UTF-8：reconfigure 是 3.7+ 的标准做法，
+    万一某个环境不支持，就退化成 replace，宁可有个别字符显示成问号，也不能让证书因为
+    编码问题报一个和内容无关的错。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
 
 
 def _cell(table: str, label: str) -> str:
@@ -469,6 +494,7 @@ def check_wrappers() -> list[Result]:
 
 
 def main(argv: list[str]) -> int:
+    _force_utf8_stdout()
     ap = argparse.ArgumentParser(description="交付验收证书：文档声称 vs 实测")
     ap.add_argument("--fast", action="store_true", help="只查文档与结构，不跑端到端流水线")
     ap.add_argument("--json", action="store_true", help="输出机器可读结果")
