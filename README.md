@@ -198,6 +198,12 @@ Cockpit（DGX 节点实机，公网端口，令牌保护）：
 
 ![card](docs/img/card.png)
 
+Inspector 三块视图（本机 demo run，1920x1080）：三位裁判理由并排、簇明细下钻、两次 run 的回归对比。
+
+![verdicts](docs/img/cockpit_verdicts.png)
+![clusters](docs/img/cockpit_clusters.png)
+![regress](docs/img/cockpit_regress.png)
+
 ## Limitations
 
 - **不承诺根因**。前沿模型在 trace 里定位出错步骤的准确率只有 5% 到 25%（TRAIL、Who&When 两篇论文），我们只给聚类、优先级和证据，人来判断。卡片上印着免责声明。
