@@ -12,7 +12,7 @@ SparkJury 是给别人的 Agent 做体检的评测 Agent：读入 trace，本地
 
 原因是节点才是真实环境。它是 aarch64 加 CUDA 13，内存和显存是统一的一整块，上面常驻五个 vLLM 端点和两个云端依赖，还可能有队友的 τ²-bench 在跑。笔记本上 pytest 全绿只说明代码逻辑没坏，不代表节点上起得来。之前踩过的坑就属于这一类：bf16 的 Qwen3-30B 和 Nemotron 同时起，会把内核 OOM killer 招来，整个 tmux 会话被端掉。
 
-完整步骤（拿写权限、推分支、看节点、按需部署、冒烟验证、常见卡点）在 `.agents/skills/push-and-deploy/SKILL.md`，你的 Agent 会自动加载它。自己手动做的话，核心是一条命令：
+完整步骤（拿写权限、推分支、看节点、按需部署、冒烟验证、常见卡点）在 `.agents/skills/sj-push-and-deploy/SKILL.md`，你的 Agent 会自动加载它。自己手动做的话，核心是一条命令：
 
 ```bash
 uv run --group ops python scripts/node.py check
@@ -69,6 +69,31 @@ ssh ... 'cd ~/sparkjury && bash deploy/dgx/status.sh'
 一是别覆盖别人的工作树。`scripts/node.py sync` 永远解压到 `~/sparkjury`，两个人同时 sync 就是互相覆盖，正在跑的长任务会读到半新半旧的代码。所以动手前先看清楚：`tmux ls` 和 `bash deploy/dgx/status.sh` 各看一眼，确认主树上没有别人在跑东西。要做自己的实验，就把树复制一份再改，比如 `cp -r ~/sparkjury ~/sparkjury-<你的名字>`，在自己的副本里折腾。
 
 二是排队用 GPU。五个 vLLM 端点已经占掉约 92GB 显存，一轮 τ²-bench 三十个任务要跑七个小时左右，两个一起跑只会互相拖死。跑长任务之前在队里说一声，让人知道这块卡什么时候空出来。
+
+## 工作区隔离：开工先开 worktree
+
+主工作区可能停在任意分支、任意脏状态，也可能正被别的任务用着。所以每一项改动都从 `origin/main` 拿一份干净的工作区，不要在「碰巧打开的那个工作区」上直接改。
+
+```bash
+bash scripts/worktree.sh new fix/tau2-timeout    # 取 origin/main、建分支、落在 .worktrees/、装依赖、复制凭据
+cd .worktrees/fix-tau2-timeout
+```
+
+四条规矩。主工作区永远不作为改动或构建来源，禁止对它 `reset`、`stash`、`clean`、`checkout`、`switch`、`pull` 或者覆盖它的文件。依赖在 worktree 内装，不要把主工作区的 `.venv` 软链进去，那会让「干净工作区」名不副实。收尾即释放，`bash scripts/worktree.sh done <名字>`；失败、回滚或需要人工排查时用 `--keep` 保留现场，并把绝对路径和原因写进报告。每一轮都要交代「已释放 / 保留（原因）」，静默留下的临时工作区就是这么堆积起来的。
+
+在 worktree 里跑 `scripts/node.py` 的 `check` 和 `sync` 时，推给节点的是这个 worktree 的代码，不会碰主工作区。
+
+## 提交规范与门禁
+
+每人配置一次钩子：
+
+```bash
+git config core.hooksPath .githooks
+```
+
+`pre-commit` 拦三类问题：不该进仓库的路径（`.env`、`node.env`、`runs/`、`logs/`、`*.db`、`.worktrees/`）、明文密钥、暂存文件里的语法错误（`.py` 编译、`.sh` 跑 `bash -n`）。`commit-msg` 要求提交信息首行是真的描述，`wip`、`fix`、`update` 这类会被拒，本仓统一用中文写清改了什么、为什么。
+
+验证按风险相称，不要一律全仓：改一个模块就跑对应测试，碰了共享契约、部署脚本或入口才跑全套。确有理由绕过钩子时用 `--no-verify`，并在提交信息里写明理由。完整流程在 `.agents/skills/sj-worktree/SKILL.md`。
 
 ## 红线（来自节点使用手册，违反会影响全队）
 

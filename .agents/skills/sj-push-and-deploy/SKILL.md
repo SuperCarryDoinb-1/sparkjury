@@ -1,10 +1,8 @@
 ---
-name: push-and-deploy
+name: sj-push-and-deploy
 description: 把改动提交推送到 VioletScar-Hui/sparkjury，并检查团队 DGX Spark 节点当前在跑什么、这次改动要不要部署上去。当你要在这个项目里提交代码、推分支、开 PR，或者想知道节点状态和要不要重新部署时使用。
 whenToUse: 用户说提交、推送、开 PR、部署到节点、看看节点在跑什么，或者你刚改完代码准备交付时。
 ---
-
-> 这一份和 `.agents/skills/push-and-deploy/SKILL.md` 内容相同，改的时候两边一起改。
 
 # 推送到远端 + 按需部署到节点
 

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# 提交信息门禁：首行要能说清改了什么。启用方式：git config core.hooksPath .githooks
+set -euo pipefail
+
+msg_file="${1:?缺少 commit message 文件参数}"
+first="$(grep -vE '^[[:space:]]*#' "$msg_file" | grep -vE '^[[:space:]]*$' | head -1 | sed 's/[[:space:]]*$//')"
+
+if [[ -z "$first" ]]; then
+  echo "commit-msg：提交信息为空。" >&2
+  exit 1
+fi
+
+case "$first" in
+  wip|WIP|update|Update|fix|Fix|fixup|temp|tmp|test|Test|.|..|...)
+    echo "commit-msg：提交信息太笼统（${first}）。用中文写清改了什么、为什么，例如「修 macOS 上 apply_prompt_fix.sh 的解析错误」。" >&2
+    exit 1
+    ;;
+esac
+
+if (( ${#first} < 8 )); then
+  echo "commit-msg：提交信息首行只有 ${#first} 个字，说不清这轮改了什么：$first" >&2
+  exit 1
+fi

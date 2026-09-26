@@ -26,7 +26,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ENV_FILE = ROOT / "deploy" / "dgx" / "node.env"
 EXCLUDE = {".venv", ".venv-vllm", ".venv-tau2", "runs", "logs", "__pycache__", ".pytest_cache", ".git", "dist",
-           ".env", "node.env"}  # .env 与 node.env 绝不进 tar：sync 会覆盖节点上那份，把队里的 key 冲掉
+           ".env", "node.env", ".worktrees"}  # .env 与 node.env 绝不进 tar：sync 会覆盖节点上那份，把队里的 key 冲掉
+# .worktrees 也要排除，否则从主工作区 sync 会把所有 worktree 副本一起打包推给节点。
 PORT_NAMES = {"8001": "judge_a", "8002": "judge_b", "8003": "embed", "8004": "agent"}
 LONG_TASK_HINTS = ("tau2", "loop")
 

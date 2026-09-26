@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# 提交前门禁：路径、密钥、语法。启用方式：git config core.hooksPath .githooks
+# 细则见 AGENTS.md「提交规范与门禁」一节。绕过用 git commit --no-verify，并在提交信息里说明理由。
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+exec python3 "$root/scripts/check_staged.py"
