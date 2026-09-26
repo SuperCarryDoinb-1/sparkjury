@@ -40,7 +40,7 @@ ssh ... 'cd ~/sparkjury && bash deploy/dgx/status.sh'
 
 第四步，冒烟验证，至少跑这三样。
 
-- `uv run pytest`：通过的用例数，有没有失败。节点上装了 tau2 的虚拟环境，跑之前留意别把 `.venv-tau2` 里第三方包的文本文件当成仓库文件来扫。
+- `~/.local/bin/uv run pytest`：通过的用例数，有没有失败。节点上的 uv 装在 `~/.local/bin/uv`，非登录 shell 里不在 PATH 上，所以要么写全路径，要么用 `bash -lc '...'` 包一层。另外节点上还有 tau2 的虚拟环境，跑之前留意别把 `.venv-tau2` 里第三方包的文本文件当成仓库文件来扫。
 - `bash deploy/dgx/status.sh`：四个 vLLM 端点和 API 是不是都 up，监听地址是不是 127.0.0.1（只有 API 的 9000 允许绑 0.0.0.0）。
 - 一条真实 run：`uv run sparkjury run --config deploy/run.toml`，跑完打开 `runs/<run_id>/manifest.json` 看 `degradations` 和 `status`。只想确认链路通不通，用 `uv run sparkjury run --demo` 就够了，离线 mock 裁判两秒跑完。
 
@@ -53,6 +53,14 @@ ssh ... 'cd ~/sparkjury && bash deploy/dgx/status.sh'
 ### PR 的完成定义
 
 代码改完、本地测试通过、节点部署并冒烟通过、结果贴进 PR 描述，四样齐了才算完成。缺任何一样都别标 ready for review。
+
+## 多人共用一台节点
+
+节点只有一个 SSH 账号，所有队友都用它，`~/sparkjury` 也是大家共用的同一棵工作树，而 `loop`、`tau2full` 这些无人值守任务就跑在这棵树上。这意味着两件必须小心的事。
+
+一是别覆盖别人的工作树。`scripts/node.py sync` 永远解压到 `~/sparkjury`，两个人同时 sync 就是互相覆盖，正在跑的长任务会读到半新半旧的代码。所以动手前先看清楚：`tmux ls` 和 `bash deploy/dgx/status.sh` 各看一眼，确认主树上没有别人在跑东西。要做自己的实验，就把树复制一份再改，比如 `cp -r ~/sparkjury ~/sparkjury-<你的名字>`，在自己的副本里折腾。
+
+二是排队用 GPU。五个 vLLM 端点已经占掉约 92GB 显存，一轮 τ²-bench 三十个任务要跑七个小时左右，两个一起跑只会互相拖死。跑长任务之前在队里说一声，让人知道这块卡什么时候空出来。
 
 ## 红线（来自节点使用手册，违反会影响全队）
 
