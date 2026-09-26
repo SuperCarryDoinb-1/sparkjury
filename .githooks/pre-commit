@@ -1,7 +1,20 @@
 #!/usr/bin/env bash
-# 提交前门禁：路径、密钥、语法。启用方式：git config core.hooksPath .githooks
+# 提交前门禁：路径、密钥、语法，以及文档声称与实际是否还对得上。
+# 启用方式：git config core.hooksPath .githooks
 # 细则见 AGENTS.md「提交规范与门禁」一节。绕过用 git commit --no-verify，并在提交信息里说明理由。
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"
-exec python3 "$root/scripts/check_staged.py"
+python3 "$root/scripts/check_staged.py" || exit 1
+
+# 交付验收证书（快档）：核对文档里的测试数、目录树、路由表这些便宜且会悄悄过期的事实。
+# 快档只做 pytest --collect-only，不执行测试、也不跑端到端流水线——按 AGENTS.md
+# 「验证按风险相称」，全套留给 CI 的全档。证书本身在 scripts/certificate.py 有完整说明。
+# 证书需要一个装了 pytest 的解释器：优先用仓库自己的 .venv，其次 uv run。
+if [ -x "$root/.venv/bin/python" ]; then
+  "$root/.venv/bin/python" "$root/scripts/certificate.py" --fast || exit 1
+elif command -v uv >/dev/null 2>&1; then
+  uv run --project "$root" python "$root/scripts/certificate.py" --fast || exit 1
+else
+  echo "pre-commit: 没有 .venv 也没有 uv，跳过证书快档（CI 会跑全档）" >&2
+fi

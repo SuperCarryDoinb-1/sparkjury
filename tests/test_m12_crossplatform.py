@@ -47,7 +47,7 @@ def test_docs_have_no_windows_only_commands():
 
 
 def test_helper_scripts_compile_and_use_no_shell_specific_calls():
-    for name in ("node.py", "screenshot.py", "validate_skills.py", "gen_skills.py", "make_samples.py"):
+    for name in ("node.py", "screenshot.py", "validate_skills.py", "gen_skills.py", "make_samples.py", "certificate.py"):
         p = ROOT / "scripts" / name
         py_compile.compile(str(p), doraise=True)
         src = p.read_text(encoding="utf-8")
@@ -165,3 +165,16 @@ def test_onboarding_paths_are_not_stale():
         assert required in text, f"ONBOARDING.md 漏了 {required}"
     missing = [p for p in ONBOARDING_PATHS if p in text and not (ROOT / p).exists()]
     assert missing == [], f"ONBOARDING.md 指向了不存在的路径：{missing}"
+
+
+def test_certificate_is_wired_into_the_gates():
+    """证书必须真的被门禁调用，否则它只是一份没人跑、会过期的报告。
+
+    一条规矩写进文档只是「请求」，挂到钩子和 CI 上才是「强制」。这条测试盯着两处接线：
+    pre-commit 跑快档（不执行测试，几秒回来），CI 跑全档（含端到端流水线与六个技能封装）。
+    """
+    pre = (ROOT / ".githooks" / "pre-commit").read_text(encoding="utf-8")
+    ci = (ROOT / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
+    assert "certificate.py" in pre, "pre-commit 没有跑 scripts/certificate.py"
+    assert "certificate.py" in ci, "CI 没有跑 scripts/certificate.py"
+    assert "--fast" in pre, "pre-commit 该跑证书快档，全档交给 CI"

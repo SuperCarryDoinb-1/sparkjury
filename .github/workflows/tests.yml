@@ -35,3 +35,9 @@ jobs:
 
       - name: 跑测试
         run: uv run pytest -q
+
+      # 交付验收证书：把 docs/ 里的声称（测试数、目录树、API 路由表、端到端各阶段的数字、
+      # 六个技能封装能不能真跑）逐条和实测比一遍。放在这个 job 里而不是新开一个，是为了
+      # 借已有的三个必过检查当门禁——新开的 job 默认不是 required，红绿灯会被人忽略。
+      - name: 交付验收证书
+        run: uv run python scripts/certificate.py
