@@ -1,0 +1,2085 @@
+{
+  "timestamp": "2026-09-25T10:00:00",
+  "info": {
+    "git_commit": "sample",
+    "num_trials": 3,
+    "max_steps": 100,
+    "max_errors": 3,
+    "user_info": {
+      "implementation": "user_simulator",
+      "llm": "openai/qwen3-30b-a3b"
+    },
+    "agent_info": {
+      "implementation": "llm_agent",
+      "llm": "openai/qwen3-8b"
+    },
+    "environment_info": {
+      "domain_name": "retail",
+      "policy": "retail policy v1"
+    },
+    "seed": 300
+  },
+  "tasks": [
+    {
+      "id": "retail_task_001",
+      "description": {
+        "purpose": "sample"
+      }
+    },
+    {
+      "id": "retail_task_002",
+      "description": {
+        "purpose": "sample"
+      }
+    },
+    {
+      "id": "retail_task_003",
+      "description": {
+        "purpose": "sample"
+      }
+    },
+    {
+      "id": "retail_task_004",
+      "description": {
+        "purpose": "sample"
+      }
+    }
+  ],
+  "simulations": [
+    {
+      "id": "retail_task_001-t0",
+      "task_id": "retail_task_001",
+      "timestamp": "2026-09-25T10:00:00",
+      "start_time": "2026-09-25T10:00:00",
+      "end_time": "2026-09-25T10:02:00",
+      "duration": 41.2,
+      "termination_reason": "user_stop",
+      "agent_cost": 0.012,
+      "user_cost": 0.001,
+      "agent_usage": {
+        "prompt_tokens": 8800,
+        "completion_tokens": 1680
+      },
+      "reward_info": {
+        "reward": 1.0,
+        "db_check": {
+          "db_match": true,
+          "db_reward": 1.0
+        },
+        "reward_basis": [
+          "DB"
+        ],
+        "reward_breakdown": {
+          "DB": 1.0
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a retail customer service agent. Authenticate the user before any action. Confirm before cancelling or modifying orders.",
+          "turn_idx": 0
+        },
+        {
+          "role": "user",
+          "content": "Hi, I want to cancel my order #W2989580, I ordered the wrong size.",
+          "turn_idx": 1,
+          "timestamp": "2026-09-25T10:01:00"
+        },
+        {
+          "role": "assistant",
+          "content": "I can help with that. To verify your identity, could you share the email on the account?",
+          "tool_calls": null,
+          "turn_idx": 2,
+          "timestamp": "2026-09-25T10:02:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1660,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "It's yusuf.rossi@example.com",
+          "turn_idx": 3,
+          "timestamp": "2026-09-25T10:03:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c1",
+              "name": "find_user_id_by_email",
+              "arguments": {
+                "email": "yusuf.rossi@example.com"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1820,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c1",
+          "role": "tool",
+          "content": "yusuf_rossi_9620",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c2",
+              "name": "get_order_details",
+              "arguments": {
+                "order_id": "#W2989580"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1900,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c2",
+          "role": "tool",
+          "content": "{\"order_id\": \"#W2989580\", \"status\": \"pending\", \"items\": [{\"name\": \"Running Shoes\", \"size\": \"9\"}], \"payment\": \"credit_card_9513926\"}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Order #W2989580 is pending with Running Shoes size 9. I'll cancel it and refund to your credit card. Confirm? (yes/no)",
+          "tool_calls": null,
+          "turn_idx": 6,
+          "timestamp": "2026-09-25T10:06:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1980,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "yes",
+          "turn_idx": 7,
+          "timestamp": "2026-09-25T10:07:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c3",
+              "name": "cancel_pending_order",
+              "arguments": {
+                "order_id": "#W2989580",
+                "reason": "ordered by mistake"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 8,
+          "timestamp": "2026-09-25T10:08:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 2140,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c3",
+          "role": "tool",
+          "content": "{\"order_id\": \"#W2989580\", \"status\": \"cancelled\", \"refund\": \"5-7 business days\"}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 8,
+          "timestamp": "2026-09-25T10:08:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Done. Order #W2989580 is cancelled and the refund will arrive in 5-7 business days.",
+          "tool_calls": null,
+          "turn_idx": 9,
+          "timestamp": "2026-09-25T10:09:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 2220,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks! ###STOP###",
+          "turn_idx": 10,
+          "timestamp": "2026-09-25T10:10:00"
+        }
+      ],
+      "trial": 0,
+      "seed": 300,
+      "mode": "half_duplex"
+    },
+    {
+      "id": "retail_task_001-t1",
+      "task_id": "retail_task_001",
+      "timestamp": "2026-09-25T10:00:00",
+      "start_time": "2026-09-25T10:00:00",
+      "end_time": "2026-09-25T10:02:00",
+      "duration": 39.8,
+      "termination_reason": "user_stop",
+      "agent_cost": 0.011,
+      "user_cost": 0.001,
+      "agent_usage": {
+        "prompt_tokens": 8800,
+        "completion_tokens": 1680
+      },
+      "reward_info": {
+        "reward": 1.0,
+        "db_check": {
+          "db_match": true,
+          "db_reward": 1.0
+        },
+        "reward_basis": [
+          "DB"
+        ],
+        "reward_breakdown": {
+          "DB": 1.0
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a retail customer service agent. Authenticate the user before any action. Confirm before cancelling or modifying orders.",
+          "turn_idx": 0
+        },
+        {
+          "role": "user",
+          "content": "Hi, I want to cancel my order #W2989580, I ordered the wrong size.",
+          "turn_idx": 1,
+          "timestamp": "2026-09-25T10:01:00"
+        },
+        {
+          "role": "assistant",
+          "content": "I can help with that. To verify your identity, could you share the email on the account?",
+          "tool_calls": null,
+          "turn_idx": 2,
+          "timestamp": "2026-09-25T10:02:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1660,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "It's yusuf.rossi@example.com",
+          "turn_idx": 3,
+          "timestamp": "2026-09-25T10:03:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c1",
+              "name": "find_user_id_by_email",
+              "arguments": {
+                "email": "yusuf.rossi@example.com"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1820,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c1",
+          "role": "tool",
+          "content": "yusuf_rossi_9620",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c2",
+              "name": "get_order_details",
+              "arguments": {
+                "order_id": "#W2989580"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1900,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c2",
+          "role": "tool",
+          "content": "{\"order_id\": \"#W2989580\", \"status\": \"pending\", \"items\": [{\"name\": \"Running Shoes\", \"size\": \"9\"}], \"payment\": \"credit_card_9513926\"}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Order #W2989580 is pending with Running Shoes size 9. I'll cancel it and refund to your credit card. Confirm? (yes/no)",
+          "tool_calls": null,
+          "turn_idx": 6,
+          "timestamp": "2026-09-25T10:06:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1980,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "yes",
+          "turn_idx": 7,
+          "timestamp": "2026-09-25T10:07:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c3",
+              "name": "cancel_pending_order",
+              "arguments": {
+                "order_id": "#W2989580",
+                "reason": "ordered by mistake"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 8,
+          "timestamp": "2026-09-25T10:08:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 2140,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c3",
+          "role": "tool",
+          "content": "{\"order_id\": \"#W2989580\", \"status\": \"cancelled\", \"refund\": \"5-7 business days\"}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 8,
+          "timestamp": "2026-09-25T10:08:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Done. Order #W2989580 is cancelled and the refund will arrive in 5-7 business days.",
+          "tool_calls": null,
+          "turn_idx": 9,
+          "timestamp": "2026-09-25T10:09:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 2220,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks! ###STOP###",
+          "turn_idx": 10,
+          "timestamp": "2026-09-25T10:10:00"
+        }
+      ],
+      "trial": 1,
+      "seed": 301,
+      "mode": "half_duplex"
+    },
+    {
+      "id": "retail_task_001-t2",
+      "task_id": "retail_task_001",
+      "timestamp": "2026-09-25T10:00:00",
+      "start_time": "2026-09-25T10:00:00",
+      "end_time": "2026-09-25T10:02:00",
+      "duration": 28.1,
+      "termination_reason": "user_stop",
+      "agent_cost": 0.008,
+      "user_cost": 0.001,
+      "agent_usage": {
+        "prompt_tokens": 7200,
+        "completion_tokens": 1200
+      },
+      "reward_info": {
+        "reward": 1.0,
+        "db_check": {
+          "db_match": true,
+          "db_reward": 1.0
+        },
+        "reward_basis": [
+          "DB"
+        ],
+        "reward_breakdown": {
+          "DB": 1.0
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a retail customer service agent. Authenticate the user before any action. Confirm before cancelling or modifying orders.",
+          "turn_idx": 0
+        },
+        {
+          "role": "user",
+          "content": "Hi, I want to cancel my order #W2989580, I ordered the wrong size.",
+          "turn_idx": 1,
+          "timestamp": "2026-09-25T10:01:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Sure, let me verify your account. What's your email?",
+          "tool_calls": null,
+          "turn_idx": 2,
+          "timestamp": "2026-09-25T10:02:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1660,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "yusuf.rossi@example.com",
+          "turn_idx": 3,
+          "timestamp": "2026-09-25T10:03:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c1",
+              "name": "find_user_id_by_email",
+              "arguments": {
+                "email": "yusuf.rossi@example.com"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1820,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c1",
+          "role": "tool",
+          "content": "yusuf_rossi_9620",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c3",
+              "name": "cancel_pending_order",
+              "arguments": {
+                "order_id": "#W2989580",
+                "reason": "ordered by mistake"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1900,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c3",
+          "role": "tool",
+          "content": "{\"order_id\": \"#W2989580\", \"status\": \"cancelled\"}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Your order is cancelled.",
+          "tool_calls": null,
+          "turn_idx": 6,
+          "timestamp": "2026-09-25T10:06:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1980,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "Wait, I didn't confirm yet, but ok. ###STOP###",
+          "turn_idx": 7,
+          "timestamp": "2026-09-25T10:07:00"
+        }
+      ],
+      "trial": 2,
+      "seed": 302,
+      "mode": "half_duplex"
+    },
+    {
+      "id": "retail_task_002-t0",
+      "task_id": "retail_task_002",
+      "timestamp": "2026-09-25T10:00:00",
+      "start_time": "2026-09-25T10:00:00",
+      "end_time": "2026-09-25T10:02:00",
+      "duration": 44.0,
+      "termination_reason": "user_stop",
+      "agent_cost": 0.013,
+      "user_cost": 0.001,
+      "agent_usage": {
+        "prompt_tokens": 8800,
+        "completion_tokens": 1680
+      },
+      "reward_info": {
+        "reward": 1.0,
+        "db_check": {
+          "db_match": true,
+          "db_reward": 1.0
+        },
+        "reward_basis": [
+          "DB"
+        ],
+        "reward_breakdown": {
+          "DB": 1.0
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a retail customer service agent. Authenticate the user before any action. Confirm before cancelling or modifying orders.",
+          "turn_idx": 0
+        },
+        {
+          "role": "user",
+          "content": "Change the shipping address on order #W4817420 to 123 Main St, Seattle, WA 98101.",
+          "turn_idx": 1,
+          "timestamp": "2026-09-25T10:01:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Please provide your email so I can verify your account.",
+          "tool_calls": null,
+          "turn_idx": 2,
+          "timestamp": "2026-09-25T10:02:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1660,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "mia.garcia@example.com",
+          "turn_idx": 3,
+          "timestamp": "2026-09-25T10:03:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c1",
+              "name": "find_user_id_by_email",
+              "arguments": {
+                "email": "mia.garcia@example.com"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1820,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c1",
+          "role": "tool",
+          "content": "mia_garcia_4516",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c2",
+              "name": "get_order_details",
+              "arguments": {
+                "order_id": "#W4817420"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1900,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c2",
+          "role": "tool",
+          "content": "{\"order_id\": \"#W4817420\", \"status\": \"pending\", \"address\": {\"city\": \"Portland\"}}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Order #W4817420 is pending. I'll change its shipping address to 123 Main St, Seattle, WA 98101. Confirm?",
+          "tool_calls": null,
+          "turn_idx": 6,
+          "timestamp": "2026-09-25T10:06:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1980,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "yes",
+          "turn_idx": 7,
+          "timestamp": "2026-09-25T10:07:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c3",
+              "name": "modify_pending_order_address",
+              "arguments": {
+                "order_id": "#W4817420",
+                "address1": "123 Main St",
+                "address2": "",
+                "city": "Seattle",
+                "state": "WA",
+                "zip": "98101",
+                "country": "USA"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 8,
+          "timestamp": "2026-09-25T10:08:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 2140,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c3",
+          "role": "tool",
+          "content": "{\"order_id\": \"#W4817420\", \"address\": {\"city\": \"Seattle\"}}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 8,
+          "timestamp": "2026-09-25T10:08:00"
+        },
+        {
+          "role": "assistant",
+          "content": "The shipping address on order #W4817420 is now 123 Main St, Seattle, WA 98101.",
+          "tool_calls": null,
+          "turn_idx": 9,
+          "timestamp": "2026-09-25T10:09:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 2220,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "Great. ###STOP###",
+          "turn_idx": 10,
+          "timestamp": "2026-09-25T10:10:00"
+        }
+      ],
+      "trial": 0,
+      "seed": 300,
+      "mode": "half_duplex"
+    },
+    {
+      "id": "retail_task_002-t1",
+      "task_id": "retail_task_002",
+      "timestamp": "2026-09-25T10:00:00",
+      "start_time": "2026-09-25T10:00:00",
+      "end_time": "2026-09-25T10:02:00",
+      "duration": 52.6,
+      "termination_reason": "user_stop",
+      "agent_cost": 0.015,
+      "user_cost": 0.001,
+      "agent_usage": {
+        "prompt_tokens": 8800,
+        "completion_tokens": 1680
+      },
+      "reward_info": {
+        "reward": 0.0,
+        "db_check": {
+          "db_match": false,
+          "db_reward": 0.0
+        },
+        "reward_basis": [
+          "DB"
+        ],
+        "reward_breakdown": {
+          "DB": 0.0
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a retail customer service agent. Authenticate the user before any action. Confirm before cancelling or modifying orders.",
+          "turn_idx": 0
+        },
+        {
+          "role": "user",
+          "content": "Change the shipping address on order #W4817420 to 123 Main St, Seattle, WA 98101.",
+          "turn_idx": 1,
+          "timestamp": "2026-09-25T10:01:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Please provide your email so I can verify your account.",
+          "tool_calls": null,
+          "turn_idx": 2,
+          "timestamp": "2026-09-25T10:02:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1660,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "mia.garcia@example.com",
+          "turn_idx": 3,
+          "timestamp": "2026-09-25T10:03:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c1",
+              "name": "find_user_id_by_email",
+              "arguments": {
+                "email": "mia.garcia@example.com"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1820,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c1",
+          "role": "tool",
+          "content": "mia_garcia_4516",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c2",
+              "name": "modify_user_address",
+              "arguments": {
+                "user_id": "mia_garcia_4516",
+                "address1": "123 Main St",
+                "city": "Seattle",
+                "state": "WA",
+                "zip": "98101",
+                "country": "USA"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1900,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c2",
+          "role": "tool",
+          "content": "{\"user_id\": \"mia_garcia_4516\", \"address\": \"updated\"}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00"
+        },
+        {
+          "role": "assistant",
+          "content": "I've updated your address.",
+          "tool_calls": null,
+          "turn_idx": 6,
+          "timestamp": "2026-09-25T10:06:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1980,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "No, I meant the address on that specific order, not my profile.",
+          "turn_idx": 7,
+          "timestamp": "2026-09-25T10:07:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c3",
+              "name": "modify_user_address",
+              "arguments": {
+                "user_id": "mia_garcia_4516",
+                "address1": "123 Main St",
+                "city": "Seattle",
+                "state": "WA",
+                "zip": "98101",
+                "country": "USA"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 8,
+          "timestamp": "2026-09-25T10:08:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 2140,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c3",
+          "role": "tool",
+          "content": "{\"user_id\": \"mia_garcia_4516\", \"address\": \"updated\"}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 8,
+          "timestamp": "2026-09-25T10:08:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Your address has been updated again.",
+          "tool_calls": null,
+          "turn_idx": 9,
+          "timestamp": "2026-09-25T10:09:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 2220,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "This is not what I asked. ###STOP###",
+          "turn_idx": 10,
+          "timestamp": "2026-09-25T10:10:00"
+        }
+      ],
+      "trial": 1,
+      "seed": 301,
+      "mode": "half_duplex"
+    },
+    {
+      "id": "retail_task_002-t2",
+      "task_id": "retail_task_002",
+      "timestamp": "2026-09-25T10:00:00",
+      "start_time": "2026-09-25T10:00:00",
+      "end_time": "2026-09-25T10:02:00",
+      "duration": 61.0,
+      "termination_reason": "max_steps",
+      "agent_cost": 0.017,
+      "user_cost": 0.001,
+      "agent_usage": {
+        "prompt_tokens": 8800,
+        "completion_tokens": 1680
+      },
+      "reward_info": {
+        "reward": 0.0,
+        "db_check": {
+          "db_match": false,
+          "db_reward": 0.0
+        },
+        "reward_basis": [
+          "DB"
+        ],
+        "reward_breakdown": {
+          "DB": 0.0
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a retail customer service agent. Authenticate the user before any action. Confirm before cancelling or modifying orders.",
+          "turn_idx": 0
+        },
+        {
+          "role": "user",
+          "content": "Change the shipping address on order #W4817420 to 123 Main St, Seattle, WA 98101.",
+          "turn_idx": 1,
+          "timestamp": "2026-09-25T10:01:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Please provide your email so I can verify your account.",
+          "tool_calls": null,
+          "turn_idx": 2,
+          "timestamp": "2026-09-25T10:02:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1660,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "mia.garcia@example.com",
+          "turn_idx": 3,
+          "timestamp": "2026-09-25T10:03:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c1",
+              "name": "find_user_id_by_email",
+              "arguments": {
+                "email": "mia.garcia@example.com"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1820,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c1",
+          "role": "tool",
+          "content": "mia_garcia_4516",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c2",
+              "name": "modify_user_address",
+              "arguments": {
+                "user_id": "mia_garcia_4516",
+                "address1": "123 Main St",
+                "city": "Seattle",
+                "state": "WA",
+                "zip": "98101",
+                "country": "USA"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1900,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c2",
+          "role": "tool",
+          "content": "{\"user_id\": \"mia_garcia_4516\", \"address\": \"updated\"}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00"
+        },
+        {
+          "role": "assistant",
+          "content": "I've updated your address.",
+          "tool_calls": null,
+          "turn_idx": 6,
+          "timestamp": "2026-09-25T10:06:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1980,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "No, I meant the address on that specific order, not my profile.",
+          "turn_idx": 7,
+          "timestamp": "2026-09-25T10:07:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c3",
+              "name": "modify_user_address",
+              "arguments": {
+                "user_id": "mia_garcia_4516",
+                "address1": "123 Main St",
+                "city": "Seattle",
+                "state": "WA",
+                "zip": "98101",
+                "country": "USA"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 8,
+          "timestamp": "2026-09-25T10:08:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 2140,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c3",
+          "role": "tool",
+          "content": "{\"user_id\": \"mia_garcia_4516\", \"address\": \"updated\"}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 8,
+          "timestamp": "2026-09-25T10:08:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Your address has been updated again.",
+          "tool_calls": null,
+          "turn_idx": 9,
+          "timestamp": "2026-09-25T10:09:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 2220,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "This is not what I asked. ###STOP###",
+          "turn_idx": 10,
+          "timestamp": "2026-09-25T10:10:00"
+        }
+      ],
+      "trial": 2,
+      "seed": 302,
+      "mode": "half_duplex"
+    },
+    {
+      "id": "retail_task_003-t0",
+      "task_id": "retail_task_003",
+      "timestamp": "2026-09-25T10:00:00",
+      "start_time": "2026-09-25T10:00:00",
+      "end_time": "2026-09-25T10:02:00",
+      "duration": 40.3,
+      "termination_reason": "user_stop",
+      "agent_cost": 0.012,
+      "user_cost": 0.001,
+      "agent_usage": {
+        "prompt_tokens": 8800,
+        "completion_tokens": 1680
+      },
+      "reward_info": {
+        "reward": 1.0,
+        "db_check": {
+          "db_match": true,
+          "db_reward": 1.0
+        },
+        "reward_basis": [
+          "DB"
+        ],
+        "reward_breakdown": {
+          "DB": 1.0
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a retail customer service agent. Authenticate the user before any action. Confirm before cancelling or modifying orders.",
+          "turn_idx": 0
+        },
+        {
+          "role": "user",
+          "content": "I'd like to return the headphones from order #W6390527.",
+          "turn_idx": 1,
+          "timestamp": "2026-09-25T10:01:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Sure. What's the email on your account?",
+          "tool_calls": null,
+          "turn_idx": 2,
+          "timestamp": "2026-09-25T10:02:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1660,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "omar.khan@example.com",
+          "turn_idx": 3,
+          "timestamp": "2026-09-25T10:03:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c1",
+              "name": "find_user_id_by_email",
+              "arguments": {
+                "email": "omar.khan@example.com"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1820,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c1",
+          "role": "tool",
+          "content": "omar_khan_2363",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c2",
+              "name": "get_order_details",
+              "arguments": {
+                "order_id": "#W6390527"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1900,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c2",
+          "role": "tool",
+          "content": "{\"order_id\": \"#W6390527\", \"status\": \"delivered\", \"items\": [{\"item_id\": \"3104857380\", \"name\": \"Headphones\"}]}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Order #W6390527 is delivered. I'll create a return for the Headphones (item 3104857380), refund to original payment. Confirm?",
+          "tool_calls": null,
+          "turn_idx": 6,
+          "timestamp": "2026-09-25T10:06:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1980,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "yes",
+          "turn_idx": 7,
+          "timestamp": "2026-09-25T10:07:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c3",
+              "name": "return_delivered_order_items",
+              "arguments": {
+                "order_id": "#W6390527",
+                "item_ids": [
+                  "3104857380"
+                ],
+                "payment_method_id": "paypal_2723"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 8,
+          "timestamp": "2026-09-25T10:08:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 2140,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c3",
+          "role": "tool",
+          "content": "{\"order_id\": \"#W6390527\", \"status\": \"return requested\"}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 8,
+          "timestamp": "2026-09-25T10:08:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Your return is requested. You'll receive an email with instructions.",
+          "tool_calls": null,
+          "turn_idx": 9,
+          "timestamp": "2026-09-25T10:09:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 2220,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks ###STOP###",
+          "turn_idx": 10,
+          "timestamp": "2026-09-25T10:10:00"
+        }
+      ],
+      "trial": 0,
+      "seed": 300,
+      "mode": "half_duplex"
+    },
+    {
+      "id": "retail_task_003-t1",
+      "task_id": "retail_task_003",
+      "timestamp": "2026-09-25T10:00:00",
+      "start_time": "2026-09-25T10:00:00",
+      "end_time": "2026-09-25T10:02:00",
+      "duration": 17.5,
+      "termination_reason": "too_many_errors",
+      "agent_cost": 0.004,
+      "user_cost": 0.001,
+      "agent_usage": {
+        "prompt_tokens": 7200,
+        "completion_tokens": 1200
+      },
+      "reward_info": {
+        "reward": 0.0,
+        "db_check": {
+          "db_match": false,
+          "db_reward": 0.0
+        },
+        "reward_basis": [
+          "DB"
+        ],
+        "reward_breakdown": {
+          "DB": 0.0
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a retail customer service agent. Authenticate the user before any action. Confirm before cancelling or modifying orders.",
+          "turn_idx": 0
+        },
+        {
+          "role": "user",
+          "content": "I'd like to return the headphones from order #W6390527.",
+          "turn_idx": 1,
+          "timestamp": "2026-09-25T10:01:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Sure. What's the email on your account?",
+          "tool_calls": null,
+          "turn_idx": 2,
+          "timestamp": "2026-09-25T10:02:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1660,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "omar.khan@example.com",
+          "turn_idx": 3,
+          "timestamp": "2026-09-25T10:03:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c1",
+              "name": "find_user_id_by_email",
+              "arguments": {
+                "email": "omar.khan@example.com"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1820,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c1",
+          "role": "tool",
+          "content": "Error: backend service unavailable (503)",
+          "requestor": "assistant",
+          "error": true,
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Let me try that again.",
+          "tool_calls": [
+            {
+              "id": "c2",
+              "name": "find_user_id_by_email",
+              "arguments": {
+                "email": "omar.khan@example.com"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1900,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c2",
+          "role": "tool",
+          "content": "Error: backend service unavailable (503)",
+          "requestor": "assistant",
+          "error": true,
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c3",
+              "name": "find_user_id_by_email",
+              "arguments": {
+                "email": "omar.khan@example.com"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 6,
+          "timestamp": "2026-09-25T10:06:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1980,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c3",
+          "role": "tool",
+          "content": "Error: connection reset",
+          "requestor": "assistant",
+          "error": true,
+          "turn_idx": 6,
+          "timestamp": "2026-09-25T10:06:00"
+        }
+      ],
+      "trial": 1,
+      "seed": 301,
+      "mode": "half_duplex"
+    },
+    {
+      "id": "retail_task_003-t2",
+      "task_id": "retail_task_003",
+      "timestamp": "2026-09-25T10:00:00",
+      "start_time": "2026-09-25T10:00:00",
+      "end_time": "2026-09-25T10:02:00",
+      "duration": 38.9,
+      "termination_reason": "user_stop",
+      "agent_cost": 0.012,
+      "user_cost": 0.001,
+      "agent_usage": {
+        "prompt_tokens": 8800,
+        "completion_tokens": 1680
+      },
+      "reward_info": {
+        "reward": 1.0,
+        "db_check": {
+          "db_match": true,
+          "db_reward": 1.0
+        },
+        "reward_basis": [
+          "DB"
+        ],
+        "reward_breakdown": {
+          "DB": 1.0
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a retail customer service agent. Authenticate the user before any action. Confirm before cancelling or modifying orders.",
+          "turn_idx": 0
+        },
+        {
+          "role": "user",
+          "content": "I'd like to return the headphones from order #W6390527.",
+          "turn_idx": 1,
+          "timestamp": "2026-09-25T10:01:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Sure. What's the email on your account?",
+          "tool_calls": null,
+          "turn_idx": 2,
+          "timestamp": "2026-09-25T10:02:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1660,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "omar.khan@example.com",
+          "turn_idx": 3,
+          "timestamp": "2026-09-25T10:03:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c1",
+              "name": "find_user_id_by_email",
+              "arguments": {
+                "email": "omar.khan@example.com"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1820,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c1",
+          "role": "tool",
+          "content": "omar_khan_2363",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c2",
+              "name": "get_order_details",
+              "arguments": {
+                "order_id": "#W6390527"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1900,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c2",
+          "role": "tool",
+          "content": "{\"order_id\": \"#W6390527\", \"status\": \"delivered\", \"items\": [{\"item_id\": \"3104857380\", \"name\": \"Headphones\"}]}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Order #W6390527 is delivered. I'll create a return for the Headphones (item 3104857380), refund to original payment. Confirm?",
+          "tool_calls": null,
+          "turn_idx": 6,
+          "timestamp": "2026-09-25T10:06:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1980,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "yes",
+          "turn_idx": 7,
+          "timestamp": "2026-09-25T10:07:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c3",
+              "name": "return_delivered_order_items",
+              "arguments": {
+                "order_id": "#W6390527",
+                "item_ids": [
+                  "3104857380"
+                ],
+                "payment_method_id": "paypal_2723"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 8,
+          "timestamp": "2026-09-25T10:08:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 2140,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c3",
+          "role": "tool",
+          "content": "{\"order_id\": \"#W6390527\", \"status\": \"return requested\"}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 8,
+          "timestamp": "2026-09-25T10:08:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Your return is requested. You'll receive an email with instructions.",
+          "tool_calls": null,
+          "turn_idx": 9,
+          "timestamp": "2026-09-25T10:09:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 2220,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks ###STOP###",
+          "turn_idx": 10,
+          "timestamp": "2026-09-25T10:10:00"
+        }
+      ],
+      "trial": 2,
+      "seed": 302,
+      "mode": "half_duplex"
+    },
+    {
+      "id": "retail_task_004-t0",
+      "task_id": "retail_task_004",
+      "timestamp": "2026-09-25T10:00:00",
+      "start_time": "2026-09-25T10:00:00",
+      "end_time": "2026-09-25T10:02:00",
+      "duration": 15.2,
+      "termination_reason": "user_stop",
+      "agent_cost": 0.004,
+      "user_cost": 0.001,
+      "agent_usage": {
+        "prompt_tokens": 6400,
+        "completion_tokens": 960
+      },
+      "reward_info": {
+        "reward": 0.0,
+        "db_check": {
+          "db_match": false,
+          "db_reward": 0.0
+        },
+        "reward_basis": [
+          "DB"
+        ],
+        "reward_breakdown": {
+          "DB": 0.0
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a retail customer service agent. Authenticate the user before any action. Confirm before cancelling or modifying orders.",
+          "turn_idx": 0
+        },
+        {
+          "role": "user",
+          "content": "What's the status of my order #W7000123?",
+          "turn_idx": 1,
+          "timestamp": "2026-09-25T10:01:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Your email please?",
+          "tool_calls": null,
+          "turn_idx": 2,
+          "timestamp": "2026-09-25T10:02:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1660,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "ava.nguyen@example.com",
+          "turn_idx": 3,
+          "timestamp": "2026-09-25T10:03:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c1",
+              "name": "find_user_id_by_email",
+              "arguments": {
+                "email": "ava.nguyen@example.com"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1820,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c1",
+          "role": "tool",
+          "content": "ava_nguyen_1122",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Your order #W7000123 has been delivered yesterday and signed by the front desk.",
+          "tool_calls": null,
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1900,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "Really? I haven't received anything. ###STOP###",
+          "turn_idx": 6,
+          "timestamp": "2026-09-25T10:06:00"
+        }
+      ],
+      "trial": 0,
+      "seed": 300,
+      "mode": "half_duplex"
+    },
+    {
+      "id": "retail_task_004-t1",
+      "task_id": "retail_task_004",
+      "timestamp": "2026-09-25T10:00:00",
+      "start_time": "2026-09-25T10:00:00",
+      "end_time": "2026-09-25T10:02:00",
+      "duration": 22.7,
+      "termination_reason": "user_stop",
+      "agent_cost": 0.006,
+      "user_cost": 0.001,
+      "agent_usage": {
+        "prompt_tokens": 7200,
+        "completion_tokens": 1200
+      },
+      "reward_info": {
+        "reward": 1.0,
+        "db_check": {
+          "db_match": true,
+          "db_reward": 1.0
+        },
+        "reward_basis": [
+          "DB"
+        ],
+        "reward_breakdown": {
+          "DB": 1.0
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a retail customer service agent. Authenticate the user before any action. Confirm before cancelling or modifying orders.",
+          "turn_idx": 0
+        },
+        {
+          "role": "user",
+          "content": "What's the status of my order #W7000123?",
+          "turn_idx": 1,
+          "timestamp": "2026-09-25T10:01:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Your email please?",
+          "tool_calls": null,
+          "turn_idx": 2,
+          "timestamp": "2026-09-25T10:02:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1660,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "ava.nguyen@example.com",
+          "turn_idx": 3,
+          "timestamp": "2026-09-25T10:03:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c1",
+              "name": "find_user_id_by_email",
+              "arguments": {
+                "email": "ava.nguyen@example.com"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1820,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c1",
+          "role": "tool",
+          "content": "ava_nguyen_1122",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c2",
+              "name": "get_order_details",
+              "arguments": {
+                "order_id": "#W7000123"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1900,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c2",
+          "role": "tool",
+          "content": "{\"order_id\": \"#W7000123\", \"status\": \"processed\", \"tracking\": null}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Order #W7000123 is processed and waiting for shipment; no tracking number yet.",
+          "tool_calls": null,
+          "turn_idx": 6,
+          "timestamp": "2026-09-25T10:06:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1980,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "Ok thanks ###STOP###",
+          "turn_idx": 7,
+          "timestamp": "2026-09-25T10:07:00"
+        }
+      ],
+      "trial": 1,
+      "seed": 301,
+      "mode": "half_duplex"
+    },
+    {
+      "id": "retail_task_004-t2",
+      "task_id": "retail_task_004",
+      "timestamp": "2026-09-25T10:00:00",
+      "start_time": "2026-09-25T10:00:00",
+      "end_time": "2026-09-25T10:02:00",
+      "duration": 23.1,
+      "termination_reason": "user_stop",
+      "agent_cost": 0.006,
+      "user_cost": 0.001,
+      "agent_usage": {
+        "prompt_tokens": 7200,
+        "completion_tokens": 1200
+      },
+      "reward_info": {
+        "reward": 1.0,
+        "db_check": {
+          "db_match": true,
+          "db_reward": 1.0
+        },
+        "reward_basis": [
+          "DB"
+        ],
+        "reward_breakdown": {
+          "DB": 1.0
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a retail customer service agent. Authenticate the user before any action. Confirm before cancelling or modifying orders.",
+          "turn_idx": 0
+        },
+        {
+          "role": "user",
+          "content": "What's the status of my order #W7000123?",
+          "turn_idx": 1,
+          "timestamp": "2026-09-25T10:01:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Your email please?",
+          "tool_calls": null,
+          "turn_idx": 2,
+          "timestamp": "2026-09-25T10:02:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1660,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "ava.nguyen@example.com",
+          "turn_idx": 3,
+          "timestamp": "2026-09-25T10:03:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c1",
+              "name": "find_user_id_by_email",
+              "arguments": {
+                "email": "ava.nguyen@example.com"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1820,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c1",
+          "role": "tool",
+          "content": "ava_nguyen_1122",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 4,
+          "timestamp": "2026-09-25T10:04:00"
+        },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "c2",
+              "name": "get_order_details",
+              "arguments": {
+                "order_id": "#W7000123"
+              },
+              "requestor": "assistant"
+            }
+          ],
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1900,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "id": "c2",
+          "role": "tool",
+          "content": "{\"order_id\": \"#W7000123\", \"status\": \"processed\", \"tracking\": null}",
+          "requestor": "assistant",
+          "error": false,
+          "turn_idx": 5,
+          "timestamp": "2026-09-25T10:05:00"
+        },
+        {
+          "role": "assistant",
+          "content": "Order #W7000123 is processed and waiting for shipment; no tracking number yet.",
+          "tool_calls": null,
+          "turn_idx": 6,
+          "timestamp": "2026-09-25T10:06:00",
+          "generation_time_seconds": 1.4,
+          "usage": {
+            "prompt_tokens": 1980,
+            "completion_tokens": 60
+          }
+        },
+        {
+          "role": "user",
+          "content": "Ok thanks ###STOP###",
+          "turn_idx": 7,
+          "timestamp": "2026-09-25T10:07:00"
+        }
+      ],
+      "trial": 2,
+      "seed": 302,
+      "mode": "half_duplex"
+    }
+  ]
+}

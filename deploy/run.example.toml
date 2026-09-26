@@ -1,0 +1,69 @@
+# SparkJury run configuration. Copy to deploy/run.toml and edit, then: sparkjury run --config deploy/run.toml
+# Everything has a default; an empty file runs the mock panel on whatever is already in the db.
+
+run_id = "retail-qwen3-8b-v1"       # omit for a timestamped id
+db = "runs/retail-qwen3-8b-v1/sparkjury.db"
+reset_db = true                      # start from an empty db
+stages = ["INGEST", "PRECHECK", "EVALSET", "SCORE", "ARBITRATE", "CLUSTER", "REPORT"]
+
+[[inputs]]
+path = "data/simulations/retail_qwen3-8b_trials3.json"   # tau2 run output
+source = "tau2"
+
+[precheck]
+step_latency_ms = 120000
+# max_duration_s = 900
+
+[evalset]
+# limit = 50            # cap for a quick demo
+# task_ids = ["retail_task_001"]
+
+# Judge panel: same shape as deploy/judges.example.toml. Delete this whole block to use mock judges.
+[panel]
+score_tolerance = 1
+workers = 6
+
+[[panel.judges]]
+name = "judge_a"
+kind = "openai"
+model = "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8"
+base_url = "http://127.0.0.1:8001/v1"
+timeout_s = 90
+max_tokens = 1200
+extra_body = { chat_template_kwargs = { enable_thinking = false } }
+
+[[panel.judges]]
+name = "judge_b"
+kind = "openai"
+model = "nvidia/Nemotron-3.5-Lightning-30B-A3B-NVFP4"
+base_url = "http://127.0.0.1:8002/v1"
+timeout_s = 120
+max_tokens = 1200
+extra_body = { chat_template_kwargs = { enable_thinking = false } }
+
+[[panel.judges]]
+name = "judge_c"
+kind = "openai"
+model = "step-3.7-flash"
+base_url = "https://api.stepfun.com/v1"
+api_key_env = "STEPFUN_API_KEY"
+timeout_s = 60
+
+judge_healthcheck = true             # unreachable judges are swapped for mock ones and flagged as degraded
+
+[arbiter]
+jev = "auto"                         # auto: use TYPESAFE_API_KEY if set; off: local only
+jev_timeout_s = 5
+audit_rate = 0.05
+
+[cluster]
+embedder = "openai"                  # openai = vLLM /v1/embeddings; hash = offline
+embed_base_url = "http://127.0.0.1:8003/v1"
+embed_model = "Qwen/Qwen3-Embedding-0.6B"
+method = "auto"
+min_cluster_size = 3
+jev = "auto"
+
+[report]
+title = "Retail agent (Qwen3-8B) - 3 trials"
+formats = ["json", "md", "html"]

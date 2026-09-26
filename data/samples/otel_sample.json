@@ -1,0 +1,369 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "sample-agent"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "sparkjury.sample"
+          },
+          "spans": [
+            {
+              "traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "spanId": "a000000000000001",
+              "parentSpanId": "",
+              "name": "invoke_agent retail_agent",
+              "kind": 1,
+              "startTimeUnixNano": "1758800000000000000",
+              "endTimeUnixNano": "1758800006000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "retail_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "qwen3-8b"
+                  }
+                },
+                {
+                  "key": "sparkjury.task_id",
+                  "value": {
+                    "stringValue": "otel_task_A"
+                  }
+                },
+                {
+                  "key": "sparkjury.trial",
+                  "value": {
+                    "intValue": "0"
+                  }
+                },
+                {
+                  "key": "sparkjury.success",
+                  "value": {
+                    "boolValue": true
+                  }
+                },
+                {
+                  "key": "sparkjury.domain",
+                  "value": {
+                    "stringValue": "retail"
+                  }
+                }
+              ],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "spanId": "a000000000000002",
+              "parentSpanId": "a000000000000001",
+              "name": "chat qwen3-8b",
+              "kind": 1,
+              "startTimeUnixNano": "1758800000100000000",
+              "endTimeUnixNano": "1758800001500000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "qwen3-8b"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "812"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "41"
+                  }
+                },
+                {
+                  "key": "gen_ai.input.messages",
+                  "value": {
+                    "stringValue": "[{\"role\": \"system\", \"parts\": [{\"type\": \"text\", \"content\": \"You are a retail agent.\"}]}, {\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"Where is my order #W1?\"}]}]"
+                  }
+                },
+                {
+                  "key": "gen_ai.output.messages",
+                  "value": {
+                    "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"tool_call\", \"id\": \"call_1\", \"name\": \"get_order_details\", \"arguments\": {\"order_id\": \"#W1\"}}], \"finish_reason\": \"tool_call\"}]"
+                  }
+                }
+              ],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "spanId": "a000000000000003",
+              "parentSpanId": "a000000000000001",
+              "name": "execute_tool get_order_details",
+              "kind": 1,
+              "startTimeUnixNano": "1758800001600000000",
+              "endTimeUnixNano": "1758800001900000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "get_order_details"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.id",
+                  "value": {
+                    "stringValue": "call_1"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.arguments",
+                  "value": {
+                    "stringValue": "{\"order_id\": \"#W1\"}"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.result",
+                  "value": {
+                    "stringValue": "{\"status\": \"shipped\", \"eta\": \"2 days\"}"
+                  }
+                }
+              ],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "spanId": "a000000000000004",
+              "parentSpanId": "a000000000000001",
+              "name": "chat qwen3-8b",
+              "kind": 1,
+              "startTimeUnixNano": "1758800002000000000",
+              "endTimeUnixNano": "1758800003200000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "qwen3-8b"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "900"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "30"
+                  }
+                },
+                {
+                  "key": "gen_ai.output.messages",
+                  "value": {
+                    "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"text\", \"content\": \"Your order #W1 has shipped and arrives in 2 days.\"}], \"finish_reason\": \"stop\"}]"
+                  }
+                }
+              ],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "spanId": "b000000000000001",
+              "parentSpanId": "",
+              "name": "invoke_agent retail_agent",
+              "kind": 1,
+              "startTimeUnixNano": "1758800000000000000",
+              "endTimeUnixNano": "1758800004000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "retail_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "qwen3-8b"
+                  }
+                },
+                {
+                  "key": "sparkjury.task_id",
+                  "value": {
+                    "stringValue": "otel_task_B"
+                  }
+                },
+                {
+                  "key": "sparkjury.trial",
+                  "value": {
+                    "intValue": "0"
+                  }
+                },
+                {
+                  "key": "sparkjury.success",
+                  "value": {
+                    "boolValue": false
+                  }
+                },
+                {
+                  "key": "sparkjury.domain",
+                  "value": {
+                    "stringValue": "retail"
+                  }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "stringValue": "ToolError"
+                  }
+                }
+              ],
+              "status": {
+                "code": 2
+              }
+            },
+            {
+              "traceId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "spanId": "b000000000000002",
+              "parentSpanId": "b000000000000001",
+              "name": "chat qwen3-8b",
+              "kind": 1,
+              "startTimeUnixNano": "1758800000100000000",
+              "endTimeUnixNano": "1758800001200000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "qwen3-8b"
+                  }
+                },
+                {
+                  "key": "gen_ai.input.messages",
+                  "value": {
+                    "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"Cancel order #W2 please.\"}]}]"
+                  }
+                },
+                {
+                  "key": "gen_ai.output.messages",
+                  "value": {
+                    "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"tool_call\", \"id\": \"call_9\", \"name\": \"cancel_pending_order\", \"arguments\": {\"order_id\": \"#W2\", \"reason\": \"no longer needed\"}}]}]"
+                  }
+                }
+              ],
+              "status": {
+                "code": 1
+              }
+            },
+            {
+              "traceId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "spanId": "b000000000000003",
+              "parentSpanId": "b000000000000001",
+              "name": "execute_tool cancel_pending_order",
+              "kind": 1,
+              "startTimeUnixNano": "1758800001300000000",
+              "endTimeUnixNano": "1758800001400000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "cancel_pending_order"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.id",
+                  "value": {
+                    "stringValue": "call_9"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.arguments",
+                  "value": {
+                    "stringValue": "{\"order_id\": \"#W2\", \"reason\": \"no longer needed\"}"
+                  }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "stringValue": "PermissionDenied"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.result",
+                  "value": {
+                    "stringValue": "permission denied: user not authenticated"
+                  }
+                }
+              ],
+              "status": {
+                "code": 2
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

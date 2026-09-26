@@ -1,0 +1,23 @@
+[project]
+name = "nat_sparkjury"
+version = "0.1.0"
+description = "SparkJury evaluator plugin for NVIDIA NeMo Agent Toolkit: three-judge panel + Jev arbitration as a `nat eval` evaluator."
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "nvidia-nat[eval]>=1.2",
+    "sparkjury",
+]
+
+# NeMo Agent Toolkit discovers plugins through this entry point group.
+[project.entry-points."nat.components"]
+nat_sparkjury = "nat_sparkjury.register"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nat_sparkjury"]
+
+[tool.uv.sources]
+sparkjury = { path = "../..", editable = true }

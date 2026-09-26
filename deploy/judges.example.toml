@@ -1,0 +1,43 @@
+# SparkJury judge panel configuration.
+# Copy to deploy/judges.toml, fill in, then: sparkjury score --judges deploy/judges.toml
+# API keys are read from environment variables named in api_key_env; never put keys here.
+
+[panel]
+score_tolerance = 1   # score dimensions agree when max - min <= this
+workers = 6           # concurrent judge calls per trace
+
+# Judge A: Qwen family, local vLLM on the DGX node
+[[panel.judges]]
+name = "judge_a"
+kind = "openai"
+model = "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8"
+base_url = "http://127.0.0.1:8001/v1"
+timeout_s = 90
+max_tokens = 1200
+extra_body = { chat_template_kwargs = { enable_thinking = false } }   # judges must answer, not think out loud
+
+# Judge B: NVIDIA family (Nemotron, preloaded on the team node), local vLLM
+[[panel.judges]]
+name = "judge_b"
+kind = "openai"
+model = "nvidia/Nemotron-3.5-Lightning-30B-A3B-NVFP4"
+base_url = "http://127.0.0.1:8002/v1"
+timeout_s = 120
+max_tokens = 1200
+extra_body = { chat_template_kwargs = { enable_thinking = false } }   # Nemotron reasons in plain text otherwise and never reaches the JSON
+
+# Judge C: Step family via StepFun API (required by the competition)
+[[panel.judges]]
+name = "judge_c"
+kind = "openai"
+model = "step-3.7-flash"
+base_url = "https://api.stepfun.com/v1"
+api_key_env = "STEPFUN_API_KEY"
+timeout_s = 60
+
+# Offline / demo fallback: replace any judge above with a mock one
+# [[panel.judges]]
+# name = "judge_c"
+# kind = "mock"
+# model = "mock-step"
+# jitter = 0.15

@@ -1,0 +1,42 @@
+run_id = "node-real-samples"
+db = "runs/node-real-samples/sparkjury.db"
+reset_db = true
+[[inputs]]
+path = "data/samples/tau2_retail_sample.json"
+source = "tau2"
+[[inputs]]
+path = "data/samples/otel_sample.json"
+source = "otel"
+[panel]
+workers = 6
+[[panel.judges]]
+name = "judge_a"
+kind = "openai"
+model = "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8"
+base_url = "http://127.0.0.1:8001/v1"
+timeout_s = 120
+extra_body = { chat_template_kwargs = { enable_thinking = false } }
+[[panel.judges]]
+name = "judge_b"
+kind = "openai"
+model = "nvidia/Nemotron-3.5-Lightning-30B-A3B-NVFP4"
+base_url = "http://127.0.0.1:8002/v1"
+timeout_s = 120
+extra_body = { chat_template_kwargs = { enable_thinking = false } }
+[[panel.judges]]
+name = "judge_c"
+kind = "openai"
+model = "step-3.7-flash"
+base_url = "https://api.stepfun.com/v1"
+api_key_env = "STEPFUN_API_KEY"
+timeout_s = 60
+[arbiter]
+jev = "auto"
+audit_rate = 0.1
+[cluster]
+embedder = "openai"
+embed_base_url = "http://127.0.0.1:8003/v1"
+embed_model = "Qwen/Qwen3-Embedding-0.6B"
+min_cluster_size = 2
+[report]
+title = "SparkJury on DGX Spark: real judges, sample traces"

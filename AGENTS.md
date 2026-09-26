@@ -1,0 +1,68 @@
+# AGENTS.md
+
+写给所有在这个仓库里干活的 Agent（Claude Code、Codex、Cursor 都读这一份）。`CLAUDE.md` 只是指向这里的入口，内容以本文件为准。
+
+## 这个项目是什么
+
+SparkJury 是给别人的 Agent 做体检的评测 Agent：读入 trace，本地三家模型打分，分歧交云端 Jev 仲裁，badcase 聚类排优先级，出证据卡片让人拍板，改完自动回归对比 pass^3。它跑在团队 80 号 DGX Spark 节点上。节点部署说明见 `deploy/README.md`，不依赖系统 ssh/scp 的连节点小工具是 `scripts/node.py`。
+
+## 硬性规则：每一次主动提 PR，都要在节点上部署一次
+
+你每开一个 PR（修 bug、加模块、改脚本、改部署都算），不要停在 `git push`。提交之后接着做一件事：连上那台 DGX Spark 节点，把这次改动同步过去、部署起来、跑一次确认它真的能跑，然后把结果写进 PR 描述。这是本仓库对 Agent 最硬的一条要求。
+
+原因是节点才是真实环境。它是 aarch64 加 CUDA 13，内存和显存是统一的一整块，上面常驻五个 vLLM 端点和两个云端依赖，还可能有队友的 τ²-bench 在跑。笔记本上 pytest 全绿只说明代码逻辑没坏，不代表节点上起得来。之前踩过的坑就属于这一类：bf16 的 Qwen3-30B 和 Nemotron 同时起，会把内核 OOM killer 招来，整个 tmux 会话被端掉。
+
+### 具体怎么做
+
+第一步，先看节点在忙什么，别撞车。
+
+```bash
+ssh -p 6030 asus_gx10@61.172.235.130 'tmux ls; bash deploy/dgx/status.sh'
+```
+
+如果 `tau2full`、`loop` 这些会话正在跑，不要 stop 它们，也不要抢 GPU，等它跑完或者跟队友说一声再动手。不想用系统 ssh 的话，同样的命令可以走 `uv run --group ops python scripts/node.py run "<命令>"`，连接参数从环境变量或 `deploy/dgx/node.env` 读。
+
+第二步，把这次改动同步到节点。不要指望节点自己去 GitHub 拉代码：实测那台机器访问 github.com 会超时（连 litellm 拉价格表都超时过），能正常访问的是 gitee 和 hf-mirror。所以从你的笔记本把代码推过去，`scripts/node.py sync` 会打包当前目录、上传、在节点解压到 `~/sparkjury`，全程走 SSH。
+
+```bash
+uv run --group ops python scripts/node.py sync
+```
+
+如果哪天在码云上建了这个仓库的镜像，节点也可以直接 `git pull` 那份镜像，到码云这条网络是通的。
+
+第三步，部署。只有在依赖变了或者服务没起来的时候才需要前两步，服务本来就活着就别重启它。
+
+```bash
+ssh ... 'cd ~/sparkjury && bash deploy/dgx/setup_node.sh'
+ssh ... 'cd ~/sparkjury && bash deploy/dgx/start_judges.sh'
+ssh ... 'cd ~/sparkjury && bash deploy/dgx/status.sh'
+```
+
+第四步，冒烟验证，至少跑这三样。
+
+- `uv run pytest`：通过的用例数，有没有失败。节点上装了 tau2 的虚拟环境，跑之前留意别把 `.venv-tau2` 里第三方包的文本文件当成仓库文件来扫。
+- `bash deploy/dgx/status.sh`：四个 vLLM 端点和 API 是不是都 up，监听地址是不是 127.0.0.1（只有 API 的 9000 允许绑 0.0.0.0）。
+- 一条真实 run：`uv run sparkjury run --config deploy/run.toml`，跑完打开 `runs/<run_id>/manifest.json` 看 `degradations` 和 `status`。只想确认链路通不通，用 `uv run sparkjury run --demo` 就够了，离线 mock 裁判两秒跑完。
+
+第五步，把结果贴回 PR。PR 描述里加一段「节点部署验证」，写清部署的是哪个 commit 或分支、上面三样各自的实际输出摘要、以及有没有降级或失败项。数字要贴真实跑出来的，不要写「预期通过」。
+
+### 什么算部署失败
+
+部署没通过不算失败，隐瞒才算。任何一步没过，就在 PR 里原样写清是第几步、哪条命令、原始报错（别只写「报错了」），然后把 PR 留在草稿状态等人看。降级要照实标：第三裁判 StepFun 没配 key 会退化成 mock，Jev 没配 key 会退化成本地仲裁，这两种都会写进 manifest 的 `degradations`，转述时不要省略。
+
+### PR 的完成定义
+
+代码改完、本地测试通过、节点部署并冒烟通过、结果贴进 PR 描述，四样齐了才算完成。缺任何一样都别标 ready for review。
+
+## 红线（来自节点使用手册，违反会影响全队）
+
+- 禁止 `reboot`、`shutdown`、`poweroff`，禁止改系统级配置（密码、SSH 配置、防火墙、路由、用户权限）。
+- 禁止探测内网 `192.168.110.0/24`。
+- 超过 1GB 的文件禁止 `scp`，模型一律在节点内下载，上行带宽是 50 支队共用的。
+- 长任务必须跑在 `tmux` 里，占着前台会被断连带走。
+- 8888 和 9000 上对外提供的服务必须有鉴权。
+- 节点在活动结束后会被清空：代码要及时 push，跑出来的产物要及时拷出来。
+
+## 密钥
+
+`deploy/dgx/.env`（StepFun、TypeSafe、API token）和 `deploy/dgx/node.env`（节点密码）都在 `.gitignore` 里，不要提交，也不要写进 PR 描述或截图。要新 key 就找队里要，不要造一个假的塞进去冒充接通。

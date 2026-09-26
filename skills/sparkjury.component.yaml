@@ -1,0 +1,17 @@
+# Draft product registration for the NVIDIA/skills registry (components.d/sparkjury.yaml).
+# Field names follow the registry's existing entries; adjust to the current schema before submitting.
+name: sparkjury
+display_name: SparkJury
+description: Local-first agent evaluation harness for NVIDIA DGX Spark. Multi-judge scoring (three model families), cloud arbitration with Jev, badcase clustering, evidence cards and regression comparison.
+owner: sparkjury-team
+license: MIT
+source_repo: https://github.com/<org>/sparkjury
+skills_path: skills
+skills:
+  - sparkjury-clean
+  - sparkjury-evalset
+  - sparkjury-score
+  - sparkjury-cluster
+  - sparkjury-report
+  - sparkjury-regress
+tags: [evaluation, agents, dgx-spark, llm-as-judge, tau2-bench, opentelemetry]
