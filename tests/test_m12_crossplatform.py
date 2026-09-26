@@ -11,7 +11,9 @@ SKIP = {".venv", "runs", "__pycache__", ".pytest_cache", "logs", "data"}
 
 def _text_files():
     for p in ROOT.rglob("*"):
-        if p.is_file() and p.suffix in TEXT_EXT and not any(part in SKIP for part in p.parts):
+        # .venv* covers the node's extra environments (.venv-tau2, .venv-vllm): third-party files inside them
+        # are not ours to lint, and litellm ships a couple of CRLF files that used to fail this test on the node.
+        if p.is_file() and p.suffix in TEXT_EXT and not any(part in SKIP or part.startswith(".venv") for part in p.parts):
             yield p
 
 
