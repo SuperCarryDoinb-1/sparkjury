@@ -1,0 +1,127 @@
+---
+name: push-and-deploy
+description: 把改动提交推送到 VioletScar-Hui/sparkjury，并检查团队 DGX Spark 节点当前在跑什么、这次改动要不要部署上去。当你要在这个项目里提交代码、推分支、开 PR，或者想知道节点状态和要不要重新部署时使用。
+whenToUse: 用户说提交、推送、开 PR、部署到节点、看看节点在跑什么，或者你刚改完代码准备交付时。
+---
+
+# 推送到远端 + 按需部署到节点
+
+这个项目有两处「远端」：GitHub 上的仓库，和团队的 DGX Spark 节点。这个技能管两件事，先推到前者，再判断后者要不要重新部署。
+
+配套的常驻规则在仓库根目录的 `AGENTS.md`，那里写的是「为什么」，这里写的是「怎么做」。
+
+## 一次性准备
+
+### 1. 拿到写权限
+
+仓库是公开的，谁都能读，但推送需要写权限。把你的 GitHub 用户名给仓库 owner，他会执行：
+
+```bash
+gh api -X PUT repos/VioletScar-Hui/sparkjury/collaborators/<你的用户名> -f permission=push
+```
+
+你这边登录一次，然后验证权限确实下来了：
+
+```bash
+gh auth login
+gh api repos/VioletScar-Hui/sparkjury --jq .permissions.push    # 返回 true 就是能推
+```
+
+### 2. 装本地依赖
+
+```bash
+uv sync --group ops        # ops 组里有 paramiko，连节点靠它
+```
+
+### 3. 把节点连接信息放到本机
+
+在 `deploy/dgx/node.env` 写四行，密码找队里要：
+
+```
+SPARKJURY_NODE_HOST=61.172.235.130
+SPARKJURY_NODE_PORT=6030
+SPARKJURY_NODE_USER=asus_gx10
+SPARKJURY_NODE_PASSWORD=...
+```
+
+这个文件在 `.gitignore` 里，不会进仓库。懒得写也行，跑的时候会提示你输密码。
+
+## 第一步：推到远端
+
+分支名带上你要做什么，提交信息用中文说清改了什么、为什么改。
+
+```bash
+git checkout -b fix/<简短描述>
+git add -A
+git commit -m "改了什么，为什么"
+git push -u origin HEAD
+```
+
+推完直接开 PR，不需要绕 fork。PR 描述里先留一段「节点部署验证」，第二步的结果填进去。
+
+## 第二步：看节点在跑什么、要不要部署
+
+```bash
+uv run --group ops python scripts/node.py check
+```
+
+一条命令给你：节点通不通、GPU 占用和统一内存、tmux 里谁在跑、四个 vLLM 端点和 API 起没起、节点上的代码是哪个 commit、你本地是哪个 commit，最后给出判断：需要部署、需要起服务、还是不需要部署。
+
+它的输出是给 PR 用的，可以直接贴。
+
+## 第三步：按判断行动
+
+**不需要部署**：节点代码和你本地一致，服务都在跑。把 check 的输出贴进 PR 收工。
+
+**需要起服务**：代码不用重推，是服务掉了。
+
+```bash
+uv run --group ops python scripts/node.py run "cd ~/sparkjury && bash deploy/dgx/start_judges.sh && bash deploy/dgx/status.sh"
+```
+
+**需要部署**：
+
+```bash
+uv run --group ops python scripts/node.py sync
+```
+
+sync 会把当前 commit 记到节点上的 `~/sparkjury/.synced-from`，下次 check 就是靠这行记录判断新旧的。
+
+**节点不可达**：不许假装跳过。把失败原因写进 PR 描述，PR 留在草稿状态，不要合并。这一条是硬规矩。
+
+**主树上有长任务在跑**：check 会提示 `tau2full`、`loop` 这类会话。这时候不要往 `~/sparkjury` 覆盖，先复制一份自己的树，在副本里折腾：
+
+```bash
+uv run --group ops python scripts/node.py run "cp -r ~/sparkjury ~/sparkjury-<你的名字>"
+```
+
+## 第四步：部署完的冒烟验证
+
+三样，缺一样都不算部署通过。
+
+```bash
+# 1. 测试
+uv run --group ops python scripts/node.py run "cd ~/sparkjury && ~/.local/bin/uv run pytest -q"
+# 2. 服务与监听地址
+uv run --group ops python scripts/node.py run "cd ~/sparkjury && bash deploy/dgx/status.sh"
+# 3. 一条真实 run
+uv run --group ops python scripts/node.py run "cd ~/sparkjury && ~/.local/bin/uv run sparkjury run --demo"
+```
+
+第三条只想确认链路通用 `--demo` 就够了（离线 mock 裁判，两秒）。改动大的话跑 `--config deploy/run.toml`，然后打开 `runs/<run_id>/manifest.json` 看 `status` 和 `degradations`。
+
+三样的实际输出摘要贴进 PR 的「节点部署验证」段。降级项照实写：StepFun 没配 key 会退化成 mock 裁判，Jev 没配 key 会退化成本地仲裁，这两种都会出现在 `degradations` 里。
+
+## 常见卡点
+
+`uv: command not found`：macOS 上 uv 可能装在 `/opt/homebrew/bin/uv`，`~/.local/bin/uv` 有时是个坏掉的包装脚本；节点上 uv 在 `~/.local/bin/uv`，非登录 shell 里不在 PATH，要写全路径或者用 `bash -lc` 包一层。
+
+`ModuleNotFoundError: paramiko`：跑 `uv sync --group ops`。
+
+想在节点上 `git pull`：不行。实测那台机器访问 github.com 会超时，同步一律走 `node.py sync`。
+
+check 说「节点上没有同步记录」：说明节点上那份代码是别人用老版 sync 推的，或者从来没同步过。跑一次 `sync` 就有记录了。
+
+## 红线
+
+不提交密钥，不把节点密码写进代码或 PR 描述，不在节点上 reboot 或改系统配置，不探测内网 `192.168.110.0/24`，长任务一律放 tmux。

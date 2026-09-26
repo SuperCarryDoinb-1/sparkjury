@@ -12,6 +12,14 @@ SparkJury 是给别人的 Agent 做体检的评测 Agent：读入 trace，本地
 
 原因是节点才是真实环境。它是 aarch64 加 CUDA 13，内存和显存是统一的一整块，上面常驻五个 vLLM 端点和两个云端依赖，还可能有队友的 τ²-bench 在跑。笔记本上 pytest 全绿只说明代码逻辑没坏，不代表节点上起得来。之前踩过的坑就属于这一类：bf16 的 Qwen3-30B 和 Nemotron 同时起，会把内核 OOM killer 招来，整个 tmux 会话被端掉。
 
+完整步骤（拿写权限、推分支、看节点、按需部署、冒烟验证、常见卡点）在 `.agents/skills/push-and-deploy/SKILL.md`，你的 Agent 会自动加载它。自己手动做的话，核心是一条命令：
+
+```bash
+uv run --group ops python scripts/node.py check
+```
+
+它会把节点通不通、GPU 和内存、tmux 里谁在跑、四个端点和 API 起没起、节点上是哪个 commit、你本地是哪个 commit 一次列出来，最后直接给「需要部署 / 需要起服务 / 不需要部署」的判断，输出可以原样贴进 PR。节点上那份代码的版本由 `~/sparkjury/.synced-from` 记录，`sync` 时自动写入。
+
 ### 具体怎么做
 
 第一步，先看节点在忙什么，别撞车。
