@@ -24,10 +24,10 @@
 
 1. **0:45** 中栏七个阶段依次亮起，事件流滚动。旁白："先排除不是 Agent 的错：这条工具后端 503 三次，直接标掉，不进评分。"（镜头停在 PRECHECK 的 degraded/env 行）
 2. **1:00** SCORE 阶段：右栏三个模型端点绿灯，GPU 显存条涨到 90 GB。旁白："三个裁判，Qwen、Gemma、Step，三个家族，同时常驻在这台机器的 128G 统一内存里。四个维度：结果、工具、效率、安全。"
-3. **1:20** 事件流里出现 `scored ... disagreement`。旁白："这一条，三位裁判意见不一致。"切到 `sparkjury verdicts <id>` 终端：三份理由并排。
+3. **1:20** 事件流里出现 `scored ... disagreement`。旁白："这一条，三位裁判意见不一致。"点这一行，Cockpit 下方 Inspector 的 Judge verdicts 视图打开：四个维度 x 三位裁判的分数与理由并排，分歧那一行标黄，右侧 final decision 列显示仲裁来源（jev 或 local）与降级标记，对话记录里证据步骤高亮。（不再切终端；终端版 `sparkjury verdicts <id>` 只作备选。）
 4. **1:30** ARBITRATE：事件流出现 Jev 仲裁。旁白："分歧送云端 Jev，一个不生成文字、只回分数的决策模型，每百万 token 4 美分。"右栏"cloud decisions"计数跳动。（备选：断网演示，黄色 degraded 行，"没网也不停，本地仲裁，标记降级"。）
 5. **1:50** CLUSTER + REPORT：底部弹出证据卡片。旁白："几十条 badcase 聚成三类。第一类：没验证身份就执行写操作，占 40%，严重度最高。建议：把写操作挡在工具层的身份校验之后。"点"PM: fix this first"。
-6. **2:05** 切到终端：改 prompt 一行（加入"任何写操作前必须完成身份验证并取得明确 yes"），重跑，`sparkjury regress`。画面：pass^3 从 X% 到 Y%，fixed 任务列表，broken 为空。旁白："改一行，重跑，pass^3 涨了，没有任务变坏。这就是一轮。"
+6. **2:05** 切到终端改 prompt 一行（加入"任何写操作前必须完成身份验证并取得明确 yes"），重跑；切回 Cockpit，Inspector 的 Regression 视图：before 选改前那次 run，点 Compare。画面：verdict 徽标 improved，pass^3 从 X% 到 Y%，fixed 任务列表，broken 为空，簇的 badcase 数下降。（Cluster drill-down 视图在 1:50 卡片弹出后顺手点一下"member trace(s)"，展开簇成员明细。）旁白："改一行，重跑，pass^3 涨了，没有任务变坏。这就是一轮。"
 
 字幕关键数字：trace 数、badcase 数、簇数、pass^3 前后、耗时。
 
@@ -58,5 +58,6 @@
 - [ ] 改 prompt 后的第二次运行，`regress` 结果为 improved
 - [ ] 断网备选段：`--jev off` 跑一次，截 degraded 画面
 - [ ] 终端配色、字号；Cockpit 窗口 1920x1080
+- [ ] Cockpit 三块视图录前点一遍：Judge verdicts（点一条 disagreement 行）、Cluster drill-down（展开成员）、Regression（before 选改前 run）
 - [ ] 旁白稿录音，字幕文件
 - [ ] 上传 B 站，链接填提交表单

@@ -24,7 +24,7 @@ uv run sparkjury run --demo           # 离线：4 个零售客服任务 x 3 次
 uv run sparkjury serve                # 打开 http://127.0.0.1:9000/ ，点 Run demo
 ```
 
-看板上会看到：七个阶段依次亮起，每条 trace 的打分进度，三位裁判分歧时的仲裁事件（没有 Jev key 时显示黄色的降级提示），右侧 GPU 显存和模型端点状态，底部一张证据卡片：本轮 14 条 trace，1 条环境问题被排除，5 条真 badcase 聚成 2 类，建议先修"未验证身份就执行写操作"，附代表 trace 的对话摘录和三位裁判的理由。点"PM: fix this first"，系统给出改完后回归对比的命令。
+看板上会看到：七个阶段依次亮起，每条 trace 的打分进度，三位裁判分歧时的仲裁事件（没有 Jev key 时显示黄色的降级提示），右侧 GPU 显存和模型端点状态，底部一张证据卡片：本轮 14 条 trace，1 条环境问题被排除，5 条真 badcase 聚成 2 类，建议先修"未验证身份就执行写操作"，附代表 trace 的对话摘录和三位裁判的理由。点"PM: fix this first"，系统给出改完后回归对比的命令。卡片下方是 Inspector：点任意一条 trace（时间线里的 scored 行、簇成员表、卡片上的代表 trace 都能点）看三位裁判四个维度的分数与理由并排、仲裁结果和降级标记、对话记录里证据步骤高亮；Cluster drill-down 展开每个簇的成员明细；Regression 选一个更早的 run，看 pass^1 / pass^k 前后变化、修好与修坏的任务、簇的增减。这三块以前都要切终端跑 `sparkjury verdicts` / `regress` 才能看到。
 
 ## Why DGX Spark
 

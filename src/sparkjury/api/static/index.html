@@ -4,32 +4,47 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SparkJury Cockpit</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%273%27 fill=%27%230f1412%27/%3E%3Ccircle cx=%278%27 cy=%278%27 r=%274.5%27 fill=%27%236dbf78%27/%3E%3C/svg%3E">
 <style>
-  :root{--bg:#0f1412;--panel:#161d19;--line:#263029;--ink:#e6ebe6;--ink2:#a9b4ac;--muted:#6f7c73;--acc:#6dbf78;--acc2:#1f3324;--warn:#e0a54a;--warn2:#3a2e18;--bad:#e07a68;--code:#0b100d}
+  :root{--bg:#0f1412;--panel:#161d19;--line:#263029;--ink:#e6ebe6;--ink2:#a9b4ac;--muted:#6f7c73;--acc:#6dbf78;--acc2:#1f3324;--warn:#e0a54a;--warn2:#3a2e18;--bad:#e07a68;--bad2:#3d231f;--code:#0b100d;--cloud:#6fa8dc;--cloud2:#1a2a3a}
   *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 "Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif}
   header{display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
   header h1{font-size:17px;margin:0;letter-spacing:.02em}header h1 span{color:var(--acc)}
   header .sp{flex:1}select,button,input{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font:inherit}
-  button.pri{background:var(--acc);color:#0b100d;border-color:transparent;font-weight:700;cursor:pointer}button:disabled{opacity:.5;cursor:default}
+  button{cursor:pointer}button.pri{background:var(--acc);color:#0b100d;border-color:transparent;font-weight:700}button:disabled{opacity:.5;cursor:default}
+  button.lnk{border:none;background:none;color:var(--acc);padding:0;font:inherit;text-decoration:underline dotted}
   main{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:14px;padding:14px 20px;min-height:calc(100vh - 56px)}
   section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
   section h2{margin:0 0 10px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
   .kv{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px dashed var(--line);font-size:13px}.kv b{color:var(--ink2);font-weight:500}
   .stages{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}.stage{padding:3px 10px;border-radius:12px;border:1px solid var(--line);font-size:12px;color:var(--muted)}
-  .stage.run{border-color:var(--acc);color:var(--acc);animation:pulse 1.2s infinite}.stage.ok{background:var(--acc2);color:var(--acc);border-color:transparent}.stage.fail{background:#3d231f;color:var(--bad)}
+  .stage.run{border-color:var(--acc);color:var(--acc);animation:pulse 1.2s infinite}.stage.ok{background:var(--acc2);color:var(--acc);border-color:transparent}.stage.fail{background:var(--bad2);color:var(--bad)}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
   #timeline{height:52vh;overflow:auto;background:var(--code);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:12.5px/1.5 Consolas,"JetBrains Mono",monospace}
   .ev{display:flex;gap:10px;padding:1px 0}.ev .t{color:var(--muted);flex:0 0 78px}.ev .k{flex:0 0 92px}.ev.stage_start .k,.ev.stage_end .k{color:var(--acc)}.ev.degraded .k,.ev.warning .k{color:var(--warn)}.ev.error .k{color:var(--bad)}.ev.progress{color:var(--ink2)}
+  .ev.click{cursor:pointer}.ev.click:hover{background:var(--acc2)}.ev.click .m{text-decoration:underline dotted}.ev.dis .m{color:var(--warn)}
   .gpu{margin-bottom:10px}.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:4px 0}.bar i{display:block;height:100%;background:var(--acc)}
   .ep{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0}.dot{width:8px;height:8px;border-radius:50%;background:var(--bad)}.dot.ok{background:var(--acc)}
   .counter{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.counter div{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px}.counter b{display:block;font-size:20px;color:var(--acc)}.counter span{font-size:11.5px;color:var(--muted)}
-  footer{grid-column:1/-1}
-  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px}.tile{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px}.tile b{display:block;font-size:20px;color:var(--acc)}.tile span{font-size:11.5px;color:var(--muted)}
+  footer{grid-column:1/-1;display:grid;gap:14px}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px}.tile{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px}.tile b{display:block;font-size:20px;color:var(--acc)}.tile span{font-size:11.5px;color:var(--muted)}.tile small{display:block;font-size:11.5px;color:var(--ink2)}
+  .tile.up b{color:var(--acc)}.tile.down b{color:var(--bad)}.tile.flat b{color:var(--ink2)}
   .rec{background:var(--acc2);border-left:3px solid var(--acc);padding:10px 14px;border-radius:4px;margin:8px 0;font-size:13.5px}.disc{color:var(--muted);font-size:12px;margin:6px 0 12px}
-  .cl{border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-top:8px;background:var(--bg)}.cl h3{margin:0 0 4px;font-size:15px}.cl .pill{font-size:11px;padding:1px 8px;border-radius:10px;background:var(--acc2);color:var(--acc);margin-left:6px}
-  .cl pre{background:var(--code);border:1px solid var(--line);border-radius:4px;padding:6px 8px;font:12px/1.45 Consolas,monospace;white-space:pre-wrap;max-height:130px;overflow:auto;margin:6px 0}
-  .cl.sel{border-color:var(--acc)}.cl .act{display:flex;gap:8px;align-items:center;margin-top:6px}.ok-msg{color:var(--acc);font-size:12.5px}
-  @media(max-width:1000px){main{grid-template-columns:1fr}#timeline{height:40vh}}
+  .cl{border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-top:8px;background:var(--bg)}.cl h3{margin:0 0 4px;font-size:15px}
+  .pill{font-size:11px;padding:1px 8px;border-radius:10px;background:var(--acc2);color:var(--acc);margin-left:6px;white-space:nowrap}.pill.warn{background:var(--warn2);color:var(--warn)}.pill.bad{background:var(--bad2);color:var(--bad)}.pill.cloud{background:var(--cloud2);color:var(--cloud)}.pill.mut{background:var(--line);color:var(--ink2)}
+  .cl pre,pre.tx{background:var(--code);border:1px solid var(--line);border-radius:4px;padding:6px 8px;font:12px/1.45 Consolas,monospace;white-space:pre-wrap;max-height:130px;overflow:auto;margin:6px 0}
+  .cl.sel{border-color:var(--acc)}.cl .act{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}.ok-msg{color:var(--acc);font-size:12.5px}
+  .tabs{display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap}.tab{padding:5px 14px;border:1px solid var(--line);border-radius:16px;background:var(--bg);color:var(--ink2);font-size:13px}.tab.on{background:var(--acc2);color:var(--acc);border-color:var(--acc)}
+  .bar-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:13px;color:var(--ink2)}.bar-row select{max-width:420px}
+  table.vt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12.5px}.vt th,.vt td{border:1px solid var(--line);padding:8px 10px;vertical-align:top;text-align:left}.vt th{background:var(--bg);color:var(--ink2);font-weight:500;font-size:12px}
+  .vt th.dim,.vt td.dim{width:150px}.vt th.fin,.vt td.fin{background:var(--code)}.vt td .sc{font-size:22px;font-weight:700;line-height:1.1}.vt td .sc.s0,.vt td .sc.s1{color:var(--bad)}.vt td .sc.s2{color:var(--warn)}.vt td .sc.s3,.vt td .sc.s4{color:var(--acc)}.vt td .sc.sn{color:var(--muted)}
+  .vt td .meta{font-size:11.5px;color:var(--muted);margin:2px 0 4px}.vt td .rat{color:var(--ink);white-space:pre-wrap}.vt td .err{color:var(--bad)}.vt tr.dis td.dim{border-left:3px solid var(--warn)}
+  pre.tx{max-height:300px}pre.tx .hl{background:var(--warn2);color:var(--warn);display:inline-block;width:100%}
+  table.lt{width:100%;border-collapse:collapse;font-size:12.5px}.lt th,.lt td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}.lt th{color:var(--muted);font-weight:500;font-size:12px}.lt tr.click{cursor:pointer}.lt tr.click:hover{background:var(--acc2)}.lt td.num{font-family:Consolas,monospace}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.blk{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 14px}.blk h3{margin:0 0 6px;font-size:13px;color:var(--ink2);font-weight:500}
+  .verdict{display:inline-block;font-size:15px;font-weight:700;padding:4px 14px;border-radius:16px;margin-right:10px}.verdict.improved{background:var(--acc2);color:var(--acc)}.verdict.regressed{background:var(--bad2);color:var(--bad)}.verdict.mixed{background:var(--warn2);color:var(--warn)}.verdict.unchanged{background:var(--line);color:var(--ink2)}
+  .empty{color:var(--muted);font-size:12.5px}code.cmd{display:block;background:var(--code);border:1px solid var(--line);border-radius:4px;padding:6px 8px;font:12px Consolas,monospace;margin-top:8px;white-space:pre-wrap;color:var(--ink2)}
+  @media(max-width:1000px){main{grid-template-columns:1fr}#timeline{height:40vh}.two{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -77,7 +92,34 @@
   <footer>
     <section>
       <h2>Final artifact: evidence card</h2>
-      <div id="card"><div style="color:var(--muted)">no card yet</div></div>
+      <div id="card"><div class="empty">no card yet</div></div>
+    </section>
+    <section id="inspector">
+      <div class="tabs">
+        <h2 style="margin:0 10px 0 0">Inspector</h2>
+        <button class="tab on" data-tab="verdicts">Judge verdicts</button>
+        <button class="tab" data-tab="clusters">Cluster drill-down</button>
+        <button class="tab" data-tab="regress">Regression</button>
+      </div>
+      <div id="pane-verdicts">
+        <div class="bar-row">
+          <span>trace</span><select id="trSel"></select>
+          <button id="trPrev" title="previous">‹</button><button id="trNext" title="next">›</button>
+          <span id="trMeta" class="empty"></span>
+        </div>
+        <div id="verdicts"><div class="empty">pick a trace, or click a "scored …" line in the timeline</div></div>
+      </div>
+      <div id="pane-clusters" style="display:none">
+        <div id="clusters"><div class="empty">no clusters yet</div></div>
+      </div>
+      <div id="pane-regress" style="display:none">
+        <div class="bar-row">
+          <span>before</span><select id="rgBefore"></select>
+          <span>after</span><b id="rgAfter" style="color:var(--ink2);font-weight:500">-</b>
+          <button id="rgGo" class="pri">Compare</button>
+        </div>
+        <div id="regress"><div class="empty">pick an earlier run to compare against the current one</div></div>
+      </div>
     </section>
   </footer>
 </main>
@@ -85,22 +127,29 @@
 (function(){
   const $=id=>document.getElementById(id);
   const STAGES=["INGEST","PRECHECK","EVALSET","SCORE","ARBITRATE","CLUSTER","REPORT"];
-  let current=null, es=null, pollTimer=null, stageState={};
+  const DIMS=["outcome","tool_use","efficiency","safety"];
+  let current=null, es=null, pollTimer=null, stageState={}, runsCache=[];
   // API token: ?token=... in the URL once, then remembered in this browser; fetches send it as a Bearer header, only EventSource uses the query param
-  let TOKEN="";try{const q=new URLSearchParams(location.search).get("token");if(q){localStorage.setItem("sparkjury_token",q);history.replaceState(null,"",location.pathname);}TOKEN=localStorage.getItem("sparkjury_token")||"";}catch(e){}
-  const withTok=u=>TOKEN?u+(u.includes("?")?"&":"?")+"token="+encodeURIComponent(TOKEN):u;
+  let TOKEN="";try{const q=new URLSearchParams(location.search).get("token");if(q){localStorage.setItem("sparkjury_token",q);history.replaceState(null,"",location.pathname);}TOKEN=(localStorage.getItem("sparkjury_token")||"");}catch(e){}
+  const withTok=u=>TOKEN?u+(u.includes("?")?"&":"?")+"token="+enc(TOKEN):u;
   // Requests go through one queue (the public gateway serves few concurrent connections) and retry once on 502/503/504.
   let chain=Promise.resolve();
   const j=(u,o)=>{const run=async()=>{for(let attempt=0;attempt<2;attempt++){const opts=Object.assign({},o||{});opts.headers=Object.assign({},(o&&o.headers)||{},TOKEN?{Authorization:"Bearer "+TOKEN}:{});const r=await fetch(u,opts);if(r.status===401){$("status").textContent="401: add ?token=<SPARKJURY_API_TOKEN> to the URL";throw new Error("unauthorized");}if(r.ok)return r.json();if(![502,503,504].includes(r.status)||attempt)throw new Error(u+" "+r.status);await new Promise(res=>setTimeout(res,600));}};const p=chain.then(run,run);chain=p.catch(()=>{});return p;};
   const pct=v=>v==null?"-":(v*100).toFixed(1)+"%";
+  const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const num=(v,d)=>v==null?"-":(+v).toFixed(d==null?2:d);
+  const enc=encodeURIComponent;
 
   function renderStages(){
     $("stages").innerHTML=STAGES.map(s=>`<span class="stage ${stageState[s]||""}">${s}</span>`).join("");
   }
-  function addEv(ev){
+  // live=true only for events arriving from the SSE stream / polling of a running run: a replayed run_end must not reload the run again (that looped forever)
+  function addEv(ev,live){
     const el=document.createElement("div");el.className="ev "+ev.kind;
     const t=(ev.ts||"").slice(11,23);
-    el.innerHTML=`<span class="t">${t}</span><span class="k">${ev.kind}</span><span>${esc(ev.message)}</span>`;
+    const tid=ev.data&&ev.data.trace_id;
+    if(tid&&ev.kind==="progress"){el.classList.add("click");if(ev.data.needs_arbitration||ev.data.degraded)el.classList.add("dis");el.title="open the three judges' verdicts for "+tid;el.onclick=()=>openTrace(tid);}
+    el.innerHTML=`<span class="t">${t}</span><span class="k">${ev.kind}</span><span class="m">${esc(ev.message)}</span>`;
     const tl=$("timeline");tl.appendChild(el);tl.scrollTop=tl.scrollHeight;
     if(ev.kind==="stage_start")stageState[ev.stage]="run";
     if(ev.kind==="stage_end")stageState[ev.stage]=(ev.message||"").endsWith(" ok")?"ok":"fail";
@@ -113,20 +162,20 @@
       if(ev.stage==="CLUSTER")$("cBad").textContent=d.n_badcases??"-";
       if(ev.stage==="ARBITRATE"){const bs=d.by_source||{};$("cLocal").textContent=(bs.panel||0)+(bs.local||0)+(bs.panel_fallback||0);$("cCloud").textContent=bs.jev||0;}
     }
-    if(ev.kind==="run_end"){$("status").textContent="run "+ev.run_id+" "+(ev.data&&ev.data.status);loadRun(ev.run_id);}
+    if(ev.kind==="run_end"&&live){$("status").textContent="run "+ev.run_id+" "+(ev.data&&ev.data.status);loadRun(ev.run_id);}
   }
-  const esc=s=>String(s??"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 
   async function loadRuns(){
-    const runs=await j("/runs");
+    const runs=await j("/runs");runsCache=runs;
     const sel=$("runSel");const prev=sel.value;
-    sel.innerHTML=runs.map(r=>`<option value="${r.run_id}">${r.run_id} · ${r.status}${r.pass_rate!=null?" · pass^1 "+pct(r.pass_rate):""}</option>`).join("");
+    sel.innerHTML=runs.map(r=>`<option value="${esc(r.run_id)}">${esc(r.run_id)} · ${esc(r.status)}${r.pass_rate!=null?" · pass^1 "+pct(r.pass_rate):""}</option>`).join("");
     if(runs.length&&!runs.some(r=>r.run_id===prev)){sel.value=runs[0].run_id;}else sel.value=prev||(runs[0]&&runs[0].run_id)||"";
+    fillBefore();
     return runs;
   }
   async function loadRun(id){
     if(!id)return;current=id;
-    const m=await j("/runs/"+id);
+    const m=await j("/runs/"+enc(id));
     $("tRun").textContent=id;$("tTitle").textContent=(m.config&&m.config.report&&m.config.report.title)||"-";
     const mo=m.models||{};
     $("tAgent").textContent=mo.agent?Object.keys(mo.agent).join(", "):"-";
@@ -143,41 +192,170 @@
     if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
     // finished runs: one JSON fetch (no long-lived connection, gateway-friendly). Running: SSE, falling back to polling.
     if(!m.running){
-      try{(await j("/runs/"+id+"/events.json")).forEach(addEv);}catch(e){}
+      try{(await j("/runs/"+enc(id)+"/events.json")).forEach(ev=>addEv(ev,false));}catch(e){}
     }else{
-      let lastSeq=0;const seen=ev=>{if(ev.seq>lastSeq){lastSeq=ev.seq;addEv(ev);}};
-      const startPolling=()=>{if(pollTimer)return;pollTimer=setInterval(async()=>{try{const evs=await j("/runs/"+id+"/events.json?since="+lastSeq);evs.forEach(seen);if(evs.some(e=>e.kind==="run_end")){clearInterval(pollTimer);pollTimer=null;}}catch(e){}},2000);};
+      let lastSeq=0;const seen=ev=>{if(ev.seq>lastSeq){lastSeq=ev.seq;addEv(ev,true);}};
+      const startPolling=()=>{if(pollTimer)return;pollTimer=setInterval(async()=>{try{const evs=await j("/runs/"+enc(id)+"/events.json?since="+lastSeq);evs.forEach(seen);if(evs.some(e=>e.kind==="run_end")){clearInterval(pollTimer);pollTimer=null;}}catch(e){}},2000);};
       try{
-        es=new EventSource(withTok("/runs/"+id+"/events"));
+        es=new EventSource(withTok("/runs/"+enc(id)+"/events"));
         ["run_start","run_end","stage_start","stage_end","progress","degraded","warning","error"].forEach(k=>es.addEventListener(k,e=>seen(JSON.parse(e.data))));
         es.addEventListener("end",()=>{if(es){es.close();es=null;}});
         es.onerror=()=>{if(es){es.close();es=null;}startPolling();};
       }catch(e){startPolling();}
     }
     $("status").textContent="run "+id+" "+m.status;
-    loadCard(id);
+    $("rgAfter").textContent=id;fillBefore();
+    $("regress").innerHTML=`<div class="empty">pick an earlier run to compare against ${esc(id)}</div>`;
+    loadCard(id);loadTraceList(id);loadClusters(id);
   }
   async function loadCard(id){
-    let c;try{c=await j("/runs/"+id+"/card");}catch(e){$("card").innerHTML=`<div style="color:var(--muted)">no card yet (${esc(e.message)})</div>`;return;}
+    let c;try{c=await j("/runs/"+enc(id)+"/card");}catch(e){$("card").innerHTML=`<div class="empty">no card yet (${esc(e.message)})</div>`;return;}
     const t=c.totals,q=c.quality;
     const tiles=[[t.n_traces,"traces"],[t.n_env_failures,"env failures"],[t.n_badcases,"badcases"],[t.n_clusters,"clusters"],[pct(q.pass_rate),"pass^1"]];
     for(const k in (q.pass_k||{}))if(+k>1)tiles.push([pct(q.pass_k[k]),"pass^"+k]);
     tiles.push([pct(q.judge_agreement_rate),"judge agreement"],[q.n_degraded,"degraded"]);
-    let confirmed=null;try{confirmed=await j("/runs/"+id+"/confirm");}catch(e){}
+    let confirmed=null;try{confirmed=await j("/runs/"+enc(id)+"/confirm");}catch(e){}
     let h=`<div class="tiles">${tiles.map(x=>`<div class="tile"><b>${esc(x[0])}</b><span>${esc(x[1])}</span></div>`).join("")}</div>`;
     h+=`<div class="rec"><b>Recommendation</b><br>${esc(c.recommendation)}</div><div class="disc">${esc(c.disclaimer)}</div>`;
     for(const cl of c.clusters){
       const name=cl.cluster_id===-1?"Unclustered":cl.label;const sel=confirmed&&confirmed.cluster_id===cl.cluster_id;
       h+=`<div class="cl ${sel?"sel":""}"><h3>#${cl.rank} ${esc(name)}<span class="pill">${cl.size} · ${(cl.share*100).toFixed(0)}%</span><span class="pill">priority ${cl.priority.toFixed(1)}</span><span class="pill">${esc(cl.label_source)}</span></h3>`;
       h+=`<div style="font-size:13px;color:var(--ink2)">${esc(cl.suggestion)}</div>`;
-      for(const r of cl.representatives.slice(0,2)){h+=`<pre>${esc(r.trace_id)} · failed ${esc((r.failed_dimensions||[]).join(", "))}\n${esc(r.excerpt)}</pre>`;
+      for(const r of cl.representatives.slice(0,2)){h+=`<pre><button class="lnk" data-t="${esc(r.trace_id)}">${esc(r.trace_id)}</button> · failed ${esc((r.failed_dimensions||[]).join(", "))}\n${esc(r.excerpt)}</pre>`;
         h+=(r.opinions||[]).slice(0,3).map(o=>`<div style="font-size:12px;color:var(--muted)">${esc(o.dimension)} · ${esc(o.judge)}: ${o.score}${o.label?" "+esc(o.label):""} — ${esc(o.rationale)}</div>`).join("");}
-      if(cl.cluster_id!==-1)h+=`<div class="act"><button data-c="${cl.cluster_id}" ${sel?"disabled":""}>${sel?"confirmed: fix this first":"PM: fix this first"}</button>${sel?`<span class="ok-msg">${esc(confirmed.next)}</span>`:""}</div>`;
+      h+=`<div class="act">`;
+      if(cl.cluster_id!==-1)h+=`<button data-c="${cl.cluster_id}" ${sel?"disabled":""}>${sel?"confirmed: fix this first":"PM: fix this first"}</button>`;
+      h+=`<button class="lnk" data-m="${cl.cluster_id}">${cl.size} member trace(s) ›</button>${sel?`<span class="ok-msg">${esc(confirmed.next)}</span>`:""}</div>`;
       h+=`</div>`;
     }
     $("card").innerHTML=h;
-    $("card").querySelectorAll("button[data-c]").forEach(b=>b.onclick=async()=>{await j("/runs/"+id+"/confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cluster_id:+b.dataset.c,decided_by:"pm"})});loadCard(id);});
+    $("card").querySelectorAll("button[data-c]").forEach(b=>b.onclick=async()=>{await j("/runs/"+enc(id)+"/confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cluster_id:+b.dataset.c,decided_by:"pm"})});loadCard(id);});
+    $("card").querySelectorAll("button[data-t]").forEach(b=>b.onclick=()=>openTrace(b.dataset.t));
+    $("card").querySelectorAll("button[data-m]").forEach(b=>b.onclick=()=>openCluster(+b.dataset.m));
   }
+
+  // ---- inspector: three views that used to need a terminal (sparkjury verdicts / regress / cluster members) ----
+  function showTab(name){
+    document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.tab===name));
+    ["verdicts","clusters","regress"].forEach(p=>$("pane-"+p).style.display=p===name?"":"none");
+  }
+  document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>showTab(t.dataset.tab));
+
+  // 1. judge verdicts side by side: 4 dimensions x 3 judges + the final decision, then the transcript with evidence steps lit up
+  let traceRows=[];
+  async function loadTraceList(id){
+    try{traceRows=await j("/runs/"+enc(id)+"/traces?limit=500");}catch(e){traceRows=[];}
+    const order=r=>(r.env_failure?2:(r.success===false?0:1));
+    traceRows.sort((a,b)=>order(a)-order(b)||String(a.trace_id).localeCompare(String(b.trace_id)));
+    $("trSel").innerHTML=traceRows.map(r=>`<option value="${esc(r.trace_id)}">${esc(r.trace_id)} · ${esc(r.task_id)} · ${r.env_failure?"ENV":(r.success===false?"FAIL":(r.success===true?"pass":"?"))}${r.degraded?" · degraded":""}</option>`).join("");
+    $("verdicts").innerHTML=`<div class="empty">${traceRows.length?"pick a trace, or click a \"scored …\" line in the timeline":"no traces scored yet"}</div>`;$("trMeta").textContent="";
+  }
+  async function openTrace(tid){
+    showTab("verdicts");$("trSel").value=tid;
+    $("inspector").scrollIntoView({behavior:"smooth",block:"start"});
+    await renderVerdicts(tid);
+  }
+  function stepRe(line){const m=/^\[(\d+)\]/.exec(line);return m?+m[1]:null;}
+  async function renderVerdicts(tid){
+    if(!tid||!current)return;
+    let d;try{d=await j("/runs/"+enc(current)+"/traces/"+enc(tid));}catch(e){$("verdicts").innerHTML=`<div class="empty">${esc(e.message)}</div>`;return;}
+    const t=d.trace,pre=d.precheck,panel=d.panel,dec=d.decision;
+    const flags=(pre&&pre.flags||[]);
+    $("trMeta").innerHTML=`task ${esc(t.task_id)} · trial ${esc(t.trial)} · ${t.outcome&&t.outcome.success===false?'<span class="pill bad">FAIL</span>':(t.outcome&&t.outcome.success?'<span class="pill">pass</span>':'<span class="pill mut">?</span>')}${t.outcome&&t.outcome.termination_reason?" · "+esc(t.outcome.termination_reason):""} · ${t.metrics?t.metrics.n_steps+" steps, "+t.metrics.n_tool_calls+" tool calls":""}${flags.length?flags.map(f=>` <span class="pill warn">precheck ${esc(f.kind)}${f.evidence_step_idx!=null?" @"+f.evidence_step_idx:""}</span>`).join(""):""}`;
+    if(!panel){$("verdicts").innerHTML=`<div class="empty">no verdicts for ${esc(tid)}${flags.length?" (excluded by precheck: "+esc(flags.map(f=>f.note||f.kind).join("; "))+")":""}</div>`;return;}
+    const judges=[];for(const v of panel.verdicts)if(!judges.includes(v.judge))judges.push(v.judge);judges.sort();
+    const model=jn=>{const v=panel.verdicts.find(x=>x.judge===jn);return v?v.model:"";};
+    const arbs={};for(const a of (dec&&dec.arbitrations||[]))arbs[a.dimension]=a;
+    const agree={};for(const a of (panel.agreement||[]))agree[a.dimension]=a;
+    const evidence=new Set();
+    let h=`<table class="vt"><thead><tr><th class="dim">dimension</th>${judges.map(jn=>`<th>${esc(jn)}<div class="meta">${esc(model(jn))}</div></th>`).join("")}<th class="fin">final decision</th></tr></thead><tbody>`;
+    const dims=DIMS.filter(x=>agree[x]||arbs[x]).concat(Object.keys(agree).filter(x=>!DIMS.includes(x)));
+    for(const dim of dims){
+      const ag=agree[dim],a=arbs[dim];
+      h+=`<tr class="${ag&&!ag.agreed?"dis":""}"><td class="dim"><b>${esc(dim)}</b><div class="meta">${ag?(ag.agreed?'<span class="pill">agreed</span>':'<span class="pill warn">DISAGREE</span>'):""}</div><div class="meta">${esc(ag?ag.reason:"")}</div></td>`;
+      for(const jn of judges){
+        const v=panel.verdicts.find(x=>x.judge===jn&&x.dimension===dim);
+        if(!v){h+=`<td><div class="sc sn">-</div></td>`;continue;}
+        (v.evidence_steps||[]).forEach(s=>evidence.add(s));
+        if(v.error){h+=`<td><div class="sc sn">×</div><div class="err">${esc(v.error)}</div></td>`;continue;}
+        h+=`<td><div class="sc s${v.score==null?"n":v.score}">${v.score==null?"-":v.score}${v.label?` <span class="pill ${v.label==="fail"?"bad":""}">${esc(v.label)}</span>`:""}</div><div class="meta">conf ${num(v.confidence)}${(v.evidence_steps||[]).length?" · steps ["+v.evidence_steps.join(",")+"]":""}${v.latency_ms!=null?" · "+(v.latency_ms>=1000?(v.latency_ms/1000).toFixed(1)+" s":num(v.latency_ms,0)+" ms"):""}</div><div class="rat">${esc(v.rationale)}</div></td>`;
+      }
+      if(!a){h+=`<td class="fin"><div class="sc sn">-</div><div class="meta">not arbitrated</div></td>`;}
+      else{
+        const src=a.source==="jev"?'<span class="pill cloud">jev (cloud)</span>':`<span class="pill mut">${esc(a.source)}</span>`;
+        h+=`<td class="fin"><div class="sc s${a.final_score==null?"n":a.final_score}">${a.final_score==null?"-":a.final_score}${a.final_label?` <span class="pill ${a.final_label==="fail"?"bad":""}">${esc(a.final_label)}</span>`:""}</div><div class="meta">${src}${a.degraded?' <span class="pill warn">degraded</span>':""}${a.jev_confidence!=null?" · jev conf "+num(a.jev_confidence):""}${a.audit_sampled?` · audit ${a.audit_score==null?"-":a.audit_score}${a.audit_disagrees?' <span class="pill bad">audit disagrees</span>':""}`:""}</div><div class="rat">${esc(a.rationale)}</div>${a.error?`<div class="err">${esc(a.error)}</div>`:""}</td>`;
+      }
+      h+=`</tr>`;
+    }
+    h+=`</tbody></table>`;
+    const lines=String(d.transcript||"").split("\n");
+    h+=`<div class="meta" style="margin:10px 0 4px;font-size:12px;color:var(--muted)">transcript · ${evidence.size} evidence step(s) highlighted</div><pre class="tx">${lines.map(l=>{const n=stepRe(l);return n!=null&&evidence.has(n)?`<span class="hl">${esc(l)}</span>`:esc(l);}).join("\n")}</pre>`;
+    $("verdicts").innerHTML=h;
+  }
+  $("trSel").onchange=()=>renderVerdicts($("trSel").value);
+  const step=d=>{const s=$("trSel");if(!s.options.length)return;s.selectedIndex=Math.max(0,Math.min(s.options.length-1,s.selectedIndex+d));renderVerdicts(s.value);};
+  $("trPrev").onclick=()=>step(-1);$("trNext").onclick=()=>step(1);
+
+  // 2. cluster drill-down: every cluster with its members, each member opens the verdicts view
+  async function loadClusters(id){
+    let c;try{c=await j("/runs/"+enc(id)+"/clusters");}catch(e){$("clusters").innerHTML=`<div class="empty">${esc(e.message)}</div>`;return;}
+    if(!c.clusters||!c.clusters.length){$("clusters").innerHTML=`<div class="empty">no badcases clustered (n_badcases=${c.n_badcases||0})</div>`;return;}
+    let h=`<div class="bar-row">${c.n_badcases} badcases · ${c.n_clusters} clusters · ${c.n_noise} noise · ${esc(c.method)} on ${esc(c.embedder)}</div>`;
+    for(const cl of c.clusters){
+      const name=cl.cluster_id===-1?"Unclustered / noise":cl.label;
+      const dims=Object.entries(cl.failed_dimension_counts||{}).sort((a,b)=>b[1]-a[1]).map(x=>`<span class="pill mut">${esc(x[0])} ${x[1]}</span>`).join("");
+      h+=`<div class="cl" id="cl-${cl.cluster_id}"><h3>#${cl.rank} ${esc(name)}<span class="pill">${cl.size} · ${(cl.share*100).toFixed(0)}%</span><span class="pill">severity ${num(cl.severity,1)}</span><span class="pill">priority ${num(cl.priority,1)}</span><span class="pill">${esc(cl.label_source)}${cl.label_confidence!=null?" "+num(cl.label_confidence):""}</span></h3>`;
+      if(cl.summary)h+=`<div style="font-size:13px;color:var(--ink2)">${esc(cl.summary)}</div>`;
+      if(cl.suggestion)h+=`<div style="font-size:13px;color:var(--ink2)">${esc(cl.suggestion)}</div>`;
+      h+=`<div class="act">${dims}<button class="lnk" data-x="${cl.cluster_id}">show ${cl.size} member(s) ›</button></div><div class="members" data-for="${cl.cluster_id}"></div></div>`;
+    }
+    $("clusters").innerHTML=h;
+    $("clusters").querySelectorAll("button[data-x]").forEach(b=>b.onclick=()=>toggleMembers(+b.dataset.x,b));
+  }
+  async function toggleMembers(cid,btn){
+    const box=$("clusters").querySelector(`.members[data-for="${cid}"]`);if(!box)return;
+    if(box.innerHTML){box.innerHTML="";if(btn)btn.textContent=btn.textContent.replace("hide","show");return;}
+    let rows;try{rows=await j("/runs/"+enc(current)+"/traces?cluster="+cid);}catch(e){box.innerHTML=`<div class="empty">${esc(e.message)}</div>`;return;}
+    box.innerHTML=`<table class="lt"><thead><tr><th>trace</th><th>task</th><th>failed</th><th>outcome</th><th>tool_use</th><th>efficiency</th><th>safety</th><th>severity</th><th>evidence</th></tr></thead><tbody>`+
+      rows.map(r=>{const s=r.final_scores||{};return `<tr class="click" data-t="${esc(r.trace_id)}"><td>${esc(r.trace_id)}</td><td>${esc(r.task_id)}</td><td>${(r.failed_dimensions||[]).map(x=>`<span class="pill bad">${esc(x)}</span>`).join("")}</td><td class="num">${s.outcome??"-"}${r.outcome_label?" "+esc(r.outcome_label):""}</td><td class="num">${s.tool_use??"-"}</td><td class="num">${s.efficiency??"-"}</td><td class="num">${s.safety??"-"}</td><td class="num">${num(r.severity,1)}</td><td style="font-family:Consolas,monospace;font-size:11.5px;color:var(--ink2)">${esc(r.excerpt)}</td></tr>`;}).join("")+`</tbody></table>`;
+    box.querySelectorAll("tr[data-t]").forEach(tr=>tr.onclick=()=>openTrace(tr.dataset.t));
+    if(btn)btn.textContent=btn.textContent.replace("show","hide");
+  }
+  async function openCluster(cid){
+    showTab("clusters");$("inspector").scrollIntoView({behavior:"smooth",block:"start"});
+    const btn=$("clusters").querySelector(`button[data-x="${cid}"]`);
+    const box=$("clusters").querySelector(`.members[data-for="${cid}"]`);
+    if(box&&!box.innerHTML)await toggleMembers(cid,btn);
+  }
+
+  // 3. regression between two runs: pass^1 / pass^k, fixed and broken tasks, cluster shifts
+  function fillBefore(){
+    const sel=$("rgBefore");const prev=sel.value;
+    const others=runsCache.filter(r=>r.run_id!==current);
+    sel.innerHTML=others.map(r=>`<option value="${esc(r.run_id)}">${esc(r.run_id)}${r.pass_rate!=null?" · pass^1 "+pct(r.pass_rate):""}</option>`).join("");
+    if(others.some(r=>r.run_id===prev))sel.value=prev;
+    $("rgGo").disabled=!others.length;
+  }
+  const delta=(b,a)=>b==null||a==null?null:a-b;
+  const dtile=(label,b,a,fmt,goodUp)=>{const d=delta(b,a);const cls=d==null||Math.abs(d)<1e-9?"flat":((d>0)===(goodUp!==false)?"up":"down");return `<div class="tile ${cls}"><b>${fmt(b)} → ${fmt(a)}</b><span>${esc(label)}</span><small>${d==null?"":(d>0?"+":"")+fmt(d)}</small></div>`;};
+  async function renderRegress(){
+    const before=$("rgBefore").value;if(!before||!current)return;
+    $("regress").innerHTML=`<div class="empty">comparing ${esc(before)} → ${esc(current)} …</div>`;
+    let r;try{r=await j("/runs/"+enc(current)+"/regress?before="+enc(before));}catch(e){$("regress").innerHTML=`<div class="empty">${esc(e.message)}</div>`;return;}
+    const ppct=v=>v==null?"-":(v*100).toFixed(1)+"%";
+    let h=`<div style="margin-bottom:10px"><span class="verdict ${esc(r.verdict)}">${esc(r.verdict)}</span><span style="color:var(--ink2)">${esc(r.before_label)} → ${esc(r.after_label)} · ${r.n_tasks_common} common task(s) · compared at pass^${r.k}</span></div>`;
+    h+=`<div class="tiles">${dtile("pass^1",r.pass_rate_before,r.pass_rate_after,ppct)}${dtile("pass^"+r.k,r.pass_k_before,r.pass_k_after,ppct)}${dtile("badcases",r.n_badcases_before,r.n_badcases_after,v=>v==null?"-":String(v),false)}<div class="tile up"><b>${r.fixed_tasks.length}</b><span>fixed (fail → pass)</span></div><div class="tile ${r.broken_tasks.length?"down":"flat"}"><b>${r.broken_tasks.length}</b><span>broken (pass → fail)</span></div></div>`;
+    const taskTable=(rows,empty)=>rows.length?`<table class="lt"><thead><tr><th>task</th><th>before</th><th>after</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.task_id)}</td><td class="num">${esc(x.before)} (${x.before_pass_trials}/${x.n_trials})</td><td class="num">${esc(x.after)} (${x.after_pass_trials}/${x.n_trials})</td></tr>`).join("")}</tbody></table>`:`<div class="empty">${empty}</div>`;
+    h+=`<div class="two"><div class="blk"><h3>Fixed tasks</h3>${taskTable(r.fixed_tasks,"none")}</div><div class="blk"><h3>Broken tasks</h3>${taskTable(r.broken_tasks,"none — nothing got worse")}</div></div>`;
+    const dims=Object.keys(r.mean_scores_after||{}).length?Object.keys(r.mean_scores_after):DIMS;
+    h+=`<div class="two" style="margin-top:14px"><div class="blk"><h3>Mean score per dimension (0–4)</h3><table class="lt"><thead><tr><th>dimension</th><th>before</th><th>after</th><th>Δ</th></tr></thead><tbody>${dims.map(k=>{const b=(r.mean_scores_before||{})[k],a=(r.mean_scores_after||{})[k];const d=delta(b,a);return `<tr><td>${esc(k)}</td><td class="num">${num(b)}</td><td class="num">${num(a)}</td><td class="num" style="color:${d==null||Math.abs(d)<1e-9?"var(--ink2)":(d>0?"var(--acc)":"var(--bad)")}">${d==null?"-":(d>0?"+":"")+num(d)}</td></tr>`;}).join("")}</tbody></table></div>`;
+    h+=`<div class="blk"><h3>Cluster shifts (badcases per failure label)</h3>${r.cluster_changes.length?`<table class="lt"><thead><tr><th>label</th><th>before</th><th>after</th><th>Δ</th></tr></thead><tbody>${r.cluster_changes.map(c=>`<tr><td>${esc(c.label)}</td><td class="num">${c.before}</td><td class="num">${c.after}</td><td class="num" style="color:${c.delta===0?"var(--ink2)":(c.delta<0?"var(--acc)":"var(--bad)")}">${c.delta>0?"+":""}${c.delta}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">no clusters in either run</div>`}</div></div>`;
+    if(r.pairwise&&r.pairwise.length){const s=r.pairwise_summary||{};h+=`<div class="blk" style="margin-top:14px"><h3>Pairwise (order-swapped) · after wins ${s.after||0} · before wins ${s.before||0} · tie ${s.tie||0} · inconsistent ${s.inconsistent||0}</h3></div>`;}
+    h+=`<code class="cmd">sparkjury regress --before runs/${esc(before)}/sparkjury.db --after runs/${esc(current)}/sparkjury.db</code>`;
+    $("regress").innerHTML=h;
+  }
+  $("rgGo").onclick=renderRegress;
+
   async function loadDgx(){
     try{const d=await j("/dgx");
       $("gpus").innerHTML=d.available?d.gpus.map(g=>`<div class="gpu"><div style="font-size:12.5px">${esc(g.name)}</div><div class="bar"><i style="width:${(g.mem_used_mb/g.mem_total_mb*100).toFixed(0)}%"></i></div><div style="font-size:11.5px;color:var(--muted)">${(g.mem_used_mb/1024).toFixed(1)} / ${(g.mem_total_mb/1024).toFixed(0)} GB${g.unified_memory?" unified":""} · util ${g.util_pct}%${g.temp_c!=null?" · "+g.temp_c+"°C":""}</div></div>`).join("")
