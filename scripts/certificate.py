@@ -97,8 +97,12 @@ def _force_utf8_stdout() -> None:
 
 
 def _cell(table: str, label: str) -> str:
-    """从 rich 表格里取某个标签右边的值，例如 stats 表的「traces | 14」。"""
-    m = re.search(rf"│\s*{re.escape(label)}\s*│\s*([^│]+?)\s*│", table)
+    """从 rich 表格里取某个标签右边的值，例如 stats 表的「traces │ 14」。
+
+    Windows 上 rich 会退回 ASCII 边框（`|` 和 `+`），所以两种竖线都得认——
+    只认 `│` 的话整张表在那边会取成空值，表现为「stats 数字」无故变红。
+    """
+    m = re.search(rf"[│|]\s*{re.escape(label)}\s*[│|]\s*([^│|]+?)\s*[│|]", table)
     return m.group(1).strip() if m else ""
 
 
@@ -413,7 +417,12 @@ def check_pipeline() -> list[Result]:
                  (("traces", "traces"), ("tasks", "tasks"),
                   ("pass1", "pass rate (pass^1)"), ("pass3", "pass^3"))}
         want = {k: PIPELINE[k] for k in ("traces", "tasks", "pass1", "pass3")}
-        results.append(Result("stats 数字", cells == want, f"实测 {cells}，期望 {want}"))
+        detail = f"实测 {cells}，期望 {want}"
+        if cells != want:
+            # 表格取数失败时把原始输出带上：跨平台渲染差异（比如 Windows 的 ASCII 边框）
+            # 只有看到原样输出才能一眼定位，免得下次又在 CI 里猜。
+            detail += f"；stats 原始输出片段：{stats[:240]!r}"
+        results.append(Result("stats 数字", cells == want, detail))
 
         con = sqlite3.connect(db)
         try:
