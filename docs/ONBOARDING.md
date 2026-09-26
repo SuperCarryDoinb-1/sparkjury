@@ -31,6 +31,7 @@ check 报没权限，先确认已被加进协作者：gh api repos/VioletScar-Hu
 2. main 有分支保护，改动只能走分支加 PR：
    gh pr create --title "一句话说清改了什么" --body-file .github/pull_request_template.md
    别用 --fill（会覆盖模板）。PR 上自动跑三平台测试，全绿才能合并。
+   检查还没跑完时合并会被拒，等它跑完；合并成功之前不要删分支，删了 PR 会被直接关掉。
 3. 每次提 PR 都要在节点上部署验证一次，结果填进 PR 模板的「节点部署验证」栏。核心命令 uv run --group ops python scripts/node.py check，输出原样贴。没过不算失败，隐瞒才算：写清哪一步、哪条命令、原始报错，PR 留草稿。
 4. 节点多人共用。动手前先 check，tmux 里有 tau2full、loop 这类会话就别 sync ~/sparkjury（整体覆盖会毁掉正在跑的长任务），做实验就复制一棵自己的树；长任务必须进 tmux，并先跟队里说一声。
 5. 提交信息用中文写清改了什么、为什么，wip/fix/update 会被钩子拒。

@@ -122,6 +122,10 @@ uv run --group ops python scripts/node.py run "cd ~/sparkjury && ~/.local/bin/uv
 
 ## 常见卡点
 
+- `gh pr create` 之后立刻 `gh pr checks --watch`，有时会在检查还没注册时报错并以 1 退出，那不是测试失败。隔半分钟再 watch，或者直接盯 workflow：`gh run watch $(gh run list --branch <分支> --limit 1 --json databaseId --jq '.[0].databaseId') --exit-status`。
+- **合并成功之前不要删分支**。head 分支一删，GitHub 会把这个 PR 直接关掉；要恢复就把分支推回来再 `gh pr reopen <号>`。
+- 必需检查还在 pending 时合并会被拒，提示里会建议 `--admin` 绕过。别绕，那是分支保护在正常工作——等检查跑完。
+
 `uv: command not found`：macOS 上 uv 可能装在 `/opt/homebrew/bin/uv`，`~/.local/bin/uv` 有时是个坏掉的包装脚本；节点上 uv 在 `~/.local/bin/uv`，非登录 shell 里不在 PATH，要写全路径或者用 `bash -lc` 包一层。
 
 `ModuleNotFoundError: paramiko`：跑 `uv sync --group ops`。
