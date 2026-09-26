@@ -251,3 +251,53 @@ def test_json_assertions_read_stdout_not_the_mixed_output():
                 offenders.append(f"{f.name}:{node.lineno}")
     assert offenders == [], f"这些地方连 stderr 一起当 JSON 解析，应改用 r.stdout：{offenders}"
 
+
+def _load_script(name):
+    """按路径加载 scripts/ 下的脚本，不要求它是包的一部分。"""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(f"sj_{name}", ROOT / "scripts" / f"{name}.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_node_py_rejects_extra_args_instead_of_acting():
+    """`node.py sync --help` 不能真的 sync。
+
+    `node.py` 用 main(argv) 手工分发，sync 分支以前不看多余参数——于是「看看用法」这个动作会
+    把代码推过去，覆盖团队共享的 `~/sparkjury`，而上面常驻着 loop、tau2full 这类无人值守任务。
+    本仓库自己就踩过一次（主树当时正跑着两个长任务）。这里不碰网络：只验证分发层在参数多余时
+    返回非零，并且压根不去调 sync()/check()。
+    """
+    mod = _load_script("node")
+    called = []
+    mod.sync = lambda: (called.append("sync"), 0)[1]
+    mod.check = lambda: (called.append("check"), 0)[1]
+
+    assert mod.main(["sync", "--help"]) == 2, "sync 收到多余参数应当直接失败"
+    assert mod.main(["check", "--dry-run"]) == 2, "check 收到多余参数应当直接失败"
+    assert called == [], f"多余的参数不该触发动作，却调用了 {called}"
+    # 不带参数时照常工作，别把正常路径一起堵死
+    assert mod.main(["sync"]) == 0 and called == ["sync"]
+
+
+def test_gen_skills_refuses_args_instead_of_regenerating():
+    """`gen_skills.py --help` 不能顺手把六个技能重新生成。
+
+    它的 main() 以前完全不看 sys.argv，所以想看用法的人会得到一次真实的重新生成，
+    把手改过的 `skills/*/SKILL.md`、`scripts/run.py`、`skill-card.md` 全部覆盖。
+    """
+    mod = _load_script("gen_skills")
+
+    def snapshot():
+        # 比字节而不是解码后的文本：skills/ 下有 __pycache__ 这类二进制产物。
+        # __pycache__ 本身要跳过——它是跑技能时生成的字节码，不是生成物，且每次都变。
+        return {p: p.read_bytes() for p in sorted((ROOT / "skills").rglob("*"))
+                if p.is_file() and "__pycache__" not in p.parts}
+
+    before = snapshot()
+    assert mod.main(["--help"]) == 0, "--help 应当打印用法并以 0 退出"
+    assert mod.main(["--dry-run"]) == 2, "不认识的参数应当返回非零"
+    assert snapshot() == before, "带参数调用不该重新生成技能"
+

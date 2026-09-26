@@ -5,6 +5,7 @@ Re-run after changing the CLI; `scripts/validate_skills.py` checks the result ag
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1] / "skills"
@@ -283,7 +284,24 @@ CARD = """# Skill card: {name}
 """
 
 
-def main() -> None:
+USAGE = """用法：python scripts/gen_skills.py
+
+没有参数。它按本文件里的 SKILLS / RUN_PY / CARD 重新生成 skills/ 下六个技能目录
+（每个目录的 SKILL.md、scripts/run.py、skill-card.md）。手改过这些生成物的话会被覆盖，
+要改内容请改本文件里的模板再重新生成。
+"""
+
+
+def main(argv: list[str]) -> int:
+    # 这里以前不看 sys.argv，于是 `gen_skills.py --help` 不会打印用法，而是把六个技能整个
+    # 重新生成一遍——想「看看怎么用」的人反而把手改过的 SKILL.md 覆盖了。要看用法就打印用法，
+    # 别的参数一律拒绝并返回非零，绝不顺手干活。
+    if argv:
+        if argv[0] in ("-h", "--help"):
+            print(USAGE)
+            return 0
+        print(f"gen_skills.py 不接受参数，收到：{argv}\n\n{USAGE}", file=sys.stderr)
+        return 2
     for name, s in SKILLS.items():
         d = ROOT / name
         (d / "scripts").mkdir(parents=True, exist_ok=True)
@@ -310,7 +328,8 @@ def main() -> None:
         risk = "read/write (local files)" if name == "sparkjury-report" else "write (local store)"
         (d / "skill-card.md").write_text(CARD.format(name=name, cmd=s["cmd"], risk=risk), encoding="utf-8")
     print(f"wrote {len(SKILLS)} skills to {ROOT}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main(sys.argv[1:]))
