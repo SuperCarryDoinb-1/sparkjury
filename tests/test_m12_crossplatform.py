@@ -138,6 +138,45 @@ def test_skill_mirrors_stay_in_sync():
             assert body == copy, f"镜像与正文不一致，两边要一起改：{f.relative_to(ROOT)}"
 
 
+# AGENTS.md 的「红线」是真源，技能里那份是给只加载技能的 Agent 看的副本。
+# 这两份真的分叉过：技能里压成了一句摘要，漏掉 scp 的 1GB 上限、8888/9000 必须鉴权、
+# 节点活动结束会清盘三条——只读技能、没读 AGENTS.md 正文的 Agent 就真的不知道。
+REDLINE_TOKENS = [
+    "reboot",
+    "shutdown",
+    "poweroff",
+    "192.168.110.0/24",
+    "scp",
+    "tmux",
+    "8888",
+    "9000",
+]
+
+
+def test_skill_restates_every_red_line():
+    """AGENTS.md 的红线必须在技能里逐条写全，不能只留一句摘要。
+
+    判断依据取自 AGENTS.md 正文而不是这里另抄一份，所以往 AGENTS.md 加一条红线、
+    忘了同步到技能时，这个测试会直接点名缺的是哪几个词。
+    """
+    contract = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    assert "## 红线" in contract, "AGENTS.md 里找不到「## 红线」一节"
+    source = contract.split("## 红线", 1)[1].split("\n## ", 1)[0]
+
+    for rel in (
+        ".agents/skills/sj-push-and-deploy/SKILL.md",
+        ".claude/skills/sj-push-and-deploy/SKILL.md",
+    ):
+        skill = (ROOT / rel).read_text(encoding="utf-8")
+        assert "## 红线" in skill, f"{rel} 里没有「## 红线」一节"
+        copy = skill.split("## 红线", 1)[1]
+        missing = [t for t in REDLINE_TOKENS if t in source and t not in copy]
+        assert missing == [], (
+            f"{rel} 的红线漏了 AGENTS.md 里写着的：{missing}。"
+            "技能常常是 Agent 唯一的规矩来源，不能比 AGENTS.md 少。"
+        )
+
+
 # 上手提示词里点名的入口，改名或搬走之后这里会先红，而不是等新人撞墙
 ONBOARDING_PATHS = [
     "AGENTS.md",
