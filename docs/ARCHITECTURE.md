@@ -235,7 +235,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 | 模块 | 名称 | 优先级 | 状态 | 对应 Skill |
 |---|---|---|---|---|
 | M1 | 数据契约 + 输入适配 + 存储 | P0 | 已完成，11 个用例 | `sparkjury-clean`（导入那半） |
-| M2 | Precheck 假 badcase 打标 | P0 | 已完成，15 个用例 | `sparkjury-clean`（预检那半） |
+| M2 | Precheck 假 badcase 打标 | P0 | 已完成，16 个用例 | `sparkjury-clean`（预检那半） |
 | M3 | 三裁判面板 | P0 | 已完成，24 个用例 | `sparkjury-score` |
 | M4 | 仲裁与审计 | P0 | 已完成，12 个用例 | `sparkjury-score` |
 | M5 | badcase 聚类与优先级 | P0 | 已完成，11 个用例 | `sparkjury-cluster` |
@@ -564,7 +564,7 @@ durable 那一段：
 
 ## 17. 当前进度与验证方法
 
-M1 到 M13 已完成（M10 节点执行、M11 录制待做），307 个 pytest 用例通过。一条命令跑通全流程：
+M1 到 M13 已完成（M10 节点执行、M11 录制待做），308 个 pytest 用例通过。一条命令跑通全流程：
 
 ```
 cd sparkjury

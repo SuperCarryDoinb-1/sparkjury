@@ -229,3 +229,19 @@ def test_a_trace_the_source_says_nothing_about_has_no_cause(tmp_path):
                                 kind=PrecheckKind.EMPTY_TRACE, cause="Timeout after 4 attempts")])])
         s = store.precheck_summary()
     assert s["blocking_causes"] == {"Timeout after 4 attempts": 1}
+
+
+def test_a_lost_trace_counts_once_even_when_two_rules_fire(tmp_path):
+    """一条空 trace 会同时踩 empty_trace 和 infra_error，两个 flag 带同一个原因。
+
+    按 flag 数会让 26 条丢掉的 trace 报成 52，真批上验的时候就是这么发现的。
+    """
+    with TraceStore(tmp_path / "d.db") as store:
+        store.put_precheck([PrecheckResult(trace_id="t1", flags=[
+            PrecheckFlag(kind=PrecheckKind.EMPTY_TRACE, cause="InternalServerError after 4 attempts"),
+            PrecheckFlag(kind=PrecheckKind.INFRA_ERROR, cause="InternalServerError after 4 attempts"),
+        ])])
+        s = store.precheck_summary()
+    assert s["n_env_failures"] == 1
+    assert s["kinds"] == {"empty_trace": 1, "infra_error": 1}
+    assert s["blocking_causes"] == {"InternalServerError after 4 attempts": 1}

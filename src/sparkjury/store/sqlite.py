@@ -359,8 +359,12 @@ class TraceStore:
             for f in flags:
                 blocking = f.get("blocking", True)
                 (kinds if blocking else adv)[str(f.get("kind", ""))] += 1
-                cause = str(f.get("cause") or "")
-                if blocking and cause:
+            if r["is_env_failure"]:
+                # One trace usually trips several blocking rules (an empty trace is both
+                # `empty_trace` and `infra_error`) and they all carry the same cause, so count the
+                # cause per *trace*: 26 lost traces must read as 26, not as 52 flag hits.
+                for cause in sorted({str(f.get("cause") or "") for f in flags
+                                     if f.get("blocking", True) and f.get("cause")}):
                     causes[cause] += 1
             if flags and not r["is_env_failure"]:
                 n_with_advisory += 1   # scorable, but carrying a signal worth reading
