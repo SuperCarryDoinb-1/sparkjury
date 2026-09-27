@@ -118,20 +118,24 @@ def precheck(
     db: Path = typer.Option(Path("runs/sparkjury.db"), "--db"),
     step_latency_ms: float | None = typer.Option(120_000, "--step-latency-ms", help="single step slower than this is a timeout; 0 disables"),
     max_duration_s: float | None = typer.Option(None, "--max-duration-s", help="whole run longer than this is a timeout"),
+    step_latency_blocks: bool = typer.Option(False, "--step-latency-blocks", help="a slow step drops the trace from judging (off: it is recorded as an advisory)"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
-    """Label environment-caused failures (M2). Flagged traces are excluded from judging."""
+    """Label environment-caused failures (M2). Blocking flags are excluded from judging."""
     from sparkjury.precheck import PrecheckConfig, run_many
 
-    cfg = PrecheckConfig(step_latency_ms=step_latency_ms or None, max_duration_s=max_duration_s)
+    cfg = PrecheckConfig(step_latency_ms=step_latency_ms or None, max_duration_s=max_duration_s,
+                         step_latency_blocks=step_latency_blocks)
     with TraceStore(db) as store:
         traces = store.list()
         results = run_many(traces, cfg)
         store.put_precheck(results)
         summary = store.precheck_summary()
     flagged = [r for r in results if r.is_env_failure]
+    advised = [r for r in results if not r.is_env_failure and r.advisories]
     if as_json:
-        console.print_json(json.dumps({"summary": summary, "flagged": [r.model_dump(mode="json") for r in flagged]}, ensure_ascii=False))
+        console.print_json(json.dumps({"summary": summary, "flagged": [r.model_dump(mode="json") for r in flagged],
+                                       "advisories": [r.model_dump(mode="json") for r in advised]}, ensure_ascii=False))
         return
     console.print(
         f"[green]prechecked[/] {summary['n_checked']} traces: "
@@ -139,6 +143,12 @@ def precheck(
     )
     if summary["kinds"]:
         console.print("  by kind: " + ", ".join(f"{k}={v}" for k, v in sorted(summary["kinds"].items())))
+    if summary.get("advisory_kinds"):
+        console.print(
+            "  advisories (kept in the eval): "
+            + ", ".join(f"{k}={v}" for k, v in sorted(summary["advisory_kinds"].items()))
+            + f" on {summary['n_traces_with_advisory']} trace(s)"
+        )
     if flagged:
         t = Table(Column("trace_id", overflow="fold"), "kind", "step", Column("note", overflow="fold"))
         for r in flagged:

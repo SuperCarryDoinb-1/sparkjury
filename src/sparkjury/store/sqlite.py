@@ -298,7 +298,7 @@ class TraceStore:
             (
                 r.trace_id,
                 int(r.is_env_failure),
-                ",".join(k.value for k in r.kinds),
+                ",".join(k.value for k in r.blocking_kinds),
                 json.dumps([f.model_dump(mode="json") for f in r.flags], ensure_ascii=False),
                 now,
             )
@@ -340,16 +340,30 @@ class TraceStore:
         return [Trace.model_validate_json(r["json"]) for r in self._conn.execute(sql)]
 
     def precheck_summary(self) -> dict[str, Any]:
-        rows = self._conn.execute("SELECT is_env_failure, kinds FROM precheck").fetchall()
+        """`kinds` counts only blocking flags, so its total matches `n_env_failures`.
+
+        Advisory flags (blocking=False, currently the single slow step rule) are counted
+        separately in `advisory_kinds`; those traces stay in the scoring set. Reading the
+        split out of the stored `flags` JSON keeps old databases working: a flag written
+        before the field existed has no `blocking` key and counts as blocking.
+        """
+        rows = self._conn.execute("SELECT is_env_failure, flags FROM precheck").fetchall()
         kinds: Counter[str] = Counter()
+        adv: Counter[str] = Counter()
+        n_with_advisory = 0
         for r in rows:
-            for k in filter(None, r["kinds"].split(",")):
-                kinds[k] += 1
+            flags = json.loads(r["flags"] or "[]")
+            for f in flags:
+                (kinds if f.get("blocking", True) else adv)[str(f.get("kind", ""))] += 1
+            if flags and not r["is_env_failure"]:
+                n_with_advisory += 1   # scorable, but carrying a signal worth reading
         return {
             "n_checked": len(rows),
             "n_env_failures": sum(r["is_env_failure"] for r in rows),
             "n_scorable": len(rows) - sum(r["is_env_failure"] for r in rows),
             "kinds": dict(kinds),
+            "advisory_kinds": dict(adv),
+            "n_traces_with_advisory": n_with_advisory,
         }
 
     # ---- verdicts / panel -------------------------------------------------

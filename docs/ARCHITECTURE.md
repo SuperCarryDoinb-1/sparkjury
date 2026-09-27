@@ -234,7 +234,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 | 模块 | 名称 | 优先级 | 状态 | 对应 Skill |
 |---|---|---|---|---|
 | M1 | 数据契约 + 输入适配 + 存储 | P0 | 已完成，10 个用例 | `sparkjury-clean`（导入那半） |
-| M2 | Precheck 假 badcase 打标 | P0 | 已完成，10 个用例 | `sparkjury-clean`（预检那半） |
+| M2 | Precheck 假 badcase 打标 | P0 | 已完成，13 个用例 | `sparkjury-clean`（预检那半） |
 | M3 | 三裁判面板 | P0 | 已完成，22 个用例 | `sparkjury-score` |
 | M4 | 仲裁与审计 | P0 | 已完成，11 个用例 | `sparkjury-score` |
 | M5 | badcase 聚类与优先级 | P0 | 已完成，11 个用例 | `sparkjury-cluster` |
@@ -271,15 +271,20 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 |---|---|
 | empty_trace | trace 里没有任何 step，空跑或采集失败 |
 | infra_error | termination_reason 是 infrastructure_error / unexpected_error / user_error |
-| timeout | termination_reason 是 timeout，或单步延迟超阈值 |
+| timeout | termination_reason 是 timeout（阻断），或单步延迟超阈值（默认只记 advisory） |
 | context_overflow | termination_reason 是 context_window_exceeded |
 | tool_unavailable | 同一工具连续 2 次以上 is_error，且错误文本含 unavailable / 5xx / connection |
 | permission_denied | 工具错误文本含 permission / unauthorized / 403 |
 | user_sim_broken | 模拟用户消息为空或重复 3 次以上 |
 
-被打标的 trace 不进打分，卡片上单列"环境问题 N 条"。
+标志分两档，不是所有标志都踢人出局：
 
-验收：6 条样本各命中一条规则；正常 trace 零误报。
+- `blocking=True`（默认）：环境把这条 trace 弄坏了，数据本身没法判，排除出评分集，卡片上单列"环境问题 N 条"。
+- `blocking=False`（advisory）：这条 trace 照样送裁判，只多一条值得看的信号，卡片单列一行"Precheck advisories（仍在评）"。
+
+单步超阈值走 advisory 这一档，理由是真批数据给的：2026-09-26 那批 90 条 τ²-bench 基线里，21 条 trace 终止原因正常（`user_stop`）、对话已经跑完，仅因为某一步超过 120 秒就被整条排除，可评分的只剩 42 条。慢是 Agent 自己的表现，正是 efficiency 与 safety 两维该抓的东西，把最慢的样本剔出去不是中立而是幸存者偏差。阈值照旧记，只是不再由它决定这条 trace 能不能判；要恢复"慢就不判"的老口径，把 `[precheck] step_latency_blocks = true` 打开。
+
+验收：6 条样本各命中一条规则；正常 trace 零误报；样本里那条环境失败（tool_unavailable）仍然阻断，样本流水线数字不变（14 条 trace、1 条环境失败、13 条进裁判）。
 
 ### M3 三裁判面板
 
@@ -517,7 +522,7 @@ durable 那一段：
 
 ## 17. 当前进度与验证方法
 
-M1 到 M13 已完成（M10 节点执行、M11 录制待做），289 个 pytest 用例通过。一条命令跑通全流程：
+M1 到 M13 已完成（M10 节点执行、M11 录制待做），292 个 pytest 用例通过。一条命令跑通全流程：
 
 ```
 cd sparkjury

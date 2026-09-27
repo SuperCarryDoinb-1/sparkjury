@@ -55,6 +55,26 @@ def test_timeout_by_termination_and_by_step_latency():
     assert run(_trace("y", slow), PrecheckConfig(step_latency_ms=None)).flags == []
 
 
+def test_slow_step_is_an_advisory_unless_it_is_told_to_block():
+    """真批数据逼出来的分档：慢是 Agent 自己的表现，不是环境坏了，别把这种 trace 踢出评分集。
+
+    2026-09-26 那批 τ²-bench 基线里，90 条 trace 有 21 条终止原因正常（user_stop），却因为
+    某一步超 120s 被排除，于是「判了多少条」只剩 42。慢一步照样送裁判，只记一条 advisory。
+    """
+    slow = [s.model_copy() for s in NORMAL]
+    slow[1] = slow[1].model_copy(update={"latency_ms": 200_000.0})
+    r = run(_trace("y", slow))
+    assert r.is_env_failure is False
+    assert len(r.advisories) == 1 and r.advisories[0].note.startswith("step latency")
+    assert r.blocking_kinds == [] and r.kinds == [PrecheckKind.TIMEOUT]
+    # 老行为一行配置就能要回来
+    strict = run(_trace("y", slow), PrecheckConfig(step_latency_blocks=True))
+    assert strict.is_env_failure is True and strict.advisories == []
+    # 环境真把这条 trace 弄坏了（termination_reason=timeout）时，仍然阻断
+    dead = run(_trace("z", slow, termination="timeout"))
+    assert dead.is_env_failure is True and dead.blocking_kinds == [PrecheckKind.TIMEOUT]
+
+
 def test_context_overflow():
     assert run(_trace("x", NORMAL, termination="context_window_exceeded")).kinds == [PrecheckKind.CONTEXT_OVERFLOW]
 
@@ -131,7 +151,8 @@ def test_store_and_cli(tmp_path, tau2_path, otel_path):
         scorable = store.scorable_traces()
         assert len(scorable) == 13 and all(t.trace_id != "retail_task_003-t1" for t in scorable)
         s = store.precheck_summary()
-        assert s == {"n_checked": 14, "n_env_failures": 1, "n_scorable": 13, "kinds": {"tool_unavailable": 1}}
+        assert s == {"n_checked": 14, "n_env_failures": 1, "n_scorable": 13, "kinds": {"tool_unavailable": 1},
+                     "advisory_kinds": {}, "n_traces_with_advisory": 0}
 
     r = runner.invoke(app, ["precheck", "--db", str(db), "--json"])
     assert r.exit_code == 0, r.output
@@ -143,3 +164,38 @@ def test_store_and_cli(tmp_path, tau2_path, otel_path):
     assert r.exit_code == 0, r.output
     assert "1 environment failures, 13 go to judges" in r.output
     assert "tool_unavailable" in r.output
+
+
+def test_store_keeps_slow_traces_in_the_scoring_set(tmp_path):
+    """慢一步的 trace 留在评分集里，但摘要里必须能看见它带了一条 advisory。"""
+    slow = [s.model_copy() for s in NORMAL]
+    slow[1] = slow[1].model_copy(update={"latency_ms": 200_000.0})
+    traces = [_trace("fast", NORMAL), _trace("slow", slow)]
+    with TraceStore(tmp_path / "p.db") as store:
+        store.upsert_traces(traces)
+        store.put_precheck(run_many(traces))
+        assert [t.trace_id for t in store.scorable_traces()] == ["fast", "slow"]
+        s = store.precheck_summary()
+        assert s["n_env_failures"] == 0 and s["n_scorable"] == 2
+        assert s["kinds"] == {} and s["advisory_kinds"] == {"timeout": 1}
+        assert s["n_traces_with_advisory"] == 1
+
+
+def test_precheck_rows_written_before_the_blocking_field_still_block(tmp_path):
+    """老库里的 flags 没有 blocking 字段：按阻断处理，续跑时不能把过去的结论悄悄放宽。"""
+    import sqlite3
+
+    db = tmp_path / "old.db"
+    with TraceStore(db) as store:
+        store.upsert_traces([_trace("x", NORMAL)])
+        store.put_precheck(run_many([_trace("x", NORMAL)]))
+    # 模拟旧版写下的行：is_env_failure=1，flags 里没有 blocking 字段
+    con = sqlite3.connect(db)
+    con.execute("UPDATE precheck SET is_env_failure=1, kinds='timeout', flags=?",
+                (json.dumps([{"kind": "timeout", "note": "step latency 1 ms > 0 ms"}]),))
+    con.commit()
+    con.close()
+    with TraceStore(db) as store:
+        s = store.precheck_summary()
+        assert s["n_env_failures"] == 1 and s["kinds"] == {"timeout": 1}
+        assert s["advisory_kinds"] == {} and s["n_traces_with_advisory"] == 0

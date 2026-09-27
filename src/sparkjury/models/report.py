@@ -56,6 +56,10 @@ class CardTotals(BaseModel):
     n_tasks: int = 0
     n_env_failures: int = 0
     env_kinds: dict[str, int] = Field(default_factory=dict)
+    # 非阻断的预检信号（目前只有「单步超阈值」）：这些 trace 照常判了，但卡片要自己说出来，
+    # 否则「判了多少条」和「多少条被排除」都对不上读者的直觉。
+    n_precheck_advisories: int = 0
+    precheck_advisory_kinds: dict[str, int] = Field(default_factory=dict)
     n_scorable: int = 0
     n_scored: int = 0
     n_badcases: int = 0

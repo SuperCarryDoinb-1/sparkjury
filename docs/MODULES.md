@@ -55,10 +55,11 @@ uv run pytest
   - `user_sim_broken`：模拟用户消息为空，或同一句话重复 ≥3 次
 - 所有阈值在 `PrecheckConfig` 里可调。
 - `store/sqlite.py`：新增 `precheck` 表，`put_precheck / get_precheck / list_precheck / scorable_traces / precheck_summary`。`scorable_traces()` 就是后面 M3 judge 的输入。
-- `cli.py`：`sparkjury precheck [--step-latency-ms N] [--max-duration-s N] [--json]`。
-- `tests/test_m2_precheck.py`：10 个用例，每条规则一个正例加一个反例，另外对全部 14 条样本跑一遍确认只有 1 条被标。
+- `cli.py`：`sparkjury precheck [--step-latency-ms N] [--max-duration-s N] [--step-latency-blocks] [--json]`。
+- `tests/test_m2_precheck.py`：13 个用例，每条规则一个正例加一个反例，另外对全部 14 条样本跑一遍确认只有 1 条被标。
+- 事后补的分档（真批数据倒逼）：`PrecheckFlag` 加 `blocking` 字段，`is_env_failure` 只看阻断标志，非阻断的进 `advisories`。单步超阈值默认是非阻断，要恢复老口径把 `step_latency_blocks` 打开。原因是 2026-09-26 那批 90 条 τ²-bench 基线：21 条终止正常（`user_stop`）的 trace 仅因单步超 120 秒被排除，可评分只剩 42 条，等于把最慢的样本从体检里剔掉。改完在真批上重跑，可评分从 42 条涨到 63 条。
 
-**自测结果**：`uv run pytest` 19 passed（M1 9 个 + M2 10 个）。
+**自测结果**：`uv run pytest` 292 passed / 3 skipped（M1 9 个 + M2 13 个）。
 
 **人工验证步骤**
 

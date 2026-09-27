@@ -33,6 +33,7 @@ def build_card(store: TraceStore, run_id: str = "latest", title: str | None = No
     totals = CardTotals(
         n_traces=st.n_traces, n_tasks=st.n_tasks,
         n_env_failures=pre["n_env_failures"], env_kinds=pre["kinds"], n_scorable=pre["n_scorable"] if pre["n_checked"] else st.n_traces,
+        n_precheck_advisories=pre.get("n_traces_with_advisory", 0), precheck_advisory_kinds=pre.get("advisory_kinds", {}),
         n_scored=vs["n_traces_scored"],
         n_badcases=crun.n_badcases if crun else 0, n_clusters=crun.n_clusters if crun else 0,
         n_unclustered=crun.n_noise if crun else 0,
@@ -146,6 +147,8 @@ def render_markdown(card: EvidenceCard) -> str:
           "| | |", "|---|---|",
           f"| Traces | {t.n_traces} across {t.n_tasks} tasks |",
           f"| Environment failures (excluded) | {t.n_env_failures}" + (f" ({', '.join(f'{k}={v}' for k, v in t.env_kinds.items())})" if t.env_kinds else "") + " |",
+          f"| Precheck advisories (still judged) | {t.n_precheck_advisories}"
+          + (f" ({', '.join(f'{k}={v}' for k, v in t.precheck_advisory_kinds.items())})" if t.precheck_advisory_kinds else "") + " |",
           f"| Scored by the panel | {t.n_scored} |",
           f"| Badcases | {t.n_badcases} in {t.n_clusters} cluster(s) + {t.n_unclustered} unclustered |",
           f"| pass^1 | {_pct(q.pass_rate)} |"]
@@ -222,7 +225,8 @@ def render_html(card: EvidenceCard) -> str:
          f"<tr><th>Outcome vs benchmark</th><td colspan='4'>{e(_pct(q.gold_agreement_rate))} on {q.n_gold_compared} trace(s)"
          f"; panel says pass {e(_pct(q.judge_pass_rate))}, benchmark says pass {e(_pct(q.gold_pass_rate))}</td></tr>",
          f"<tr><th>Audit</th><td colspan='4'>{q.n_audited} dimension(s), {q.n_audit_disagreements} disagreement(s)</td></tr>",
-         f"<tr><th>Environment failures</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in t.env_kinds.items()) or '-')}</td></tr></table>",
+         f"<tr><th>Environment failures</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in t.env_kinds.items()) or '-')}</td></tr>"
+         f"<tr><th>Precheck advisories</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in t.precheck_advisory_kinds.items()) or '-')} <small>(still judged)</small></td></tr></table>",
          "<h2>Clusters</h2>"]
     if not card.clusters:
         H.append("<p>No badcases.</p>")

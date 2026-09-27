@@ -165,11 +165,15 @@ class Orchestrator:
 
     def _precheck(self) -> dict[str, Any]:
         assert self._store
-        cfg = PrecheckConfig(step_latency_ms=self.cfg.precheck.step_latency_ms, max_duration_s=self.cfg.precheck.max_duration_s)
+        cfg = PrecheckConfig(step_latency_ms=self.cfg.precheck.step_latency_ms,
+                             max_duration_s=self.cfg.precheck.max_duration_s,
+                             step_latency_blocks=self.cfg.precheck.step_latency_blocks)
         results = run_many(self._store.list(), cfg)
         self._store.put_precheck(results)
         s = self._store.precheck_summary()
-        return {"n_checked": s["n_checked"], "n_env_failures": s["n_env_failures"], "n_scorable": s["n_scorable"], "kinds": s["kinds"]}
+        return {"n_checked": s["n_checked"], "n_env_failures": s["n_env_failures"], "n_scorable": s["n_scorable"],
+                "kinds": s["kinds"], "advisory_kinds": s["advisory_kinds"],
+                "n_traces_with_advisory": s["n_traces_with_advisory"]}
 
     def _evalset(self) -> dict[str, Any]:
         assert self._store

@@ -36,6 +36,8 @@ class InputSpec(BaseModel):
 class PrecheckSettings(BaseModel):
     step_latency_ms: float | None = 120_000.0
     max_duration_s: float | None = None
+    # 单步超阈值的 trace 默认照送裁判（只记一条 advisories），要恢复「慢就不判」就打开它。
+    step_latency_blocks: bool = False
 
 
 class EvalsetSettings(BaseModel):
