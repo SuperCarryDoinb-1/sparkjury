@@ -358,12 +358,13 @@ cat skills/sparkjury-score/SKILL.md   # Windows PowerShell: type skills\sparkjur
   - `download_models.sh`：在节点上用 ModelScope 下载，已有的跳过，绝不走 scp。
   - `start_judges.sh`：一个 tmux 会话五个窗口：judge_a、judge_b、embedding、被评 Agent、API。等三个裁判的 /models 接口就绪后打印状态。
   - `status.sh` / `stop_all.sh`：查看与停止，只动自己用户的进程。
-  - `run_tau2.sh`：跑 τ²-bench retail，被评 Agent 走本地 8004 端口，模拟用户走 judge_a 的模型（与被评 Agent 权重不同），3 trial，结果落 data/simulations/ 并自动导入。
+  - `run_tau2.sh`：跑 τ²-bench retail，被评 Agent 走本地 8004 端口，模拟用户走 judge_a 的模型（与被评 Agent 权重不同），3 trial，结果落 data/simulations/ 并自动导入；结果路径兼容两种布局（新版把 `results.json` 放在以 run 名字命名的目录里，老版直接是 `名字.json`），开跑前把 tau2 评测环节那个写死的云端裁判指到本地并验证生效。
+  - `patch_tau2_nl_assertions.sh`：tau2 的 NL-assertion 裁判是评测环节里唯一会调外部 LLM 的一步，模型名写死 `gpt-4.1`；节点连不上 api.openai.com，于是带 `nl_assertions` 的任务在对话跑完之后评测抛异常，整条 simulation（含对话）被重跑 4 次后丢弃——9 月 26 日那批 90 条丢了 26 条，全部来自带 nl_assertions 的 9 个任务，另外 21 个任务一条没丢。脚本把模型名与参数改成从环境变量读，`ensure` 模式会 import 一次确认真的生效，没生效就非零退出。
   - `make_demo_bundle.sh`：把一次运行的 db、清单、事件流、卡片打成 tar.gz，笔记本上解压后 `sparkjury serve` 就能离线回放，决赛不依赖节点在线。
 - `deploy/README.md`：节点上的六步操作手册和排障表，含 SSH 端口转发、tmux、9000 到 9030 的映射、token 用法。
 - API 访问令牌：`SPARKJURY_API_TOKEN` 或 `serve --token`。设了之后除 /health 外所有路由都要 `Authorization: Bearer` 或 `?token=`；Cockpit 页第一次带 ?token= 打开后记在浏览器里，之后自动附带。**没设 token 时只服务回环来的请求**：绑公网又不给 token，`sparkjury serve` 直接拒绝启动（exit 2），`deploy/dgx/start_judges.sh` 在起 tmux、碰 vLLM 之前就把它拦掉——以前只打一句警告，日志里滚过去谁也没看见，而节点手册的红线是"8888 和 9000 上对外提供的服务必须有鉴权"。这是节点手册"公网端口必须加访问控制"的要求。
 - 请求里的路径都要归位：`run_id` 只能是单层目录名（`RunManager.run_dir()` 是所有读写的公共出口），`db` 必须落在 `runs_dir` 之内，`config_path` 必须落在服务进程工作目录之内，越界一律 400。`reset_db` 的 `unlink()` 只会作用在 `runs_dir` 之内，越界让这次 run 明确失败而不是删掉宿主机上的任意文件。
-- `tests/test_m10_deploy.py`：18 个用例：token 拒绝与放行、环境变量来源、默认关闭、页面转发 token、绑公网无 token 拒绝启动、部署脚本在动手前拦下空 token；脚本齐全且 bash -n 通过；env.example 覆盖脚本用到的全部变量；三处配置里端口一致、vLLM 只绑回环、显存比例之和留有余量；tau2 脚本的 Agent 与模拟用户用不同模型。
+- `tests/test_m10_deploy.py`：22 个用例：token 拒绝与放行、环境变量来源、默认关闭、页面转发 token、绑公网无 token 拒绝启动、部署脚本在动手前拦下空 token；脚本齐全且 bash -n 通过；env.example 覆盖脚本用到的全部变量；三处配置里端口一致、vLLM 只绑回环、显存比例之和留有余量；tau2 脚本的 Agent 与模拟用户用不同模型；结果文件两种布局都能找到；评测环节的 NL 裁判指向本地端点且开跑前验证生效；补丁脚本幂等、能回滚、补丁没打上时拒绝静默通过。
 
 **自测结果**：`uv run pytest` 96 passed, 3 skipped。
 
