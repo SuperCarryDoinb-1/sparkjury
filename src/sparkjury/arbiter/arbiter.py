@@ -6,13 +6,14 @@ a local judge arbitrates and the decision is marked degraded. A deterministic
 5% sample of traces is additionally re-scored by an audit judge so systematic
 blind spots of the small local judges become visible.
 
-一切走本地仲裁的决策（`degraded=True`）默认全部送审计，不参与 5% 抽样。原因是
-真批上量出来的：两块 30B 裁判组成的面板没有独立第三方，本地仲裁人必然是当事人
-之一，而审计一旦抽到这种决策就推翻它——judge-loop-real2 与 real6 两次跑批共 4 条
-被抽中的本地仲裁决策，4 条全被审计裁判推翻；同一批里 18 条面板决策被抽到，0 条
-不一致。只抽 5% 等于明知这条路径可疑还不查，所以改成降级决策必查，抽样留给面板
-决策。审计只记录不改判：两个裁判吵起来时任何本地裁判都是当事人，把结果标出来比
-换个人拍板更诚实。
+一切走本地仲裁的决策（`degraded=True`）默认全部送审计，不参与 5% 抽样。理由是
+真批上量出来的：63 条 trace 里 38 条本地仲裁决策有 31 条被审计裁判判成另一种结果，
+而被抽到的 18 条面板决策一条不一致。
+
+这个 31/38 的读法要知道：审计裁判就是面板里的另一位真裁判，它重问的正是当初吵起来
+的那一票，所以这个数说明的是「这些维度没有独立裁决」——面板只有两个真裁判时，
+本地仲裁人无论选谁都是当事人——而不是「仲裁判错了」。审计在这里的作用是把缺失
+独立裁决的规模变成可数的，不是去纠正它。审计只记录不改判。
 """
 
 from __future__ import annotations

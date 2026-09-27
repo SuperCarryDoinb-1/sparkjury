@@ -162,7 +162,8 @@ def render_markdown(card: EvidenceCard) -> str:
           f"| Outcome vs benchmark (calibration) | {_pct(q.gold_agreement_rate)} on the {q.n_gold_compared} judged trace(s); "
           f"panel says pass {_pct(q.judge_pass_rate)}, benchmark says pass {_pct(q.gold_pass_rate)} on those same traces |",
           f"| Decisions by source | {', '.join(f'{k}={v}' for k, v in sorted(q.decisions_by_source.items())) or '-'} |",
-          f"| Degraded decisions | {q.n_degraded} |",
+          f"| Degraded decisions | {q.n_degraded} (party-arbitrated: a panel judge broke a tie it was part of; "
+          f"no independent tiebreaker available) |",
           f"| Audit | {q.n_audited} dimension(s) audited, {q.n_audit_disagreements} disagreement(s)"
           f" (locally-arbitrated {q.n_audit_disagreements_degraded}/{q.n_audited_degraded}, panel {q.n_audit_disagreements_panel}/{q.n_audited_panel}) |",
           f"| Mean final scores | {', '.join(f'{k} {_num(v)}' for k, v in q.mean_scores.items())} |",
