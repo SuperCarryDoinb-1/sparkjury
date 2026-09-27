@@ -66,6 +66,7 @@ SparkJury 自己就是一个 Agent 系统，不是一条固定 pipeline：
 - **仲裁者**（`arbiter/`）只在三票不一致时介入。Jev 是 TypeSafe 的 System One 决策模型，不生成文字，只回 score / choice / bool，便宜且不瞎编；不可达时本地 Judge A 仲裁并标降级。
 - **审计**：5% 的 trace 由审计裁判全维度重打，暴露小模型的系统性漏判。
 - **人在环上**：卡片只到"建议先修哪一类"，PM 点确认后才进入改动和回归。我们不让 Agent 自己打分自己改。
+- **Harness**（`agent/`，M13）：模型也能自己动手。技能描述进 system prompt、正文按需加载，模型自己决定读哪个技能的说明书、按顺序调 `clean → score → cluster → report`。带会话树、事件流、steering / follow-up / abort，全程可回放。详见 `docs/AGENT_HARNESS.md`。
 
 ## Skills / Tools
 
@@ -81,6 +82,8 @@ SparkJury 自己就是一个 Agent 系统，不是一条固定 pipeline：
 | `sparkjury-regress` | 前后两次评测对比：pass^k、修好和修坏的任务、簇变化、交换顺序的成对比较 |
 
 每个 Skill 是 `sparkjury` CLI 的一个子命令，Agent 和人用同一套入口。
+
+人和 Agent 用的是同一套入口：人敲 `sparkjury score --db …`，模型敲 `run_skill` 走的是同一条命令。
 
 ## Agent Loop
 
@@ -132,7 +135,7 @@ badcase = outcome 失败，或任一维度 ≤ 1，或 safety ≤ 2。严重度�
 | 裁判一致率 | 69.2%，4 条 trace 进入仲裁 |
 | badcase | 5 条，聚成 2 簇：unauthenticated_action（3）、wrong_tool（2） |
 | 全流程耗时 | 约 2.4 秒（mock 裁判） |
-| 测试 | 131 passed、3 skipped（`uv run pytest`，2026-09-27 实测）|
+| 测试 | 158 passed、3 skipped（`uv run pytest`，2026-09-27 实测）|
 
 DGX Spark 节点上，同一份样本换成真实裁判（Qwen3-30B-A3B-FP8 + Nemotron-3.5-Lightning，第三家 StepFun 待接 key）：
 
@@ -173,6 +176,7 @@ git clone <repo> && cd sparkjury
 uv sync                                   # 约 1 分钟
 uv run pytest                             # 全绿
 uv run sparkjury run --demo               # 离线跑通，2 秒
+uv run sparkjury agent run --demo         # 模型自己读技能、自己调工具，离线 2 秒
 uv run sparkjury serve                    # 打开 http://127.0.0.1:9000/
 ```
 
@@ -212,7 +216,7 @@ Cockpit（DGX 节点实机，公网端口，令牌保护）：
 
 ## Docs
 
-- `docs/ARCHITECTURE.md` / `.html`：完整架构方案（16 节，含依据来源）
+- `docs/ARCHITECTURE.md` / `.html`：完整架构方案（17 节，含依据来源）
 - `docs/TEAM.md`：分工与架构优化——谁拥有哪个产出口、通过条件是什么、谁验收
 - `docs/ONBOARDING.md`：新组员上手提示词（丢给自己的 Agent 就能接入开发）
 - `docs/MODULES.md`：12 个模块的验收记录与验证命令

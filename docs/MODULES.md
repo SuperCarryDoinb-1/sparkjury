@@ -448,6 +448,25 @@ uv run --group ops python scripts/node.py run "nvidia-smi"    # 会提示输入�
 
 ---
 
+## M13 Agent harness（2026-09-27）
+
+**做了什么**
+- 参照 pi（earendil-works/pi）的 harness 分层，新增 `src/sparkjury/agent/`：`ai.py`（四个本地端点 + 云端共用一个 `complete()`，带工具调用与 usage）、`tools.py`（工具注册表 + 六个技能按需加载与执行 + 两个只读文件工具）、`loop.py`（agent loop 与 steering / follow-up / abort）、`session.py`（只追加、带 parent 指针的会话树）、`runtime.py`（run 目录、事件流、用量账本、manifest）、`cli.py`（`sparkjury agent run / tools / replay / endpoints`）。
+- 两条决定行为的规矩：技能正文不进 system prompt，只放一句话描述，模型要看细节自己调 `load_skill`；工具失败是消息不是崩溃（记一笔失败，收尾进 manifest 的 `degradations`）。
+- 事件流复用 M7 的 `EventBus`（`stage=AGENT`），run 落在 `runs/agent-*/`：`session.jsonl` / `events.jsonl` / `usage.jsonl` / `manifest.json`。
+- 新文档 `docs/AGENT_HARNESS.md`；README 的 Agent System、Skills、Quick Start 三处补入口。
+
+**自测结果**：`uv run pytest tests/test_m13_agent.py -q` 27 个用例全绿（全离线：脚本模型 + 离线执行器，不联网不起子进程）。`uv run sparkjury agent run --demo` 端到端 5 轮 4 次工具调用，结束方式 `end_turn`，manifest 无降级项。
+
+**验证**
+```bash
+uv run pytest tests/test_m13_agent.py -q
+uv run sparkjury agent tools
+uv run sparkjury agent run --demo
+```
+
+---
+
 ## 分工口径：Skill 库（卢万凌，2026-09-27）
 
 这一节不是模块验收，是一次任务口径的重新划定，写下来免得后面两边对不上账。
