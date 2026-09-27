@@ -352,7 +352,8 @@ def test_runtime_writes_manifest_events_and_usage(tmp_path: Path):
     assert manifest["stopped"] == STOPPED_END_TURN and manifest["turns"] == 2
     assert manifest["tools"] == ["load_skill", "run_skill", "list_dir", "read_file"]
     assert len(manifest["skills"]) == 6
-    assert manifest["session"]["entries"] == 5  # system + user + 工具调用 + 工具结果 + 最终回答
+    # system + user + tool_call + 「开始执行」标记 + tool_result + 最终回答
+    assert manifest["session"]["entries"] == 6
     assert manifest["degradations"] == []
     assert runtime.run.events_path.is_file() and runtime.run.session_path.is_file()
     assert runtime.run.ledger_path.is_file()
@@ -360,6 +361,13 @@ def test_runtime_writes_manifest_events_and_usage(tmp_path: Path):
     assert [r["turn"] for r in rows] == [1, 2]
     kinds = [json.loads(line)["kind"] for line in runtime.run.events_path.read_text(encoding="utf-8").splitlines()]
     assert kinds[0] == "run_start" and kinds[-1] == "run_end"
+    # 中层：操作日志与 values 也落盘了，工具执行前留了标记（中断恢复靠它判断副作用有没有发生）
+    assert [op["kind"] for op in manifest["operations"]] == ["run"]
+    assert manifest["operations"][0]["status"] == "completed"
+    assert (runtime.run_dir / "ops.jsonl").is_file()
+    assert (runtime.run_dir / "values.json").is_file()
+    phases = [e.data.get("phase") for e in runtime.session.entries]
+    assert "tool_start" in phases
     assert result.session_path == str(runtime.run.session_path)
 
 

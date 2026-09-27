@@ -38,8 +38,35 @@ from sparkjury.agent.loop import (
     LoopResult,
     default_system_prompt,
 )
-from sparkjury.agent.runtime import AgentRun, AgentRuntime, new_run_id
+from sparkjury.agent.compact import (
+    CompactionPlan,
+    CompactionPolicy,
+    Compactor,
+    apply_compaction,
+    deterministic_summary,
+    model_summary,
+    plan_compaction,
+)
+from sparkjury.agent.hooks import Hooks
+from sparkjury.agent.ops import (
+    TERMINAL_STATUSES,
+    Operation,
+    OperationKind,
+    OperationLog,
+    OperationStatus,
+)
+from sparkjury.agent.runtime import AgentRun, AgentRuntime, load_manifest, new_run_id
 from sparkjury.agent.session import Entry, SessionTree
+from sparkjury.agent.store import (
+    Ledger,
+    RunStore,
+    StoreError,
+    StorePaths,
+    Transaction,
+    ValuesStore,
+    atomic_write_json,
+    read_jsonl,
+)
 from sparkjury.agent.tools import (
     OfflineSkillExecutor,
     SkillInfo,
@@ -57,8 +84,14 @@ __all__ = [
     "describe_endpoints", "resolve_model", "split_thinking", "text_turn", "tool_turn",
     "STOPPED_ABORTED", "STOPPED_END_TURN", "STOPPED_ERROR", "STOPPED_MAX_TURNS",
     "AgentLoop", "LoopResult", "default_system_prompt",
-    "AgentRun", "AgentRuntime", "new_run_id",
+    "AgentRun", "AgentRuntime", "new_run_id", "load_manifest",
     "Entry", "SessionTree",
+    "CompactionPlan", "CompactionPolicy", "Compactor", "apply_compaction",
+    "deterministic_summary", "model_summary", "plan_compaction",
+    "Hooks",
+    "TERMINAL_STATUSES", "Operation", "OperationKind", "OperationLog", "OperationStatus",
+    "Ledger", "RunStore", "StoreError", "StorePaths", "Transaction", "ValuesStore",
+    "atomic_write_json", "read_jsonl",
     "OfflineSkillExecutor", "SkillInfo", "SkillRun", "SubprocessSkillExecutor", "ToolRegistry",
     "ToolSpec", "load_skill_tools", "load_skills", "parse_skill_md",
 ]
