@@ -182,3 +182,16 @@ def test_store_and_cli(scored_db, monkeypatch):
     assert "falling back to hashing" in r.output
     r = runner.invoke(app, ["cluster", "--db", str(scored_db.parent / "none.db")])
     assert r.exit_code == 1
+
+
+def test_cli_cluster_writes_clusters_json(scored_db, tmp_path):
+    """clusters.json 是给下游（prioritize / regress 新簇检测）的文件契约：字段与 Cluster 一致，不带逐条 badcase。"""
+    out = tmp_path / "out" / "clusters.json"
+    r = runner.invoke(app, ["cluster", "--db", str(scored_db), "--min-cluster-size", "2", "--out", str(out)])
+    assert r.exit_code == 0, r.output
+    d = json.loads(out.read_text(encoding="utf-8"))
+    assert d["n_badcases"] == 5 and d["clusters"] and "badcases" not in d
+    top = d["clusters"][0]
+    assert {"cluster_id", "label", "size", "share", "severity", "priority", "label_source", "member_trace_ids",
+            "failed_dimension_counts"} <= set(top)
+    assert len(top["member_trace_ids"]) == top["size"]
