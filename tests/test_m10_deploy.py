@@ -162,14 +162,19 @@ def test_start_judges_refuses_to_start_the_api_window_without_a_token(tmp_path):
     env["HOME"] = str(tmp_path / "home")  # 免得命中开发机上的 ~/envs/vllm
     (tmp_path / "home").mkdir()
 
-    r = subprocess.run([BASH, str(dgx / "start_judges.sh")], capture_output=True, text=True, env=env, timeout=120)
+    # encoding 必须钉死成 UTF-8：Windows 上 text=True 会按 cp1252 解码，脚本里 die 的中文
+    # 把读取线程打挂（UnicodeDecodeError → stdout 变 None），报出来的是无关的 TypeError。
+    # 同一个坑本仓踩过，见 docs/ESSAY_十日谈.md 结尾。scripts/certificate.py 的 _run 也是这么写的。
+    r = subprocess.run([BASH, str(dgx / "start_judges.sh")], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", env=env, timeout=120)
     out = r.stdout + r.stderr
     assert r.returncode != 0, out
     assert "SPARKJURY_API_TOKEN" in out, out
     assert "using vLLM" not in out, "token 检查要拦在动任何东西之前（tmux、vLLM 都还没碰）"
 
     # --no-api 是留的正当出口：不起 API 就不要求 token，脚本继续往下走
-    r = subprocess.run([BASH, str(dgx / "start_judges.sh"), "--no-api"], capture_output=True, text=True, env=env, timeout=120)
+    r = subprocess.run([BASH, str(dgx / "start_judges.sh"), "--no-api"], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", env=env, timeout=120)
     out = r.stdout + r.stderr
     assert "SPARKJURY_API_TOKEN" not in out, out
     assert "vLLM not found" in out, out  # 走到下一步才停，说明上一条检查确实是条件性的
