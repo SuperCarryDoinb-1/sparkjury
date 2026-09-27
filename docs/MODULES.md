@@ -364,7 +364,7 @@ cat skills/sparkjury-score/SKILL.md   # Windows PowerShell: type skills\sparkjur
 - `deploy/README.md`：节点上的六步操作手册和排障表，含 SSH 端口转发、tmux、9000 到 9030 的映射、token 用法。
 - API 访问令牌：`SPARKJURY_API_TOKEN` 或 `serve --token`。设了之后除 /health 外所有路由都要 `Authorization: Bearer` 或 `?token=`；Cockpit 页第一次带 ?token= 打开后记在浏览器里，之后自动附带。**没设 token 时只服务回环来的请求**：绑公网又不给 token，`sparkjury serve` 直接拒绝启动（exit 2），`deploy/dgx/start_judges.sh` 在起 tmux、碰 vLLM 之前就把它拦掉——以前只打一句警告，日志里滚过去谁也没看见，而节点手册的红线是"8888 和 9000 上对外提供的服务必须有鉴权"。这是节点手册"公网端口必须加访问控制"的要求。
 - 请求里的路径都要归位：`run_id` 只能是单层目录名（`RunManager.run_dir()` 是所有读写的公共出口），`db` 必须落在 `runs_dir` 之内，`config_path` 必须落在服务进程工作目录之内，越界一律 400。`reset_db` 的 `unlink()` 只会作用在 `runs_dir` 之内，越界让这次 run 明确失败而不是删掉宿主机上的任意文件。
-- `tests/test_m10_deploy.py`：22 个用例：token 拒绝与放行、环境变量来源、默认关闭、页面转发 token、绑公网无 token 拒绝启动、部署脚本在动手前拦下空 token；脚本齐全且 bash -n 通过；env.example 覆盖脚本用到的全部变量；三处配置里端口一致、vLLM 只绑回环、显存比例之和留有余量；tau2 脚本的 Agent 与模拟用户用不同模型；结果文件两种布局都能找到；评测环节的 NL 裁判指向本地端点且开跑前验证生效；补丁脚本幂等、能回滚、补丁没打上时拒绝静默通过。
+- `tests/test_m10_deploy.py`：23 个用例：token 拒绝与放行、环境变量来源、默认关闭、页面转发 token、绑公网无 token 拒绝启动、部署脚本在动手前拦下空 token；脚本齐全且 bash -n 通过；env.example 覆盖脚本用到的全部变量；三处配置里端口一致、vLLM 只绑回环、显存比例之和留有余量；tau2 脚本的 Agent 与模拟用户用不同模型；结果文件两种布局都能找到；评测环节的 NL 裁判指向本地端点且开跑前验证生效；补丁脚本幂等、能回滚、补丁没打上时拒绝静默通过；能按任务号补跑指定任务（TAU2_TASK_IDS）。
 
 **自测结果**：`uv run pytest` 96 passed, 3 skipped。
 

@@ -246,3 +246,12 @@ def test_tau2_script_finds_both_result_layouts():
     assert '"$TAU2_SIM_DIR/$NAME/results.json"' in s
     assert '"$TAU2_SIM_DIR/$NAME.json"' in s
     assert '"$TAU2_SIM_DIR"/*/results.json' in s  # 兜底：目录式布局
+
+
+def test_tau2_script_can_rerun_only_named_tasks():
+    """补跑用得上：丢了的那几个任务不是前缀（id 2、3、4、16、19、21、24、28、29），
+    --num-tasks 选不到，必须能直接点名。"""
+    s = (DGX / "run_tau2.sh").read_text(encoding="utf-8")
+    assert "TAU2_TASK_IDS" in s and "--task-ids" in s
+    assert 'TASK_ARGS=(--num-tasks "$NUM_TASKS")' in s
+    assert '"${TASK_ARGS[@]}"' in s

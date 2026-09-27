@@ -5,6 +5,7 @@
 # Env:   TAU2_HOME (default ~/tau2-bench, the source checkout; tau2 writes results under its data/simulations/)
 #        TAU2_BIN / TAU2_PY  tau2 的 venv 在队友主树里时用它指过去（共用节点上很常见）
 #        TAU2_DATA_DIR       结果落盘目录（默认 $TAU2_HOME/data）
+#        TAU2_TASK_IDS       只跑这几个任务（空格分隔），用于补跑丢了的那几条；设了就不看 NUM_TASKS
 # MAX_STEPS bounds runaway conversations (tau2 default 200): an 8B agent that loops otherwise eats 10+ minutes per task.
 cd "$(dirname "$0")/../.." && source deploy/dgx/common.sh
 NUM_TASKS="${1:-30}"; NUM_TRIALS="${2:-3}"; CONC="${3:-6}"; MAX_STEPS="${4:-60}"
@@ -35,6 +36,14 @@ OUT="$REPO_ROOT/data/simulations/$NAME.json"
 # litellm routes "openai/<model>" to an OpenAI-compatible base; per-role api_base goes through --*-llm-args.
 # --save-to is a NAME: tau2 writes $TAU2_SIM_DIR/<NAME>.json
 log "tau2 run: retail, $NUM_TASKS tasks x $NUM_TRIALS trials, agent=$AGENT_MODEL (:$AGENT_PORT), user=$JUDGE_A_MODEL (:$JUDGE_A_PORT)"
+# 补跑：TAU2_TASK_IDS="2 3 4 16 19 21 24 28 29" 只跑这 9 个任务。任务号是 tasks.json 里的 id，不是下标。
+TASK_ARGS=(--num-tasks "$NUM_TASKS")
+if [[ -n "${TAU2_TASK_IDS:-}" ]]; then
+  # shellcheck disable=SC2206
+  TASK_ARGS=(--task-ids ${TAU2_TASK_IDS})
+  log "只跑指定任务：${TAU2_TASK_IDS}（TAU2_TASK_IDS，忽略 NUM_TASKS=$NUM_TASKS）"
+fi
+
 log "eval NL-assertion judge: $TAU2_LLM_NL_ASSERTIONS (本地端点，见 patch_tau2_nl_assertions.sh)"
 ( cd "$TAU2_HOME" && "$TAU2_BIN" run \
   --domain retail \
@@ -42,7 +51,7 @@ log "eval NL-assertion judge: $TAU2_LLM_NL_ASSERTIONS (本地端点，见 patch_
   --agent-llm-args "{\"api_base\": \"http://127.0.0.1:$AGENT_PORT/v1\", \"temperature\": 0.0}" \
   --user-llm "openai/$JUDGE_A_MODEL" \
   --user-llm-args "{\"api_base\": \"http://127.0.0.1:$JUDGE_A_PORT/v1\", \"temperature\": 0.7}" \
-  --num-tasks "$NUM_TASKS" --num-trials "$NUM_TRIALS" --max-concurrency "$CONC" --max-steps "$MAX_STEPS" \
+  "${TASK_ARGS[@]}" --num-trials "$NUM_TRIALS" --max-concurrency "$CONC" --max-steps "$MAX_STEPS" \
   --save-to "$NAME" 2>&1 | tee -a "$REPO_ROOT/logs/tau2.log" )
 
 # 结果落盘路径要看 tau2 版本：新版写 <SIM_DIR>/<NAME>/results.json，老版写 <SIM_DIR>/<NAME>.json。
