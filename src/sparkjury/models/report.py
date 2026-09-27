@@ -95,6 +95,9 @@ class CardQuality(BaseModel):
     n_audit_disagreements_degraded: int = 0
     n_audited_panel: int = 0
     n_audit_disagreements_panel: int = 0
+    # 有多少 badcase 是靠当事人仲裁的判定成立的：这类判定没有独立裁决，地基是虚的，
+    # 读者拿 badcase 排优先级时得知道这件事。
+    n_badcases_contested: int = 0
     n_outcome_fail: int = 0
     mean_scores: dict[str, float | None] = Field(default_factory=dict)   # dimension -> mean final score
     judges: dict[str, dict] = Field(default_factory=dict)

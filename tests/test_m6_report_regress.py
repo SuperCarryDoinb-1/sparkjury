@@ -341,3 +341,31 @@ def test_cli_gate_output_stays_ascii_for_windows_consoles(before_db, tmp_path):
     refused = runner.invoke(app, ["regress", "--before", str(b1), "--after", str(b2)])
     assert refused.exit_code == 2
     refused.output.encode("cp1252")
+
+
+def test_card_says_how_many_badcases_rest_on_a_contested_decision(before_db):
+    """靠当事人仲裁成立的 badcase 要单独数出来。
+
+    真批 63 条里 31 个 badcase 有 15 个的失败维度来自本地仲裁（面板两个裁判吵起来、
+    由当事人之一定），而这类判定被另一位真裁判判成相反结果是 31/38。读者拿 badcase 排
+    优先级，有权知道哪几条地基是虚的。
+    """
+    from sparkjury.models.arbitration import Arbitration, DecisionSource, TraceDecision
+
+    with TraceStore(before_db) as store:
+        badcases = store.get_cluster_run().badcases
+        assert badcases, "样本数据里应该有 badcase"
+        decisions = []
+        for i, bc in enumerate(badcases):
+            # 一半标成当事人仲裁，另一半是面板一致裁决
+            degraded = i % 2 == 0
+            decisions.append(TraceDecision(trace_id=bc.trace_id, arbitrations=[Arbitration(
+                trace_id=bc.trace_id, dimension=Dimension.SAFETY, final_score=1,
+                source=DecisionSource.LOCAL if degraded else DecisionSource.PANEL, degraded=degraded)]))
+        store.put_decisions(decisions)
+        card = build_card(store, run_id="r1")
+        md, html = card_md(card), render_html(card)
+    expected = sum(1 for i in range(len(badcases)) if i % 2 == 0)
+    assert card.quality.n_badcases_contested == expected
+    assert f"{expected} of {card.totals.n_badcases}" in md
+    assert "no independent tiebreaker" in html

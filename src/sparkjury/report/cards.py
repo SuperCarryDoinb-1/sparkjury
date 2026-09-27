@@ -17,6 +17,7 @@ from sparkjury.models.report import (
     JudgeOpinion,
 )
 from sparkjury.models.verdict import ALL_DIMENSIONS, Dimension
+from sparkjury.cluster.badcase import is_badcase
 from sparkjury.store import TraceStore
 
 
@@ -49,6 +50,7 @@ def build_card(store: TraceStore, run_id: str = "latest", title: str | None = No
         n_audited_panel=ar.get("n_audited_panel", 0), n_audit_disagreements_panel=ar.get("n_audit_disagreements_panel", 0),
         n_outcome_fail=ar["n_outcome_fail"], mean_scores=_mean_scores(store), judges=vs["judges"],
         **_gold_agreement(store),
+        n_badcases_contested=_contested_badcases(store, crun),
     )
     clusters = [_card_cluster(store, c, crun) for c in crun.clusters] if crun else []
     card = EvidenceCard(
@@ -57,6 +59,27 @@ def build_card(store: TraceStore, run_id: str = "latest", title: str | None = No
     )
     card.recommendation = _recommendation(card)
     return card
+
+
+def _contested_badcases(store: TraceStore, crun) -> int:
+    """有多少个 badcase 是靠「没有独立裁决」的判定成立的。
+
+    面板只有两个真裁判时，吵起来的那一维由当事人之一（judge_a）定，标 degraded。真批
+    实测这类判定 31/38 被另一位真裁判判成相反结果，所以它们只是「暂时这么记着」，不是
+    定论。这类判定如果正好是让一条 trace 变成 badcase 的那一维，卡片得说出来：读者拿
+    badcase 去排优先级，有权知道哪几条的地基是虚的。
+    """
+    if crun is None:
+        return 0
+    n = 0
+    for bc in crun.badcases:
+        dec = store.get_decision(bc.trace_id)
+        if dec is None:
+            continue
+        failed = is_badcase(dec)
+        if failed and any(a.degraded for a in dec.arbitrations if a.dimension in failed):
+            n += 1
+    return n
 
 
 def _gold_agreement(store: TraceStore) -> dict[str, Any]:
@@ -164,6 +187,7 @@ def render_markdown(card: EvidenceCard) -> str:
           f"| Decisions by source | {', '.join(f'{k}={v}' for k, v in sorted(q.decisions_by_source.items())) or '-'} |",
           f"| Degraded decisions | {q.n_degraded} (party-arbitrated: a panel judge broke a tie it was part of; "
           f"no independent tiebreaker available) |",
+          f"| Badcases on a contested decision | {q.n_badcases_contested} of {t.n_badcases} (that dimension had no independent tiebreaker) |",
           f"| Audit | {q.n_audited} dimension(s) audited, {q.n_audit_disagreements} disagreement(s)"
           f" (locally-arbitrated {q.n_audit_disagreements_degraded}/{q.n_audited_degraded}, panel {q.n_audit_disagreements_panel}/{q.n_audited_panel}) |",
           f"| Mean final scores | {', '.join(f'{k} {_num(v)}' for k, v in q.mean_scores.items())} |",
@@ -229,6 +253,7 @@ def render_html(card: EvidenceCard) -> str:
          f"<tr><th>Arbitrated traces</th><td colspan='4'>{q.n_needing_arbitration}</td></tr>",
          f"<tr><th>Outcome vs benchmark</th><td colspan='4'>{e(_pct(q.gold_agreement_rate))} on the {q.n_gold_compared} judged trace(s)"
          f"; panel says pass {e(_pct(q.judge_pass_rate))}, benchmark says pass {e(_pct(q.gold_pass_rate))} on those same traces</td></tr>",
+         f"<tr><th>Badcases on a contested decision</th><td colspan='4'>{q.n_badcases_contested} of {t.n_badcases} <small>(that dimension had no independent tiebreaker)</small></td></tr>",
          f"<tr><th>Audit</th><td colspan='4'>{q.n_audited} dimension(s), {q.n_audit_disagreements} disagreement(s)"
          f" (locally-arbitrated {q.n_audit_disagreements_degraded}/{q.n_audited_degraded}, panel {q.n_audit_disagreements_panel}/{q.n_audited_panel})</td></tr>",
          f"<tr><th>Environment failures</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in t.env_kinds.items()) or '-')}</td></tr>"
