@@ -296,7 +296,7 @@ def cluster(
     method: str = typer.Option("auto", "--method", help="auto | hdbscan | threshold"),
     min_cluster_size: int = typer.Option(3, "--min-cluster-size"),
     jev: str = typer.Option("auto", "--jev", help="auto (label clusters with Jev if TYPESAFE_API_KEY set) | off"),
-    out: Path | None = typer.Option(None, "--out", help="also write clusters.json here（run 的 CLUSTER 阶段自动写 runs/<run_id>/clusters.json）"),
+    out: Path | None = typer.Option(None, "--out", help="also write clusters.json here (a run writes runs/<run_id>/clusters.json in its CLUSTER stage)"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Select badcases, cluster them, label each cluster, rank by frequency x severity (M5)."""
@@ -394,16 +394,20 @@ def regress(
     out: Path | None = typer.Option(None, "--out", help="write the markdown report here"),
     pairwise: str | None = typer.Option(None, "--pairwise", help="'mock' or a panel TOML; judges before/after pairs with order swap"),
     as_json: bool = typer.Option(False, "--json"),
-    gate: bool = typer.Option(False, "--gate", help="门禁 FAIL 时以退出码 1 结束；默认只报告不改退出码"),
-    severe_min: float | None = typer.Option(None, "--severe-min", help="覆盖 pack 的「新严重簇」severity 阈值"),
-    delta_min: float | None = typer.Option(None, "--delta-min", help="覆盖 pack 的 delta_min"),
-    pack: Path | None = typer.Option(None, "--pack", help="另一份 scenario pack 目录（默认 standards/scenario-pack）"),
+    gate: bool = typer.Option(False, "--gate", help="exit 1 when a gate FAILs; without it gates are reported but the exit code stays 0"),
+    severe_min: float | None = typer.Option(None, "--severe-min", help="override the pack new-severe-cluster severity threshold"),
+    delta_min: float | None = typer.Option(None, "--delta-min", help="override the pack delta_min"),
+    pack: Path | None = typer.Option(None, "--pack", help="another scenario pack dir (default standards/scenario-pack)"),
 ) -> None:
     """Compare two evaluation stores (M6): pass^k before/after, tasks fixed or broken, cluster shifts.
 
-    出对比之前先判 pack 身份：两侧 manifest 记录的 pack_hash 不同就直接拒绝（退出码 2）——两套标准评出来
-    的两轮不是回归。门禁（主指标提升阈值、新严重簇）跟着报告一起打，`--gate` 才把它变成退出码 1。
+    Pack identity is checked before the comparison: if the two sides recorded different pack_hash values the
+    command refuses to compare (exit code 2) - two rounds under different standards are not a regression.
+    Gates (primary-metric delta_min, new severe clusters) are printed with the report; only --gate turns a
+    FAIL into exit code 1.
     """
+    # 中文说明放注释里而不是 docstring 里：docstring 会进 --help，而 Windows 的控制台是 cp1252，
+    # 帮助文本里有非 ASCII 就会 UnicodeEncodeError（六技能把 CLI 当子进程调，跑得到这条路径）。
     from sparkjury.regress import REFUSED_EXIT, compare, evaluate_gates, render_gates, render_markdown
 
     judge = None
