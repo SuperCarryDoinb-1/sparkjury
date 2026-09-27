@@ -296,8 +296,11 @@ class AgentRuntime:
         subagents = self.subagents.report() if self.subagents is not None else []
         for record in subagents:
             if not record["ok"]:
+                # 子 agent 没干完：它自己的失败已经在下面这一行里说清了，不用再把子 run 的
+                # 「模型调用失败」原样抄一遍——同一件事写三遍，读的人只会以为出了三回事。
                 degradations.append(f"subagent {record['run_id']} {record['stopped']}"
                                     + (f": {record['error']}" if record["error"] else ""))
+                continue
             degradations.extend(record["degradations"])
         ops = self.ops.operations()
         ledger_total = self.store.ledger.total()

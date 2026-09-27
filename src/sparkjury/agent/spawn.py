@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from sparkjury.agent.ai import OpenAICompatProvider, Provider, ScriptedProvider
+from sparkjury.agent.ai import CHAT_ENDPOINTS, OpenAICompatProvider, Provider, ScriptedProvider
 from sparkjury.agent.tools import ToolError, ToolSpec
 from sparkjury.harness.events import EventKind
 
@@ -93,6 +93,25 @@ class SubagentRunner:
         model = args.get("model")
         return self.run(prompt, model=str(model) if model else None)
 
+    @staticmethod
+    def _check_model(model: str) -> None:
+        """起子 run 之前先把 model 校验掉。
+
+        节点上真跑过一次才知道这一步不能省：Qwen3-8B 拿到「model：短名见 agent endpoints」
+        这句话之后，自己编了 `claude` / `codex` / `default` 这些名字（大概是照着仓库里的
+        `.claude`、`.codex` 目录猜的），每次都在端点那边换回一个 404，父 agent 连着试了五种，
+        把 12 轮全烧光。名单外的名字当场说清楚，比让它一次次撞 404 便宜得多。
+        """
+        if not model or model in CHAT_ENDPOINTS:
+            return
+        if model.startswith(("http://", "https://")):
+            return
+        if "/" in model:          # 完整的模型 id（形如 Qwen/Qwen3-8B）照给，那是另一个端点的模型名
+            return
+        raise ToolError(f"没有这个端点短名：{model}。能用的只有 {', '.join(CHAT_ENDPOINTS)}；"
+                        f"要连别的地址就写完整形式 http://host:port/v1#模型名。"
+                        f"不要用别的名字重试——名字不对，重试多少次都是同一个 404。")
+
     # ------------------------------------------------------------ 派活
     def run(self, prompt: str, *, model: str | None = None, max_turns: int | None = None) -> str:
         """跑一个子 run，把它的结论回给父 agent；没干完就抛 ToolError，不美化。"""
@@ -101,6 +120,7 @@ class SubagentRunner:
         if not self.can_spawn:
             raise ToolError(f"派活已经到最深的第 {self.depth} 层（上限 {self.max_depth} 层）："
                             f"这活得自己干，不要再往下派。")
+        self._check_model(model or "")
         provider = self._provider(model)
         child_id = new_run_id("child")
         # 还剩多少层可以往下派。用「剩余深度」而不是绝对层数传给子 run，免得两边的口径对不上。
@@ -187,7 +207,11 @@ class SubagentRunner:
 
 def task_tool_spec(handler: Callable[[dict[str, Any]], str]) -> ToolSpec:
     """task 工具的定义。handler 由 runner 给：只列清单的地方（`agent policy`、`agent tools`）
-    不需要真的能跑，但需要看到「模型能调什么」里确实有这么一条。"""
+    不需要真的能跑，但需要看到「模型能调什么」里确实有这么一条。
+
+    `model` 写成 enum 而不是一句「短名见 agent endpoints」：提示词里的「见某处」模型是不会去见的，
+    它只会编一个看起来像的名字出来。
+    """
     return ToolSpec(
         name="task",
         description="把一件独立的事派给一个子 Agent 去做，它有自己的会话和产物目录，干完把结论拿回来。"
@@ -195,7 +219,8 @@ def task_tool_spec(handler: Callable[[dict[str, Any]], str]) -> ToolSpec:
                     "需要一步步商量的活自己干，别派出去。",
         parameters={"type": "object", "properties": {
             "prompt": {"type": "string", "description": "要子 Agent 干的事，说清楚交什么、干到什么程度算完"},
-            "model": {"type": "string", "description": "用哪个端点跑子 Agent，默认跟当前一样；短名见 agent endpoints"},
+            "model": {"type": "string", "enum": list(CHAT_ENDPOINTS),
+                      "description": "用哪个端点跑子 Agent；不填就跟当前这次一样。"},
         }, "required": ["prompt"]},
         handler=handler, source="subagent",
     )

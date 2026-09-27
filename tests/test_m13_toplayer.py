@@ -630,6 +630,44 @@ def test_plan_mode_refuses_delegation_too(tmp_path: Path):
     assert manifest_of(runtime)["permissions"]["denied"] == 1
 
 
+def test_task_model_parameter_is_an_enum_of_real_endpoints():
+    """节点上真跑出来的教训：一句「短名见 agent endpoints」，模型会自己编名字。"""
+    spec = task_tool_spec(lambda _args: "ok")
+    enum = spec.parameters["properties"]["model"]["enum"]
+    assert "subject" in enum and "judge-a" in enum
+    assert "embed" not in enum, "向量端点不能当大脑用，别列进去勾引模型"
+    assert "claude" not in enum and "codex" not in enum
+
+
+def test_unknown_endpoint_name_is_refused_before_a_child_run_starts(tmp_path: Path):
+    runtime = make_runtime(tmp_path, [tool_turn(("task", {"prompt": "查一下", "model": "claude"})),
+                                      text_turn("好")])
+    runtime.subagents.factory = lambda _model: ScriptedProvider([text_turn("我不该被叫起来")])
+    result = runtime.start("跑一遍")
+    assert result.ok and runtime.subagents.records == []
+    manifest = manifest_of(runtime)
+    assert not any("subagent child" in d for d in manifest["degradations"]), manifest["degradations"]
+    sent = json.dumps(runtime.provider.requests[-1], ensure_ascii=False)
+    assert "没有这个端点短名：claude" in sent and "judge-a" in sent
+
+
+def test_full_model_id_is_still_allowed(tmp_path: Path):
+    runner = SubagentRunner(_FakeParent(tmp_path), max_depth=1)
+    runner._check_model("Qwen/Qwen3-8B")          # noqa: SLF001 - 完整模型 id 不是「编出来的短名」
+    runner._check_model("http://127.0.0.1:8001/v1#Qwen/Qwen3-30B-A3B-Instruct-2507-FP8")  # noqa: SLF001
+    with pytest.raises(ToolError):
+        runner._check_model("gjorewgj")            # noqa: SLF001
+
+
+def test_failed_child_is_reported_once_not_three_times(tmp_path: Path):
+    runtime = make_runtime(tmp_path, [tool_turn(("task", {"prompt": "查一下"})), text_turn("知道了")])
+    runtime.subagents.factory = lambda _model: ScriptedProvider([Turn(error="端点掉线了", model="x")])
+    runtime.start("跑一遍")
+    degradations = manifest_of(runtime)["degradations"]
+    hits = [d for d in degradations if "subagent child" in d]
+    assert len(hits) == 1, degradations
+
+
 def test_task_without_prompt_is_refused_before_any_work(tmp_path: Path):
     runtime = make_runtime(tmp_path, [text_turn("好")])
     output, ok = runtime.registry.call("task", {})

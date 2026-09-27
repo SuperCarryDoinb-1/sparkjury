@@ -494,7 +494,7 @@ stdout 写事件与回执，跑 run 的活在工作线程里，所以跑着的�
 `end_turn`，看起来像自然跑完）；steering 在最后那一轮回答期间到达时，循环会再跑一轮把它冲成一条
 user 消息（以前会随 end_turn 一起丢掉）。
 
-**自测结果**：`uv run pytest tests/test_m13_agent.py tests/test_m13_durable.py tests/test_m13_toplayer.py -q` 112 个用例全绿（全离线：脚本模型 + 离线执行器，不联网不起子进程）。`uv run sparkjury agent run --demo` 端到端 5 轮 4 次工具调用，结束方式 `end_turn`，manifest 无降级项；`agent policy` 一次列清三种模式下每个工具的处置与全部红线。
+**自测结果**：`uv run pytest tests/test_m13_agent.py tests/test_m13_durable.py tests/test_m13_toplayer.py -q` 116 个用例全绿（全离线：脚本模型 + 离线执行器，不联网不起子进程）。`uv run sparkjury agent run --demo` 端到端 5 轮 4 次工具调用，结束方式 `end_turn`，manifest 无降级项；`agent policy` 一次列清三种模式下每个工具的处置与全部红线。
 
 **验证**
 ```bash
