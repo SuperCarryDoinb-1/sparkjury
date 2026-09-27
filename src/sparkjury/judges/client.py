@@ -42,6 +42,9 @@ class OpenAICompatJudge:
         temperature: float = 0.0,
         max_tokens: int = 600,
         extra_body: dict | None = None,
+        transcript_width: int = 4000,
+        transcript_max_chars: int | None = 45000,
+        include_gold: bool = False,
     ):
         try:
             from openai import OpenAI
@@ -53,6 +56,9 @@ class OpenAICompatJudge:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.extra_body = extra_body or {}
+        self.transcript_width = transcript_width
+        self.transcript_max_chars = transcript_max_chars
+        self.include_gold = include_gold
         self._client = OpenAI(base_url=base_url, api_key=api_key or os.environ.get("OPENAI_API_KEY") or "EMPTY",
                               timeout=timeout_s, max_retries=max_retries)
 
@@ -71,7 +77,9 @@ class OpenAICompatJudge:
             return False
 
     def score(self, trace: Trace, dimension: Dimension) -> Verdict:
-        messages = build_messages(trace, dimension)
+        messages = build_messages(trace, dimension, transcript_width=self.transcript_width,
+                                  transcript_max_chars=self.transcript_max_chars,
+                                  include_gold=self.include_gold)
         t0 = time.perf_counter()
         raw: str | None = None
         try:

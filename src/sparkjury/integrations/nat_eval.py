@@ -29,8 +29,12 @@ class SparkJuryEvaluatorCore:
             cfg.dimensions = [Dimension(d) for d in dimensions]
         self.panel = Panel.from_config(cfg)
         jev_client = None if jev == "off" else JevClient()
-        self.arbiter = Arbiter(jev=jev_client, local_judge=self.panel.judges[0],
-                               audit_judge=self.panel.judges[-1] if len(self.panel.judges) > 1 else None, audit_rate=audit_rate)
+        local, audit = self.panel.arbiter_judges()
+        self.arbiter = Arbiter(jev=jev_client, local_judge=local,
+                               audit_judge=audit, audit_rate=audit_rate,
+                               transcript_width=cfg.transcript_width,
+                               transcript_max_chars=cfg.transcript_max_chars,
+                               include_gold=cfg.include_gold)
         self.dimensions = cfg.dimensions or list(ALL_DIMENSIONS)
         self.domain = domain
 

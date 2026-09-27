@@ -248,10 +248,13 @@ def arbitrate(
 
     cfg = PanelConfig.mock() if judges == "mock" else PanelConfig.from_toml(judges)
     panel = Panel.from_config(cfg)
-    local = panel.judges[0]                       # Judge A doubles as the local arbiter
-    audit = panel.judges[-1] if len(panel.judges) > 1 else None
+    # The audit judge has to be a real model: a mock auditing a mock only writes down a row
+    # that reads like a passing audit.
+    local, audit = panel.arbiter_judges()
     jev_client = None if jev == "off" else JevClient(timeout_s=jev_timeout_s)
-    arbiter = Arbiter(jev=jev_client, local_judge=local, audit_judge=audit, audit_rate=audit_rate)
+    arbiter = Arbiter(jev=jev_client, local_judge=local, audit_judge=audit, audit_rate=audit_rate,
+                      transcript_width=cfg.transcript_width, transcript_max_chars=cfg.transcript_max_chars,
+                      include_gold=cfg.include_gold)
 
     with TraceStore(db) as store:
         panels = [store.get_panel_result(trace_id)] if trace_id else store.list_panel_results()

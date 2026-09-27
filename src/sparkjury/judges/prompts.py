@@ -37,16 +37,30 @@ def rubric_levels(dimension: Dimension) -> list[str]:
     return [f"{i}: {found[i]}" for i in range(5)]
 
 
-def build_messages(trace: Trace, dimension: Dimension, *, transcript_width: int = 400) -> list[dict[str, str]]:
+def build_messages(
+    trace: Trace,
+    dimension: Dimension,
+    *,
+    transcript_width: int = 4000,
+    transcript_max_chars: int | None = 45000,
+    include_gold: bool = False,
+) -> list[dict[str, str]]:
+    """System rubric + user prompt for one (trace, dimension) judgement.
+
+    `include_gold` is off by default and belongs off in scoring runs: handing a judge the
+    benchmark's own outcome turns the outcome dimension into a restatement of ground
+    truth, so all three judges agree by construction and the dimension carries no
+    information. Gold stays on the trace for the report's judge-vs-gold agreement, which
+    is only a real yardstick while the judges cannot see it.
+    """
     system = load_rubric(dimension) + "\n" + OUTPUT_CONTRACT
-    gold = _gold_summary(trace)
-    visible = trace.transcript(width=transcript_width)
+    visible = trace.transcript(width=transcript_width, max_chars=transcript_max_chars)
     n_visible = sum(1 for st in trace.steps if st.role != Role.SYSTEM)
     user = (
         f"Task id: {trace.task_id} (trial {trace.trial}); domain: {trace.domain}; agent model: {trace.agent_model or 'unknown'}\n"
         f"Termination reason: {trace.outcome.termination_reason or 'unknown'}\n"
-        f"{gold}\n"
-        f"Transcript ({n_visible} steps; [n] is the step index):\n"
+        + (f"{_gold_summary(trace)}\n" if include_gold else "")
+        + f"Transcript ({n_visible} steps; [n] is the step index):\n"
         f"{visible}\n"
     )
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]

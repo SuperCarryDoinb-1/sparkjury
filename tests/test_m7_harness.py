@@ -98,6 +98,23 @@ def test_unreachable_llm_judge_is_swapped_for_mock(demo_cfg):
     assert any(e.kind == EventKind.DEGRADED and e.stage == "SCORE" for e in events)
 
 
+def test_unreachable_judge_is_dropped_when_two_real_judges_remain(demo_cfg, monkeypatch):
+    """还剩两个真裁判时不许换 mock：让启发式打分混进真模型的投票会造出假分歧。"""
+    demo_cfg.panel = PanelConfig(judges=[
+        JudgeSpec(name="judge_a", kind="openai", model="a", base_url="http://127.0.0.1:9/v1"),
+        JudgeSpec(name="judge_b", kind="openai", model="b", base_url="http://127.0.0.1:9/v1"),
+        JudgeSpec(name="judge_c", kind="openai", model="c", base_url="http://127.0.0.1:9/v1"),
+    ])
+    demo_cfg.stages = [Stage.INGEST, Stage.PRECHECK, Stage.EVALSET, Stage.SCORE]
+    monkeypatch.setattr("sparkjury.judges.client.OpenAICompatJudge.healthcheck",
+                        lambda self, timeout_s=3.0: self.name != "judge_c")
+    m = run_config(demo_cfg)
+    deg = [d for d in m["degradations"] if d["component"].startswith("judge judge_c")]
+    assert deg and deg[0]["fallback"] == "dropped from panel"
+    assert m["models"]["judges"] == {"judge_a": "a", "judge_b": "b"}
+    assert not any(d["fallback"] == "mock judge" for d in m["degradations"])
+
+
 def test_stage_failure_is_recorded_and_stops_the_run(demo_cfg):
     demo_cfg.inputs = [InputSpec(path="does/not/exist.json", source=TraceSource.TAU2)]
     events = []

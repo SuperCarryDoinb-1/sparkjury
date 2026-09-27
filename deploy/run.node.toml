@@ -9,6 +9,12 @@ path = "data/samples/otel_sample.json"
 source = "otel"
 [panel]
 workers = 6
+# Prompt budget. The tightest judge context on the node is 16k tokens (Nemotron); 45k
+# characters is roughly 11k tokens, which leaves room for the rubric and the answer.
+# Every step keeps its `[n]` line so evidence_steps stay citable.
+transcript_width = 4000
+transcript_max_chars = 45000
+include_gold = false       # never hand a judge the benchmark's own verdict
 [[panel.judges]]
 name = "judge_a"
 kind = "openai"

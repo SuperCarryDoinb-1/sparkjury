@@ -86,11 +86,12 @@ uv run sparkjury precheck --json
   - `OpenAICompatJudge`：任何 OpenAI 兼容接口（DGX 上的 vLLM、StepFun、OpenRouter）。超时、重试可配；输出不是 JSON 时追问一次；后端挂了返回带 error 的 Verdict，绝不抛异常。
   - `MockJudge`：基于规则的裁判，用于离线测试和断网兜底；可加确定性抖动，让 mock 面板也会出现分歧。
 - `judges/heuristics.py`：规则裁判的规则，编码零售客服策略：先认证、先读后写、破坏性操作前要确认、不能编造订单状态、用户反对后不能重复同一写操作。
-- `judges/panel.py`：`PanelConfig`（TOML 或内置 mock 三人组）、`Panel.score(trace)` 并发跑 3 judge × 4 维，`decide_agreement` 判定一致性：outcome 看三票 pass/fail 是否相同，分数维度看极差是否 ≤ 1，任一 judge 出错即视为不一致。
+- `judges/panel.py`：`PanelConfig`（TOML 或内置 mock 三人组，含 prompt 预算 `transcript_width` / `transcript_max_chars` 与 `include_gold`）、`Panel.score(trace)` 并发跑 3 judge × 4 维，`decide_agreement` 判定一致性：outcome 看三票 pass/fail 是否相同，分数维度看极差是否 ≤ 1，任一 judge 出错即视为不一致。`Panel.arbiter_judges()` 统一挑仲裁人与审计人：审计只用真裁判，面板里没有两个真裁判就跳过审计。
+- `judges/prompts.py` + `models/trace.py`：prompt 预算与金标开关。`build_messages(trace, dim, *, transcript_width=4000, transcript_max_chars=45000, include_gold=False)`；`Trace.transcript(width, max_chars=..., min_width=...)` 超预算时二分收缩每步宽度，保住每条 `[n]` 骨架，连最小宽度都装不下才丢中间步并留 `[... N step(s) omitted ...]` 标记。金标默认不进 prompt——2026-09-27 修复：在此之前三家真裁判都拿到了基准金标，outcome 维度退化成复述。
 - `deploy/judges.example.toml`：三 judge 的真实配置模板（Qwen 本地 8001、Gemma 本地 8002、StepFun API），API key 只从环境变量读。
 - `store/sqlite.py`：新增 `verdicts`、`panel` 两张表，`put_panel_results / get_panel_result / list_panel_results / verdict_summary`。
 - `cli.py`：`sparkjury score [--judges mock|文件.toml] [--dims ...] [--trace ID] [--limit N] [--json]` 和 `sparkjury verdicts <trace_id>`。
-- `tests/test_m3_judges.py`：13 个用例，覆盖 prompt、JSON 解析、四类坏例的规则打分、LLM 裁判的解析与追问与容错（用桩后端）、一致性规则、TOML 配置、存储与 CLI。
+- `tests/test_m3_judges.py`：19 个用例，覆盖 prompt（含"金标默认不进 prompt"与"预算装不下才丢步且留痕"两条）、JSON 解析、四类坏例的规则打分、LLM 裁判的解析与追问与容错（用桩后端）、一致性规则、TOML 配置、仲裁人与审计人的挑选规则、存储与 CLI。
 
 **自测结果**：`uv run pytest` 32 passed（M1 9 + M2 10 + M3 13）。
 
@@ -124,7 +125,7 @@ uv run sparkjury verdicts retail_task_001-t2
   - 三票不一致：把三位裁判的分数、理由、证据步骤和对话流水拼成 state 送 Jev。score 问题的五个等级直接取自 rubric 里的 0 到 4 分定义，outcome 额外问一个 noul。
   - Jev 未配置或调用失败：本地 Judge A 仲裁，标 degraded=true，理由里写明降级原因。
   - 本地也失败：退回面板中位数，标 degraded 并记录错误。
-  - 5% 审计：按 trace_id 哈希确定性抽样，抽中的 trace 全部维度再由审计裁判打一遍，记录是否与最终裁决相差超过 1 分。
+  - 5% 审计：按 trace_id 哈希确定性抽样，抽中的 trace 全部维度再由审计裁判打一遍，记录是否与最终裁决相差超过 1 分。审计人由 `Panel.arbiter_judges()` 挑，只可能是真裁判；面板里没有两个真裁判时 `audit_judge` 为 None，审计直接跳过（2026-09-27 修复：此前取的是面板最后一位，而节点上那一位恰好是健康检查失败后被换成 mock 的 judge_c，等于让 mock 审真裁判）。
 - `judges/prompts.py`：新增 `rubric_levels()`，从四份 rubric 里解析出 0 到 4 分的描述，供 Jev 的 score 问题使用。
 - `store/sqlite.py`：新增 `arbitration` 表，`put_decisions / get_decision / list_decisions / arbitration_summary`。
 - `cli.py`：`sparkjury arbitrate [--jev auto|off] [--jev-timeout-s 5] [--judges mock|文件.toml] [--audit-rate 0.05] [--trace ID] [--json]`。Jev 的 key 从环境变量 TYPESAFE_API_KEY 读。

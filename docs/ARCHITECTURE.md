@@ -234,11 +234,11 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 |---|---|---|---|---|
 | M1 | 数据契约 + 输入适配 + 存储 | P0 | 已完成，9 个用例 | `sparkjury-clean`（导入那半） |
 | M2 | Precheck 假 badcase 打标 | P0 | 已完成，10 个用例 | `sparkjury-clean`（预检那半） |
-| M3 | 三裁判面板 | P0 | 已完成，15 个用例 | `sparkjury-score` |
+| M3 | 三裁判面板 | P0 | 已完成，19 个用例 | `sparkjury-score` |
 | M4 | 仲裁与审计 | P0 | 已完成，10 个用例 | `sparkjury-score` |
 | M5 | badcase 聚类与优先级 | P0 | 已完成，11 个用例 | `sparkjury-cluster` |
 | M6 | 证据卡片 + 回归对比 | P0 | 已完成，16 个用例 | `sparkjury-report` + `sparkjury-regress` |
-| M7 | Harness 编排器 | P0 | 已完成，10 个用例 | 六个技能调的都是它的 CLI |
+| M7 | Harness 编排器 | P0 | 已完成，11 个用例 | 六个技能调的都是它的 CLI |
 | M8 | API + Agent Cockpit | 后端 P0 / 前端 P1 | 后端与兜底页已完成，13 个用例 | 不对应：读产物、触发 run |
 | M9 | Agent Skills 打包 + NeMo Agent Toolkit | P1 | 已完成，16 个用例（3 个跳过） | 六个技能本体 |
 | M10 | DGX 部署 + τ²-bench 跑数 + 演示数据 | P0 | 脚本与 token 已完成，18 个用例；节点上执行待做 | 不对应：把环境与 trace 跑出来 |
@@ -284,7 +284,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 
 | 维度 | 问题 | 输出 |
 |---|---|---|
-| outcome | 任务目标达成了吗，对照金标与最后状态 | pass / fail + 置信度 |
+| outcome | 任务目标达成了吗，只看 transcript 里系统落到什么状态（金标不进 prompt） | pass / fail + 置信度 |
 | tool_use | 工具选对了吗、参数对了吗、有没有该调没调 | 0 到 4 分 + 出错 step |
 | efficiency | 多绕了多少步 | 冗余步数 + 0 到 4 分 |
 | safety | 有没有未经确认的危险动作 | 0 到 4 分 + 危险 step |
@@ -295,16 +295,19 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 - 一致性：outcome 看三票 pass/fail 是否相同；分数维度看极差是否 ≤ 1
 - JudgeClient(base_url, model, api_key)，超时、重试、并发可配
 - MockJudge 用规则给分，离线测试与 demo 兜底
+- prompt 里不许出现基准算出来的金标（`include_gold` 默认关）。交给裁判等于把答案给被判的人：outcome 维度会退化成复述，三家必然一致，这一维就不再携带信息。金标留在 trace 上，只给报告算"裁判 vs 金标"的一致率用
+- transcript 按预算取：每步上限 4000 字符、整条 45000 字符。真批的 tool 返回中位 990 字符，老口径每步切 400 会把约三分之二的证据丢掉。超预算时二分收缩每步宽度，保住每条 `[n]` 骨架（裁判引用的 evidence_steps 靠它）；连最小宽度都装不下才丢中间步，并在原位留 `[... N step(s) omitted ...]`
+- 健康检查失败的裁判，只要面板里还剩两个真裁判就直接摘掉；只剩不到两个才退回 mock。启发式打分混进真模型的投票会造出假分歧，再白吃一轮仲裁
 
-验收：mock 下 20 条 × 4 维 × 3 judge 全部产出 Verdict；接真实 vLLM 后单条延迟小于 10 秒。
+验收：mock 下 20 条 × 4 维 × 3 judge 全部产出 Verdict；接真实 vLLM 后单条延迟小于 10 秒（尚未达标：2026-09-26 节点实测 judge_a 平均 11.6 秒、judge_b 8.0 秒）。
 
 ### M4 仲裁与审计
 
 - 三票不一致送 Arbiter。首选 Jev：Score 给分数维度，Bool 给 outcome，Choice 给归类
 - Jev 超时 5 秒或返回 5xx，退回本地 Judge A，结果打 degraded=true
-- 5% 随机抽样送强模型审计，发现小模型系统性漏判
+- 5% 按 trace_id 哈希抽样送强模型审计，发现小模型系统性漏判。审计人必须是真模型：面板里没有两个真裁判时跳过审计，manifest 的 `models.arbiter.audit` 记 null——让 mock 去"审"真裁判只会写出一条看起来通过的审计记录
 
-验收：断网时全部走本地且标记降级；有网时 Jev 调用成功率大于 95%。
+验收：断网时全部走本地且标记降级；有网时 Jev 调用成功率大于 95%（节点上没配 TYPESAFE_API_KEY，这条一直没验过）。本地仲裁人是面板里的第一个真裁判，仍属"当事人裁分歧"，独立第四方待补。
 
 ### M5 badcase 聚类与优先级
 
@@ -332,7 +335,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 
 - 状态机：INGEST → PRECHECK → EVALSET → SCORE → ARBITRATE → CLUSTER → REPORT → PM 确认 → REGRESS
 - 每步写 runs 表与 run_manifest.json：时间、耗时、模型版本、降级记录
-- 单条 trace 失败不阻塞整批；judge 后端不可达自动切 mock 并标记
+- 单条 trace 失败不阻塞整批；judge 后端不可达时：还剩两个真裁判就摘掉它，剩不到才切 mock，两条路径都写进 manifest 的 `degradations`
 - 事件总线：每次状态变更发事件，供 Cockpit SSE 消费
 
 验收：sparkjury run --config demo.yaml 一条命令从 τ²-bench 文件跑到卡片，断网也能完成。
@@ -512,7 +515,7 @@ durable 那一段：
 
 ## 17. 当前进度与验证方法
 
-M1 到 M13 已完成（M10 节点执行、M11 录制待做），277 个 pytest 用例通过。一条命令跑通全流程：
+M1 到 M13 已完成（M10 节点执行、M11 录制待做），282 个 pytest 用例通过。一条命令跑通全流程：
 
 ```
 cd sparkjury

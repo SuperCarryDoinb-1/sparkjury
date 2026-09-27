@@ -30,26 +30,32 @@ uv run python scripts/ablation.py report
 
 ## 纪律：每条臂跑完先核对它是不是那条臂
 
-这条比脚本本身重要。配置里 `judge_healthcheck` 默认开着，评测前会探一次每个裁判，探不通就把这条臂悄悄换成 mock。key 没配、网络不通、端点没起，都会触发这个替换。
+这条比脚本本身重要。配置里 `judge_healthcheck` 默认开着，评测前会探一次每个裁判，探不通时按面板里还剩几个真裁判分两条路：还剩两个真裁判就把它从面板里摘掉（`degradations` 写 `dropped from panel`，效果是三家变两家），剩不到两个才换成 mock（写 `mock judge`）。key 没配、网络不通、端点没起，都会触发。
 
-于是会出现这种情况：你名义上跑的是「完整配置」那条臂，拿到的其实是降级数据，而除了 manifest 之外没有任何地方会告诉你。所以每条臂跑完先看两处：
+于是会出现这种情况：你名义上跑的是「完整配置」那条臂，拿到的其实是少一家或掺了 mock 的数据，而除了 manifest 之外没有任何地方会告诉你。所以每条臂跑完先看两处：
 
 - `runs/ablation-<臂>/manifest.json` 的 `degradations`，空数组才说明这条臂真的按配置跑完了
-- 同一份 manifest 的 `models`，看 judge_c 是不是 `mock-fallback-for-step-3.7-flash`、`arbiter.jev` 是不是 null
+- 同一份 manifest 的 `models`：`judges` 里还剩下几家真裁判（值写成 `mock-fallback-for-<模型>` 的是被换掉的，压根不在表里的是被摘掉的）、`arbiter.jev` 是不是 null、`arbiter.audit` 是不是 null
 
 对不上就把这条臂按它实际的身份记录，别把不同身份的结论放进同一张表。
 
-## 先说一个信息泄漏：mock 裁判读的是 gold
+顺带一个跑臂时的坑：想跑「judge_c 固定为 mock」那条臂，必须在 TOML 里把 judge_c 写成 `kind = "mock"`，不能指望健康检查替你换——现在它会先把 judge_c 摘掉。没有 StepFun 的 key，judge_c 为真的那两条臂根本跑不起来。
 
-`MockJudge` 其实就是启发式裁判（`src/sparkjury/judges/client.py:112`），而它的 outcome 判定直接读 trace 的 gold 结果：gold 说成功就给 4 分 pass，说不成功就给 0 分 fail（`src/sparkjury/judges/heuristics.py:148`）。所以 mock 裁判在 outcome 这一维上是一个知道答案的裁判。
+## 两个 gold 后门，只堵上了一个
 
-这带来三条约束，看结果之前必须记住：
+基准算出来的 gold 结果有两个泄漏点。原先这一节只记了第二个。
 
-含 mock 的臂（A、B）在「与 gold 一致率」上不能和 judge_c 为真的臂（C、D）直接横向比，那条 gold 后门会让这个指标失真。要比 outcome，就只在不含 mock 的臂之间比，也就是 C 对 D，而那恰好是回答「Jev 有没有用」的那个对比。另外三个维度（tool_use、efficiency、safety）的判定不读 gold，分数可以直接横向比。
+**prompt 里**：`build_messages` 曾把 `Gold outcome: SUCCESS (reward=1.0)` 拼进每一个裁判的 user prompt（不只是 mock），outcome 的 rubric 原文还写着「金标是权威，你的任务是确认它」。于是 outcome 这一维变成复述金标：2026-09-26 在 13 条真实样例上实测，三家 13/13 完全一致，取值只有 4 和 0 两种，judge_a 与 judge_b 逐条分数 42/52 相同、label 52/52 相同。2026-09-27 修复：`include_gold` 默认关，金标只留给报告算「裁判 vs 金标」的一致率。**修复之前，不含 mock 的臂（C、D）在 outcome 维度上同样失真**——这一节原来写的「只有含 mock 的臂才失真」是错的。
+
+**MockJudge 内部**：启发式裁判的 outcome 判定直接读 trace 的 gold（类在 `src/sparkjury/judges/client.py:126`，判据在 `src/sparkjury/judges/heuristics.py:148`），这跟 prompt 无关，**仍然存在**。gold 说成功就给 4 分 pass，说不成功就给 0 分 fail。
+
+所以看结果之前要记住三条：
+
+含 mock 的臂（A、B）在「与 gold 一致率」上不能和不含 mock 的臂（C、D）直接横向比，原因现在是 MockJudge 内部那个后门。要比 outcome，就只在不含 mock 的臂之间比，也就是 C 对 D，而那恰好是回答「Jev 有没有用」的那个对比。另外三个维度（tool_use、efficiency、safety）的判定不读 gold，分数可以直接横向比。
 
 pass^1 与 pass^3 不受影响，它们是从 gold 直接算的（`src/sparkjury/regress/passk.py:14`），跟裁判怎么判无关。README 里那两个数字与 mock 无关，可以照用。
 
-还有个反直觉的地方：outcome 维度要求三家 label 完全一致才算一致（`src/sparkjury/judges/panel.py:88`），所以 mock 这个「知道答案的裁判」不只是多投一票，它会把两家真裁判集体判错的情况顶出来，从而改变进入仲裁的频率；而仲裁在降级臂里是 Judge A 做的。看「降级判定条数」这个指标时要记得这一层。
+还有个反直觉的地方：outcome 维度要求各家 label 完全一致才算一致（`src/sparkjury/judges/panel.py:97`），所以 mock 这个「知道答案的裁判」不只是多投一票，它会把真裁判集体判错的情况顶出来，从而改变进入仲裁的频率；而仲裁在降级臂里是面板里的第一个真裁判做的。看「降级判定条数」这个指标时要记得这一层。
 
 ## 比什么
 

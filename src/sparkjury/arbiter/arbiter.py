@@ -30,7 +30,9 @@ class Arbiter:
         local_judge: Judge | None = None,
         audit_judge: Judge | None = None,
         audit_rate: float = 0.05,
-        transcript_width: int = 400,
+        transcript_width: int = 4000,
+        transcript_max_chars: int | None = 45000,
+        include_gold: bool = False,
     ):
         self.jev = jev if (jev is not None and jev.configured) else None
         self.jev_unavailable_reason = None if self.jev else ("jev not configured" if jev is None or not jev.configured else None)
@@ -38,6 +40,8 @@ class Arbiter:
         self.audit_judge = audit_judge
         self.audit_rate = audit_rate
         self.transcript_width = transcript_width
+        self.transcript_max_chars = transcript_max_chars
+        self.include_gold = include_gold
 
     # ---- public --------------------------------------------------------------
 
@@ -164,9 +168,12 @@ class Arbiter:
 
     def _state_text(self, trace: Trace, dim: Dimension, verdicts: list[Verdict]) -> str:
         o = trace.outcome
-        gold = "not available" if o.success is None else ("SUCCESS" if o.success else "FAIL")
+        head = f"Task {trace.task_id} trial {trace.trial}, domain {trace.domain}."
+        if self.include_gold:
+            gold = "not available" if o.success is None else ("SUCCESS" if o.success else "FAIL")
+            head += f" Gold final-state outcome: {gold}."
         lines = [
-            f"Task {trace.task_id} trial {trace.trial}, domain {trace.domain}. Gold final-state outcome: {gold}.",
+            head,
             f"Dimension under arbitration: {dim.value}.",
             "Three independent judges disagreed:",
         ]
@@ -177,5 +184,5 @@ class Arbiter:
             else:
                 lines.append(f"- {v.judge} ({v.model}): failed ({v.error})")
         lines.append("Transcript ([n] = step index):")
-        lines.append(trace.transcript(width=self.transcript_width))
+        lines.append(trace.transcript(width=self.transcript_width, max_chars=self.transcript_max_chars))
         return "\n".join(lines)

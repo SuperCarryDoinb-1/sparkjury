@@ -71,6 +71,24 @@ def _fmt_args(args: dict[str, Any], width: int) -> str:
     return s if len(s) <= width else s[: width - 1] + "…"
 
 
+def _fit_with_gaps(steps: list[Step], width: int, max_chars: int) -> str:
+    """Last resort for a huge trace: keep both ends, replace the middle with a marker.
+
+    The marker names how many steps were dropped so a reader never mistakes a gappy
+    transcript for a complete one.
+    """
+    lines = [s.short(width) for s in steps]
+    n = len(lines)
+    for drop in range(1, n):
+        head = (n - drop) // 2
+        tail = n - drop - head
+        marker = f"[... {drop} step(s) omitted to fit the prompt budget ...]"
+        kept = lines[:head] + [marker] + (lines[n - tail:] if tail else [])
+        if len("\n".join(kept)) <= max_chars:
+            return "\n".join(kept)
+    return f"[transcript omitted: {n} steps exceed the prompt budget]"
+
+
 class Outcome(BaseModel):
     """Gold-standard outcome when the source provides one (tau2 db_check)."""
 
@@ -143,13 +161,38 @@ class Trace(BaseModel):
                 return s.tool_result
         return None
 
-    def transcript(self, width: int = 160, include_system: bool = False) -> str:
-        lines = [
-            s.short(width)
-            for s in self.steps
-            if include_system or s.role != Role.SYSTEM
-        ]
-        return "\n".join(lines)
+    def transcript(self, width: int = 160, include_system: bool = False, *,
+                   max_chars: int | None = None, min_width: int = 200) -> str:
+        """Render the steps one line each, optionally inside a character budget.
+
+        `width` caps every step body. When `max_chars` is set the whole render must fit
+        it: the per-step width shrinks (binary search) until it does, so every step keeps
+        its `[n]` line and the `evidence_steps` a judge cites stay valid. Real tau2 tool
+        results run to ~1000 characters a step, so a fixed 400-character cut throws away
+        about two thirds of the evidence; the budget keeps the prompt inside a 16k-context
+        judge instead. Only if even `min_width` overflows are middle steps dropped.
+        """
+        steps = [s for s in self.steps if include_system or s.role != Role.SYSTEM]
+        if max_chars is None or max_chars <= 0 or not steps:
+            return "\n".join(s.short(width) for s in steps)
+        lo = max(1, min(min_width, width))
+        hi = max(width, lo)
+
+        def render(w: int) -> str:
+            return "\n".join(s.short(w) for s in steps)
+
+        text = render(hi)
+        if len(text) <= max_chars:
+            return text
+        if len(render(lo)) > max_chars:
+            return _fit_with_gaps(steps, lo, max_chars)
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if len(render(mid)) <= max_chars:
+                lo = mid
+            else:
+                hi = mid - 1
+        return render(lo)
 
     @property
     def is_success(self) -> bool | None:

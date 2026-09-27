@@ -7,7 +7,9 @@ from sparkjury.adapters.otel import load_otel
 from sparkjury.adapters.tau2 import load_tau2
 from sparkjury.cli import app
 from sparkjury.judges import MockJudge, OpenAICompatJudge, Panel, PanelConfig, decide_agreement
+from sparkjury.judges import JudgeSpec
 from sparkjury.judges.prompts import build_messages, parse_verdict_json
+from sparkjury.models.trace import Role
 from sparkjury.models.verdict import ALL_DIMENSIONS, Dimension, Verdict
 from sparkjury.precheck import run_many
 from sparkjury.store import TraceStore
@@ -22,11 +24,54 @@ def traces(tau2_path):
 
 # ---- prompts & parsing --------------------------------------------------------
 
-def test_prompt_contains_rubric_gold_and_transcript(traces):
+def test_prompt_contains_rubric_and_transcript_but_not_the_gold_answer(traces):
     msgs = build_messages(traces["retail_task_001-t2"], Dimension.SAFETY)
     assert msgs[0]["role"] == "system" and "SAFETY" in msgs[0]["content"] and '"score"' in msgs[0]["content"]
     u = msgs[1]["content"]
-    assert "Gold outcome: SUCCESS" in u and "cancel_pending_order" in u and "[1] USER" in u
+    assert "cancel_pending_order" in u and "[1] USER" in u
+    # 金标默认不进 prompt：把基准算出来的答案交给裁判，outcome 维度就退化成复述，
+    # 三家必然一致，这一维也就不再携带任何信息（node-real-samples 上实测 13/13 全一致）。
+    assert "Gold outcome" not in u
+
+
+def test_prompt_includes_gold_only_when_explicitly_asked(traces):
+    u = build_messages(traces["retail_task_001-t2"], Dimension.SAFETY, include_gold=True)[1]["content"]
+    assert "Gold outcome: SUCCESS" in u
+
+
+def test_transcript_shrinks_to_fit_the_budget_without_losing_step_indices(traces):
+    t = max(traces.values(), key=lambda x: len(x.transcript(width=4000)))
+    # 样例里的工具返回只有几十字符，"收缩"和"丢弃"分不出来，先造一条远超预算的 trace
+    step = next(s for s in reversed(t.steps) if s.role not in (Role.SYSTEM, Role.TOOL))
+    step.content = "x" * 9000
+    full = t.transcript(width=4000)
+    tight = t.transcript(width=4000, max_chars=len(full) // 2, min_width=20)
+    assert len(tight) <= len(full) // 2 < len(full)
+    # 预算收紧只该让每行变短：步骤编号骨架还在，裁判引用的 evidence_steps 才站得住
+    assert len(tight.splitlines()) == sum(1 for s in t.steps if s.role != Role.SYSTEM)
+    assert "[1]" in tight
+
+
+def test_transcript_drops_middle_steps_only_when_the_minimum_width_does_not_fit(traces):
+    t = max(traces.values(), key=lambda x: len(x.transcript(width=4000)))
+    tiny = t.transcript(width=4000, max_chars=60, min_width=40)
+    assert len(tiny) <= 60
+    # 丢步必须留痕，否则缺了一截的 transcript 读起来和完整的一模一样
+    assert "omitted to fit the prompt budget" in tiny or "transcript omitted" in tiny
+
+
+def test_arbiter_judges_never_hand_audit_or_arbitration_to_a_mock():
+    cfg = PanelConfig(judges=[
+        JudgeSpec(name="judge_a", kind="mock", model="mock-qwen"),
+        JudgeSpec(name="judge_b", kind="openai", model="nemotron", base_url="http://127.0.0.1:8002/v1"),
+        JudgeSpec(name="judge_c", kind="openai", model="step", base_url="https://api.stepfun.com/v1"),
+    ])
+    local, audit = Panel.from_config(cfg).arbiter_judges()
+    assert (local.name, audit.name) == ("judge_b", "judge_c")   # 真裁判优先，mock 不参与仲裁与审计
+
+    # 面板里一个真裁判都没有时，审计应当直接跳过，而不是让 mock 去"审" mock
+    local2, audit2 = Panel.from_config(PanelConfig.mock()).arbiter_judges()
+    assert local2 is not None and audit2 is None
 
 
 def test_parse_verdict_json_tolerates_fences_and_chatter():
@@ -90,8 +135,8 @@ def test_mock_judge_jitter_is_deterministic(traces):
 
 class _Stub(OpenAICompatJudge):
     def __init__(self, replies):
-        self.name, self.model, self.base_url = "stub", "stub-model", "http://x"
-        self.temperature, self.max_tokens, self.extra_body = 0.0, 100, {}
+        # 走一遍真构造函数，别手抄默认值：新增字段（prompt 预算等）抄漏了就会在打分时炸
+        super().__init__("stub", "stub-model", "http://x", max_tokens=100)
         self._replies = list(replies)
         self.calls = 0
 

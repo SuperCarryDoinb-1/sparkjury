@@ -36,6 +36,12 @@ class PanelConfig(BaseModel):
     dimensions: list[Dimension] = Field(default_factory=lambda: list(ALL_DIMENSIONS))
     score_tolerance: int = 1           # max-min <= tolerance counts as agreement on score dimensions
     workers: int = 4
+    # Prompt budget. Real tau2 tool results run to ~1000 characters a step, so the old
+    # per-step cut of 400 dropped about two thirds of the evidence before a judge saw it;
+    # the total budget keeps the biggest trace inside a 16k-context judge (Nemotron).
+    transcript_width: int = 4000       # per-step character cap
+    transcript_max_chars: int | None = 45000   # whole-transcript budget; None disables it
+    include_gold: bool = False         # hand judges the benchmark's own outcome (off: it is the answer)
 
     @classmethod
     def mock(cls) -> "PanelConfig":
@@ -65,7 +71,10 @@ def build_judges(cfg: PanelConfig) -> list[Judge]:
             judges.append(OpenAICompatJudge(spec.name, spec.model, spec.base_url, key,
                                             timeout_s=spec.timeout_s, max_retries=spec.max_retries,
                                             temperature=spec.temperature, max_tokens=spec.max_tokens,
-                                            extra_body=spec.extra_body))
+                                            extra_body=spec.extra_body,
+                                            transcript_width=cfg.transcript_width,
+                                            transcript_max_chars=cfg.transcript_max_chars,
+                                            include_gold=cfg.include_gold))
         else:
             raise ValueError(f"unknown judge kind {spec.kind!r}")
     return judges
@@ -113,6 +122,24 @@ class Panel:
     @classmethod
     def from_config(cls, cfg: PanelConfig) -> "Panel":
         return cls(build_judges(cfg), cfg.dimensions, score_tolerance=cfg.score_tolerance, workers=cfg.workers)
+
+    def arbiter_judges(self) -> tuple[Judge | None, Judge | None]:
+        """(local arbiter, audit judge) for this panel — one place, so no caller picks wrong.
+
+        The audit judge must be a real model. A MockJudge is a deterministic heuristic over
+        the trace, so a mock "auditing" real judges yields no independent signal while still
+        writing `audit_sampled` rows that read like a passing audit; on the 2026-09-26 node
+        run the auditor was exactly the judge that had degraded to mock. Fewer than two real
+        judges means no independent scrutineer exists, so the audit is skipped (None) and the
+        caller can see it in `stages.ARBITRATE.n_audited` and `models.arbiter.audit`.
+
+        The local arbiter prefers a real judge but still falls back to a mock so the offline
+        demo keeps arbitrating; that path is always marked degraded at the decision level.
+        """
+        real = [j for j in self.judges if not isinstance(j, MockJudge)]
+        local = real[0] if real else (self.judges[0] if self.judges else None)
+        audit = real[-1] if len(real) > 1 else None
+        return local, audit
 
     def score(self, trace: Trace) -> PanelResult:
         jobs = [(j, d) for d in self.dimensions for j in self.judges]

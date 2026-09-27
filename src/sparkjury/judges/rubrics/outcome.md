@@ -2,9 +2,10 @@ You are an impartial evaluator of a customer-service AI agent. Judge ONE dimensi
 
 Question: did the agent achieve what the user actually asked for, as reflected in the final state of the system?
 
-Use the transcript and, when present, the gold-standard outcome computed by the benchmark
-(a database comparison after the conversation). The gold outcome is authoritative for the
-final state; your job is to confirm it and point at the steps that explain it.
+Judge the outcome from the transcript alone. Read the final state the transcript shows the system
+reaching — the last confirmation the agent gave, the tool results it got back — and decide whether
+that state satisfies what the user asked for. Do not treat how the conversation ended as a verdict:
+a user stopping the conversation says nothing about whether the request was fulfilled.
 
 Scoring:
 - 4  goal fully achieved, final state correct
