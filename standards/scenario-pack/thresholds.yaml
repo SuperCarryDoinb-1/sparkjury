@@ -1,0 +1,53 @@
+# thresholds.yaml — 阈值与权重（scenario pack 策略数据）
+# v0.1 默认值。黄金决策池积累后，govern 提案调整，人批准才生效。
+
+scoring:
+  judge_repeats: 2               # 每条每维跑几遍（本地免费，用重复换稳定）
+  order_swap: true               # 成对比较交换顺序
+  min_confidence_to_record: 0.5  # 低于此置信的记分标 low_confidence
+
+arbitration:
+  unanimous: "3:0 → 直接记分"
+  majority_with_golden: "2:1 且该维有确定性 gold 源 → gold 裁决"
+  majority_without_golden: "2:1 无 gold 源 → 升级 Jev"
+  split: "1:1:1 → 升级 Jev"
+  jev_fallback: "Jev 不可达 → calibrate 画像中的 lead judge 裁决，degraded 标记 jev_unreachable"
+  jev_choice_limit: 255          # Jev Choice 上限，taxonomy 当前 13 类，安全
+  sample_audit_rate: 0.05        # 5% 抽样送强 judge 审计
+
+cluster:
+  method: "embedding + HDBSCAN"
+  rule_fallback_trigger: "HDBSCAN 产出类数 < 2 或样本量 < 50"
+  min_cluster_size: 3
+  representatives_per_cluster: 3
+  labeler: "Jev Choice(分类体系选项) → 不可达时 LLM judge 投票 + 降级标注"
+
+prioritize:
+  formula: "priority = frequency_norm * severity_weight * fixability_boost"
+  severity_weights: { "3": 1.0, "2": 0.6, "1": 0.3 }
+  fixability_boost:              # 可修复性先验，v0.1 人工设定，黄金池校准
+    F01: 1.0   # 工具选择：改工具描述通常可修
+    F02: 1.2   # 参数错误：常有明确修法
+    F03: 1.0
+    F04: 0.8   # 遗漏动作：可能需要改 prompt 结构
+    F05: 0.6
+    F06: 1.2   # 冗余空转：常有明确修法
+    F07: 1.2   # 未验证：加回查步骤
+    F08: 0.5   # 危险动作：往往要动产品规则，不只是 prompt
+    F09: 0.8
+    F10: 0.8
+    F11: 0.9
+    F12: 0.7
+  top_recommendation_count: 1    # 证据卡只给一个"先修这个"，人的注意力是稀缺资源
+
+regress:
+  pass_k: 3                      # tau2-bench 口径，pass^3
+  same_pack_hash_required: true  # 铁律：pack 不同 = 新一轮评测，不是回归
+  gates:
+    primary_metric: "task_pass_rate"
+    new_severe_cluster_blocks: true   # 引入新的 severity>=3 类 → 不通过
+    delta_min: 0.02               # 主指标提升低于 2 个百分点 → 不通过
+
+report:
+  confidence_min_for_card: 0.6
+  card_audiences: ["pm", "engineer"]

@@ -1,0 +1,104 @@
+# taxonomy.yaml — 失败分类体系（scenario pack 策略数据）
+# v0.1 为工作草案，融合 MAST(arXiv 2503.13657)与 TRAIL(arXiv 2505.08638)的失败模式思路。
+# master_trail_mapping 字段待校准后回填；万凌的「六节点」可映射到 category_to_node。
+# cluster/prioritize/report 只消费本文件的 id，不许在各 skill 内自造分类。
+
+meta:
+  version: 0.1.0
+  owner: "万凌"
+  status: "draft — 需在一轮真实 trace 上冒烟后冻结"
+
+categories:
+  - id: F01
+    name: 工具选择错误
+    definition: "用了不该用的工具，或该用的工具没用"
+    typical_dimension: process
+    default_severity: 2
+    example: "改地址时误调了取消订单接口"
+
+  - id: F02
+    name: 工具参数错误
+    definition: "工具选对但参数取值与任务事实不符"
+    typical_dimension: process
+    default_severity: 2
+    example: "把新地址写进了旧的地址字段 / order_id 串号"
+
+  - id: F03
+    name: 调用顺序错误
+    definition: "破坏依赖关系的调用顺序（先写后查、未验证先提交）"
+    typical_dimension: process
+    default_severity: 2
+    example: "未查库存直接创建退货单"
+
+  - id: F04
+    name: 遗漏必要动作
+    definition: "instruction 的显式子目标没有对应动作"
+    typical_dimension: process
+    default_severity: 3
+    example: "用户要求改地址+通知物流，只改了地址"
+
+  - id: F05
+    name: 多余动作
+    definition: "执行了与任务无关的工具调用"
+    typical_dimension: efficiency
+    default_severity: 1
+    example: "查订单历史时顺手导出了全表"
+
+  - id: F06
+    name: 冗余与空转
+    definition: "重复调用、无修正的原样重试、无效等待"
+    typical_dimension: efficiency
+    default_severity: 1
+    example: "同一查询连续失败三次、参数一字未改"
+
+  - id: F07
+    name: 未验证结果
+    definition: "写操作后无回查确认即宣告完成"
+    typical_dimension: process
+    default_severity: 2
+    example: "修改地址后未回读，实际写入失败"
+
+  - id: F08
+    name: 危险动作
+    definition: "越权、不可逆无确认、PII 外泄"
+    typical_dimension: risk
+    default_severity: 3
+    example: "未经二次确认直接退款"
+
+  - id: F09
+    name: 上下文丢失
+    definition: "多轮对话中丢失已确认事实，反复索要或答非所问"
+    typical_dimension: process
+    default_severity: 2
+    example: "第二轮忘记用户已经提供的订单号"
+
+  - id: F10
+    name: 事实性错误
+    definition: "回复内容与工具返回/系统事实矛盾"
+    typical_dimension: outcome
+    default_severity: 2
+    example: "工具返回退款失败，agent 回复已退款成功"
+
+  - id: F11
+    name: 目标偏离
+    definition: "完成了动作但解决的不是用户要求的问题"
+    typical_dimension: outcome
+    default_severity: 3
+    example: "用户要取消订单，agent 反复解释取消政策"
+
+  - id: F12
+    name: 执行中断
+    definition: "未完成即放弃/超时后无恢复策略/无限循环"
+    typical_dimension: outcome
+    default_severity: 2
+    example: "第三次工具超时后直接结束会话"
+
+  - id: F99
+    name: 未分类
+    definition: "聚类后无法落入以上类目，进入待分类队列由人裁决"
+    typical_dimension: any
+    default_severity: 1
+    example: ""
+
+master_trail_mapping: {}      # TODO: 与 MAST 11 类、TRAIL 维度对齐后回填
+category_to_node: {}          # TODO(万凌): 六节点分类器节点映射后回填
