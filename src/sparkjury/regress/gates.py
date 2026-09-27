@@ -133,22 +133,22 @@ def evaluate_gates(report: RegressionReport | None, *, before_db: str | Path, af
         if require_same:
             items.append(GateItem(
                 name="pack_identity", status="fail", source="pack",
-                detail=f"两侧 pack hash 不同（{hb[:16]} vs {ha[:16]}）：pack 不同 = 新一轮评测，不是回归对比，拒绝对比",
+                detail=f"pack hash differs ({hb[:16]} vs {ha[:16]}): a different pack is a new evaluation round, not a regression - refusing to compare",
             ))
             return GateReport(verdict="REFUSED", exit_code=REFUSED_EXIT, pack_hash_before=hb, pack_hash_after=ha,
                               same_pack=False, items=items)
         items.append(GateItem(
             name="pack_identity", status="skip", source="pack",
-            detail=f"两侧 pack hash 不同（{hb[:16]} vs {ha[:16]}），但 thresholds.regress.same_pack_hash_required=false 允许跨 pack 对比",
+            detail=f"pack hash differs ({hb[:16]} vs {ha[:16]}) but thresholds.regress.same_pack_hash_required=false allows cross-pack comparison",
         ))
     elif same is True:
         items.append(GateItem(name="pack_identity", status="pass", source="pack",
-                              detail=f"两侧 pack hash 相同：{hb[:16]}"))
+                              detail=f"both sides ran the same pack: {hb[:16]}"))
     else:
         missing = "before" if not hb else "after"
         items.append(GateItem(
             name="pack_identity", status="skip", source="pack",
-            detail=f"{missing} 侧的 manifest.json 里没有 pack_hash（老 run 或非 run 目录的库），无法确认两次评测用的是同一个 pack",
+            detail=f"no pack_hash in the {missing} side's manifest.json (old run, or a db outside a run dir): cannot confirm both ran the same pack",
         ))
 
     if report is None:
@@ -166,14 +166,14 @@ def evaluate_gates(report: RegressionReport | None, *, before_db: str | Path, af
         dm, dm_src = pack_mod.DEFAULT_DELTA_MIN, "default"
     if delta is None:
         items.append(GateItem(name="primary_metric", status="skip", source=dm_src,
-                              detail=f"{metric}=None（这一轮没有可比的金标结果），delta_min={dm} 无法判定"))
+                              detail=f"{metric}=None (no comparable gold outcomes in this round): delta_min={dm} cannot be judged"))
     elif delta + _EPS < dm:
         items.append(GateItem(name="primary_metric", status="fail", source=dm_src,
-                              detail=f"{metric} 提升 {delta * 100:+.1f} pp < delta_min {dm}（{dm * 100:.0f} pp）："
-                                     f"回归没带来足够提升，算 FAIL"))
+                              detail=f"{metric} improved {delta * 100:+.1f} pp < delta_min {dm} ({dm * 100:.0f} pp): "
+                                     f"not enough improvement to call it a regression fix - FAIL"))
     else:
         items.append(GateItem(name="primary_metric", status="pass", source=dm_src,
-                              detail=f"{metric} 提升 {delta * 100:+.1f} pp >= delta_min {dm}（{dm * 100:.0f} pp）；verdict={report.verdict}"))
+                              detail=f"{metric} improved {delta * 100:+.1f} pp >= delta_min {dm} ({dm * 100:.0f} pp); verdict={report.verdict}"))
 
     if not gates_cfg.get("new_severe_cluster_blocks", True):
         items.append(GateItem(name="new_severe_cluster", status="skip", source="pack",
@@ -189,10 +189,10 @@ def evaluate_gates(report: RegressionReport | None, *, before_db: str | Path, af
         if new_sev:
             detail = "、".join(f"{lab} (severity {sev}, {size} 条)" for lab, sev, size in new_sev)
             items.append(GateItem(name="new_severe_cluster", status="fail", source=smin_src,
-                                  detail=f"出现新的高严重簇（severity >= {smin}）：{detail}"))
+                                  detail=f"new high-severity cluster(s) appeared (severity >= {smin}): {detail}"))
         else:
             items.append(GateItem(name="new_severe_cluster", status="pass", source=smin_src,
-                                  detail=f"没有 severity >= {smin} 的新簇"))
+                                  detail=f"no new cluster at severity >= {smin}"))
 
     verdict = "FAIL" if any(i.status == "fail" for i in items) else "PASS"
     return GateReport(verdict=verdict, exit_code=(FAIL_EXIT if verdict == "FAIL" else PASS_EXIT),
