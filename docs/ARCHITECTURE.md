@@ -238,7 +238,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 | M3 | 三裁判面板 | P0 | 已完成，22 个用例 | `sparkjury-score` |
 | M4 | 仲裁与审计 | P0 | 已完成，11 个用例 | `sparkjury-score` |
 | M5 | badcase 聚类与优先级 | P0 | 已完成，11 个用例 | `sparkjury-cluster` |
-| M6 | 证据卡片 + 回归对比 | P0 | 已完成，16 个用例 | `sparkjury-report` + `sparkjury-regress` |
+| M6 | 证据卡片 + 回归对比 | P0 | 已完成，18 个用例 | `sparkjury-report` + `sparkjury-regress` |
 | M7 | Harness 编排器 | P0 | 已完成，11 个用例 | 六个技能调的都是它的 CLI |
 | M8 | API + Agent Cockpit | 后端 P0 / 前端 P1 | 后端与兜底页已完成，13 个用例 | 不对应：读产物、触发 run |
 | M9 | Agent Skills 打包 + NeMo Agent Toolkit | P1 | 已完成，16 个用例（3 个跳过） | 六个技能本体 |
@@ -324,6 +324,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 ### M6 证据卡片 + 回归对比
 
 - EvidenceCard 支持 JSON、Markdown、HTML 三种渲染
+- 卡片自带判准校准一行（`Outcome vs benchmark`）：outcome 维度的最终裁决与基准自带结果逐条对照，同时给裁判通过率与基准通过率。基准是这套裁判唯一的外部尺子，差多少就写在卡片上，别让读者把「裁判说 pass」当成「基准说 pass」；`REPORT` 阶段摘要同步带 `n_gold_compared` / `gold_agreement_rate` / `judge_pass_rate` / `gold_pass_rate`
 - regress --before --after：pass^k 前后对比、每簇数量变化、新增与消失的簇
 - pass^k 按 τ-bench 定义：同一任务 k 次全过才算过
 - 成对比较交换顺序跑两遍
@@ -516,7 +517,7 @@ durable 那一段：
 
 ## 17. 当前进度与验证方法
 
-M1 到 M13 已完成（M10 节点执行、M11 录制待做），287 个 pytest 用例通过。一条命令跑通全流程：
+M1 到 M13 已完成（M10 节点执行、M11 录制待做），289 个 pytest 用例通过。一条命令跑通全流程：
 
 ```
 cd sparkjury

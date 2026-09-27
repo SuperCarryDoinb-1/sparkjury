@@ -68,6 +68,13 @@ class CardQuality(BaseModel):
     pass_k: dict[int, float] = Field(default_factory=dict)
     agent_model: str | None = None
     judge_agreement_rate: float | None = None
+    # 判准校准：outcome 维度的最终裁决与基准自带结果逐条对照。基准由环境状态算出，与这套裁判
+    # 无关，是 outcome 这一维唯一的外部尺子；卡片必须自己报出来，读者才不会把"裁判说 pass"当成
+    # "基准说 pass"。judge_pass_rate 减去 gold_pass_rate 就是当前的宽松程度。
+    n_gold_compared: int = 0
+    gold_agreement_rate: float | None = None
+    judge_pass_rate: float | None = None
+    gold_pass_rate: float | None = None
     n_needing_arbitration: int = 0
     decisions_by_source: dict[str, int] = Field(default_factory=dict)
     n_degraded: int = 0

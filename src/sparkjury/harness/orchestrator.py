@@ -319,8 +319,12 @@ class Orchestrator:
         card = build_card(self._store, run_id=self.cfg.run_id, title=self.cfg.report.title)
         out_dir = Path(self.cfg.report.out_dir) if self.cfg.report.out_dir else self.run_dir / "card"
         files = write_card(card, out_dir, formats=tuple(self.cfg.report.formats))
+        q = card.quality
         return {"files": [str(f) for f in files], "recommendation": card.recommendation,
-                "pass_rate": card.quality.pass_rate, "pass_k": card.quality.pass_k, "n_badcases": card.totals.n_badcases}
+                "pass_rate": q.pass_rate, "pass_k": q.pass_k, "n_badcases": card.totals.n_badcases,
+                # 判准校准也进阶段摘要：跑批的人不看卡片也能一眼看到裁判与基准差多少
+                "n_gold_compared": q.n_gold_compared, "gold_agreement_rate": q.gold_agreement_rate,
+                "judge_pass_rate": q.judge_pass_rate, "gold_pass_rate": q.gold_pass_rate}
 
 
 def run_config(cfg: RunConfig, on_event=None) -> dict[str, Any]:

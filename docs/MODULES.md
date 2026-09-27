@@ -130,7 +130,7 @@ uv run sparkjury verdicts retail_task_001-t2
 - `judges/prompts.py`：新增 `rubric_levels()`，从四份 rubric 里解析出 0 到 4 分的描述，供 Jev 的 score 问题使用。
 - `store/sqlite.py`：新增 `arbitration` 表，`put_decisions / get_decision / list_decisions / arbitration_summary`。
 - `cli.py`：`sparkjury arbitrate [--jev auto|off] [--jev-timeout-s 5] [--judges mock|文件.toml] [--audit-rate 0.05] [--trace ID] [--json]`。Jev 的 key 从环境变量 TYPESAFE_API_KEY 读。
-- `tests/test_m4_arbiter.py`：10 个用例。用假的 HTTP 传输层验证 Jev 请求体和响应解析（含 1 起编号的 legend）；四条决策路径各一个用例：一致取中位数、分歧送 Jev、Jev 失败退本地并标降级、本地也失败退面板中位数；审计抽样的确定性和比例；存储与 CLI。
+- `tests/test_m4_arbiter.py`：11 个用例（含「Jev 状态文本带任务原始要求、不带金标」一条）。用假的 HTTP 传输层验证 Jev 请求体和响应解析（含 1 起编号的 legend）；四条决策路径各一个用例：一致取中位数、分歧送 Jev、Jev 失败退本地并标降级、本地也失败退面板中位数；审计抽样的确定性和比例；存储与 CLI。
 
 **自测结果**：`uv run pytest` 42 passed（M1 9 + M2 10 + M3 13 + M4 10）。
 
@@ -194,7 +194,7 @@ uv run sparkjury cluster --min-cluster-size 2 --json
 - `models/regress.py` 和 `regress/passk.py`：`compare(before_db, after_db)` 对比两次评测。输出 pass^1 与 pass^k 前后差、哪些任务从 fail 变 pass、哪些从 pass 变 fail、各维度均分变化、badcase 数量变化、每个失败标签的簇大小变化，并给一句结论：improved / improved with regressions / unchanged / regressed。
 - `judges/pairwise.py`：成对比较。同一任务同一 trial 的前后两条记录送裁判比，A/B 顺序交换跑两遍，两遍结论一致才算数，不一致记为 inconsistent。这是针对位置偏差的标准做法。`MockPairwiseJudge` 用规则分数比较，`OpenAIPairwiseJudge` 接真实模型。
 - `cli.py`：`sparkjury report [--out runs/card] [--format all|json|md|html] [--title]` 和 `sparkjury regress --before A.db --after B.db [--pairwise mock|文件.toml] [--out 报告.md] [--json]`。
-- `tests/test_m6_report_regress.py`：8 个用例。卡片的总量和簇内容、三种格式渲染、空库；回归：同库对比为 unchanged、修好一条后为 improved 且列出 retail_task_004、反向对比为 regressed；成对比较的交换一致性，包括一个"永远选 A"的偏见裁判被识别为不一致；CLI。
+- `tests/test_m6_report_regress.py`：18 个用例。卡片的总量和簇内容、三种格式渲染、空库；判准校准（故意把一批裁决写反，卡片要报出与基准 0% 一致、两个通过率互补；库里没有基准时报 0 条）；回归：同库对比为 unchanged、修好一条后为 improved 且列出 retail_task_004、反向对比为 regressed；成对比较的交换一致性，包括一个"永远选 A"的偏见裁判被识别为不一致；CLI。
 
 **自测结果**：`uv run pytest` 59 passed（M1 9 + M2 10 + M3 13 + M4 10 + M5 9 + M6 8）。
 

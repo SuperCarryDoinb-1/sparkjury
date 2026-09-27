@@ -14,6 +14,7 @@ from sparkjury.judges import Panel, PanelConfig
 from sparkjury.judges.pairwise import MockPairwiseJudge, compare_with_swap
 from sparkjury.models.cluster import Cluster, ClusterRun, FailureLabel
 from sparkjury.models.report import EvidenceCard
+from sparkjury.models.verdict import Dimension
 from sparkjury.precheck import run_many
 from sparkjury.regress import compare, evaluate_gates, new_severe_clusters, render_markdown
 from sparkjury.report import build_card, render_html, render_json, render_markdown as card_md, write_card
@@ -107,6 +108,38 @@ def test_card_renders_all_formats(before_db, tmp_path):
     assert "<!DOCTYPE html>" in html and "Recommendation" in html and card.clusters[0].label.value in html
     files = write_card(card, tmp_path / "out")
     assert [f.suffix for f in files] == [".json", ".md", ".html"] and all(f.exists() for f in files)
+
+
+def test_card_reports_the_calibration_against_the_benchmark(before_db):
+    """卡片必须自己报出「裁判判的 outcome 和基准差多少」，否则读者会把裁判的 pass 当基准的 pass。"""
+    with TraceStore(before_db) as store:
+        card = build_card(store, run_id="r1")
+        md, html = card_md(card), render_html(card)
+        # 改动前后各跑一次同一批 trace，各自的裁决写进仲裁表
+        from sparkjury.models.arbitration import Arbitration, DecisionSource, TraceDecision
+        decisions = []
+        for trace in store.scorable_traces():
+            if trace.outcome.success is None:
+                continue
+            # 故意和基准反着来，好确认这是真对照而不是照着金标抄
+            label = "fail" if trace.outcome.success else "pass"
+            decisions.append(TraceDecision(trace_id=trace.trace_id, arbitrations=[Arbitration(
+                trace_id=trace.trace_id, dimension=Dimension.OUTCOME,
+                final_score=4 if label == "pass" else 1,
+                final_label=label, source=DecisionSource.PANEL)]))
+        store.put_decisions(decisions)
+        card = build_card(store, run_id="r1")
+    q = card.quality
+    assert q.n_gold_compared == 13 and q.gold_agreement_rate == 0.0
+    assert q.judge_pass_rate == 1 - q.gold_pass_rate     # 反着判，两个通过率必然互补
+    assert "Outcome vs benchmark (calibration)" in md and "panel says pass" in html
+
+
+def test_card_calibration_says_nothing_when_traces_carry_no_benchmark(tmp_path):
+    with TraceStore(tmp_path / "e.db") as store:
+        card = build_card(store)
+    assert card.quality.n_gold_compared == 0 and card.quality.gold_agreement_rate is None
+    assert "0 trace(s)" in card_md(card)
 
 
 def test_card_on_empty_store(tmp_path):
