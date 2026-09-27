@@ -238,7 +238,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 | M3 | 三裁判面板 | P0 | 已完成，24 个用例 | `sparkjury-score` |
 | M4 | 仲裁与审计 | P0 | 已完成，12 个用例 | `sparkjury-score` |
 | M5 | badcase 聚类与优先级 | P0 | 已完成，11 个用例 | `sparkjury-cluster` |
-| M6 | 证据卡片 + 回归对比 | P0 | 已完成，19 个用例 | `sparkjury-report` + `sparkjury-regress` |
+| M6 | 证据卡片 + 回归对比 | P0 | 已完成，20 个用例 | `sparkjury-report` + `sparkjury-regress` |
 | M7 | Harness 编排器 | P0 | 已完成，11 个用例 | 六个技能调的都是它的 CLI |
 | M8 | API + Agent Cockpit | 后端 P0 / 前端 P1 | 后端与兜底页已完成，13 个用例 | 不对应：读产物、触发 run |
 | M9 | Agent Skills 打包 + NeMo Agent Toolkit | P1 | 已完成，16 个用例（3 个跳过） | 六个技能本体 |
@@ -562,7 +562,7 @@ durable 那一段：
 
 ## 17. 当前进度与验证方法
 
-M1 到 M13 已完成（M10 节点执行、M11 录制待做），296 个 pytest 用例通过。一条命令跑通全流程：
+M1 到 M13 已完成（M10 节点执行、M11 录制待做），297 个 pytest 用例通过。一条命令跑通全流程：
 
 ```
 cd sparkjury

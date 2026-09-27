@@ -45,6 +45,9 @@ class CardCluster(BaseModel):
     severity: float
     priority: float
     failed_dimension_counts: dict[str, int] = Field(default_factory=dict)
+    # 这个簇里有多少个 badcase 的失败维度来自「没有独立裁决」的判定：推荐先修哪个簇时，
+    # 得让人看得出这个建议的地基有多硬。
+    n_contested_members: int = 0
     summary: str = ""
     suggestion: str = ""
     member_trace_ids: list[str] = Field(default_factory=list)

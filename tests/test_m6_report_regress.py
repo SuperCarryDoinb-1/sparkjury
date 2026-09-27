@@ -369,3 +369,31 @@ def test_card_says_how_many_badcases_rest_on_a_contested_decision(before_db):
     assert card.quality.n_badcases_contested == expected
     assert f"{expected} of {card.totals.n_badcases}" in md
     assert "no independent tiebreaker" in html
+
+
+def test_cluster_says_how_many_of_its_members_rest_on_a_contested_decision(before_db):
+    """顶级推荐（先修哪个簇）要能看出这个簇的地基有多硬。
+
+    真批 run14 的六个簇里，loop 那个簇 9 个成员有 4 个含当事人仲裁的判定，
+    missing_confirmation 那个簇 5 个成员全部含——数字得跟着簇走，不能只有一个总数。
+    """
+    from sparkjury.models.arbitration import Arbitration, DecisionSource, TraceDecision
+
+    with TraceStore(before_db) as store:
+        cluster = store.get_cluster_run().clusters[0]
+        n_members = len(cluster.member_trace_ids)
+        assert n_members >= 2, "样本数据里第一个簇该有一定规模"
+        decisions = []
+        for i, tid in enumerate(cluster.member_trace_ids):
+            # 前半截成员标成当事人仲裁，后半截是面板一致裁决
+            degraded = i < n_members // 2
+            decisions.append(TraceDecision(trace_id=tid, arbitrations=[Arbitration(
+                trace_id=tid, dimension=Dimension.SAFETY, final_score=1,
+                source=DecisionSource.LOCAL if degraded else DecisionSource.PANEL, degraded=degraded)]))
+        store.put_decisions(decisions)
+        card = build_card(store, run_id="r1")
+        md, html = card_md(card), render_html(card)
+    expect = n_members // 2
+    assert card.clusters[0].n_contested_members == expect and expect > 0
+    assert f"Contested evidence: {expect} of {n_members}" in md
+    assert "Contested evidence:" in html

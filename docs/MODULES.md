@@ -197,7 +197,7 @@ uv run sparkjury cluster --min-cluster-size 2 --json
 - `models/regress.py` 和 `regress/passk.py`：`compare(before_db, after_db)` 对比两次评测。输出 pass^1 与 pass^k 前后差、哪些任务从 fail 变 pass、哪些从 pass 变 fail、各维度均分变化、badcase 数量变化、每个失败标签的簇大小变化，并给一句结论：improved / improved with regressions / unchanged / regressed。
 - `judges/pairwise.py`：成对比较。同一任务同一 trial 的前后两条记录送裁判比，A/B 顺序交换跑两遍，两遍结论一致才算数，不一致记为 inconsistent。这是针对位置偏差的标准做法。`MockPairwiseJudge` 用规则分数比较，`OpenAIPairwiseJudge` 接真实模型。
 - `cli.py`：`sparkjury report [--out runs/card] [--format all|json|md|html] [--title]` 和 `sparkjury regress --before A.db --after B.db [--pairwise mock|文件.toml] [--out 报告.md] [--json]`。
-- `tests/test_m6_report_regress.py`：19 个用例。卡片的总量和簇内容、三种格式渲染、空库；判准校准（故意把一批裁决写反，卡片要报出与基准 0% 一致、两个通过率互补；库里没有基准时报 0 条）；回归：同库对比为 unchanged、修好一条后为 improved 且列出 retail_task_004、反向对比为 regressed；成对比较的交换一致性，包括一个"永远选 A"的偏见裁判被识别为不一致；CLI。
+- `tests/test_m6_report_regress.py`：20 个用例。卡片的总量和簇内容、三种格式渲染、空库；判准校准（故意把一批裁决写反，卡片要报出与基准 0% 一致、两个通过率互补；库里没有基准时报 0 条）；回归：同库对比为 unchanged、修好一条后为 improved 且列出 retail_task_004、反向对比为 regressed；成对比较的交换一致性，包括一个"永远选 A"的偏见裁判被识别为不一致；CLI。
 
 **自测结果**：`uv run pytest` 59 passed（M1 9 + M2 10 + M3 13 + M4 10 + M5 9 + M6 8）。
 

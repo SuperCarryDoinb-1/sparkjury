@@ -61,6 +61,19 @@ def build_card(store: TraceStore, run_id: str = "latest", title: str | None = No
     return card
 
 
+def _is_contested(dec) -> bool:
+    """这条 trace 是「靠当事人仲裁的判定」成为 badcase 的吗。
+
+    面板只有两个真裁判时，吵起来的那一维由当事人之一（judge_a）定，标 degraded。真批
+    实测这类判定 31/38 被另一位真裁判判成相反结果，所以它们只是「暂时这么记着」，不是
+    定论。判据只有一个：让它成为 badcase 的那些维度里，有没有一个是这么定下来的。
+    """
+    if dec is None:
+        return False
+    failed = set(is_badcase(dec))
+    return bool(failed) and any(a.degraded for a in dec.arbitrations if a.dimension in failed)
+
+
 def _contested_badcases(store: TraceStore, crun) -> int:
     """有多少个 badcase 是靠「没有独立裁决」的判定成立的。
 
@@ -71,15 +84,7 @@ def _contested_badcases(store: TraceStore, crun) -> int:
     """
     if crun is None:
         return 0
-    n = 0
-    for bc in crun.badcases:
-        dec = store.get_decision(bc.trace_id)
-        if dec is None:
-            continue
-        failed = is_badcase(dec)
-        if failed and any(a.degraded for a in dec.arbitrations if a.dimension in failed):
-            n += 1
-    return n
+    return sum(1 for bc in crun.badcases if _is_contested(store.get_decision(bc.trace_id)))
 
 
 def _gold_agreement(store: TraceStore) -> dict[str, Any]:
@@ -135,8 +140,10 @@ def _card_cluster(store: TraceStore, c, crun) -> CardCluster:
             final_scores=dec.scores if dec else {}, excerpt=r.excerpt, opinions=opinions,
             decision_sources={a.dimension.value: a.source.value + (" (degraded)" if a.degraded else "") for a in dec.arbitrations} if dec else {},
         ))
+    n_contested = sum(1 for tid in c.member_trace_ids if _is_contested(store.get_decision(tid)))
     return CardCluster(
         rank=c.rank, cluster_id=c.cluster_id, label=c.label, label_source=c.label_source,
+        n_contested_members=n_contested,
         label_confidence=c.label_confidence, size=c.size, share=c.share, severity=c.severity, priority=c.priority,
         failed_dimension_counts=c.failed_dimension_counts, summary=c.summary, suggestion=c.suggestion,
         member_trace_ids=c.member_trace_ids, representatives=reps,
@@ -200,6 +207,8 @@ def render_markdown(card: EvidenceCard) -> str:
         L += [f"### #{c.rank} {name}", "",
               f"- Size {c.size} ({c.share:.0%} of badcases), severity {c.severity:.1f}, priority {c.priority:.1f}",
               f"- Failed dimensions: {', '.join(f'{k}x{v}' for k, v in c.failed_dimension_counts.items()) or '-'}",
+              *([f"- Contested evidence: {c.n_contested_members} of {c.size} member(s) rest on a decision with no independent tiebreaker"]
+                if c.n_contested_members else []),
               f"- Label source: {c.label_source}" + (f" (confidence {c.label_confidence:.2f})" if c.label_confidence is not None else ""),
               f"- Suggestion: {c.suggestion}", ""]
         for r in c.representatives:
@@ -265,6 +274,8 @@ def render_html(card: EvidenceCard) -> str:
         name = "Unclustered" if c.cluster_id == -1 else c.label.value
         H.append(f"<div class='cl'><h3>#{c.rank} {e(name)}<span class='pill'>{c.size} · {c.share:.0%}</span><span class='pill'>priority {c.priority:.1f}</span></h3>")
         H.append(f"<div class='kv'>Failed dimensions: {e(', '.join(f'{k}x{v}' for k, v in c.failed_dimension_counts.items()) or '-')} · severity {c.severity:.1f} · label from {e(c.label_source)}</div>")
+        if c.n_contested_members:
+            H.append(f"<div class='kv'>Contested evidence: {c.n_contested_members} of {c.size} member(s) rest on a decision with no independent tiebreaker</div>")
         H.append(f"<div class='kv'><b>Suggestion:</b> {e(c.suggestion)}</div>")
         for r in c.representatives:
             H.append(f"<div class='rep'><b>{e(r.trace_id)}</b> <span class='kv'>task {e(r.task_id)} · failed {e(', '.join(r.failed_dimensions) or '-')} · scores {e(', '.join(f'{k}={v}' for k, v in r.final_scores.items()))}</span>")
