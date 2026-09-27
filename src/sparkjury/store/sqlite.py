@@ -352,11 +352,16 @@ class TraceStore:
         rows = self._conn.execute("SELECT is_env_failure, flags FROM precheck").fetchall()
         kinds: Counter[str] = Counter()
         adv: Counter[str] = Counter()
+        causes: Counter[str] = Counter()
         n_with_advisory = 0
         for r in rows:
             flags = json.loads(r["flags"] or "[]")
             for f in flags:
-                (kinds if f.get("blocking", True) else adv)[str(f.get("kind", ""))] += 1
+                blocking = f.get("blocking", True)
+                (kinds if blocking else adv)[str(f.get("kind", ""))] += 1
+                cause = str(f.get("cause") or "")
+                if blocking and cause:
+                    causes[cause] += 1
             if flags and not r["is_env_failure"]:
                 n_with_advisory += 1   # scorable, but carrying a signal worth reading
         return {
@@ -366,6 +371,10 @@ class TraceStore:
             "kinds": dict(kinds),
             "advisory_kinds": dict(adv),
             "n_traces_with_advisory": n_with_advisory,
+            # What the *source* said went wrong, as opposed to which precheck rule fired. A batch
+            # that lost traces inside its own harness and one where the agent died look the same in
+            # `kinds`; this is the line that tells them apart.
+            "blocking_causes": dict(causes),
         }
 
     # ---- verdicts / panel -------------------------------------------------

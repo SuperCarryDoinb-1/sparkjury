@@ -33,7 +33,8 @@ def build_card(store: TraceStore, run_id: str = "latest", title: str | None = No
 
     totals = CardTotals(
         n_traces=st.n_traces, n_tasks=st.n_tasks,
-        n_env_failures=pre["n_env_failures"], env_kinds=pre["kinds"], n_scorable=pre["n_scorable"] if pre["n_checked"] else st.n_traces,
+        n_env_failures=pre["n_env_failures"], env_kinds=pre["kinds"], env_causes=pre.get("blocking_causes", {}),
+        n_scorable=pre["n_scorable"] if pre["n_checked"] else st.n_traces,
         n_precheck_advisories=pre.get("n_traces_with_advisory", 0), precheck_advisory_kinds=pre.get("advisory_kinds", {}),
         n_scored=vs["n_traces_scored"],
         n_badcases=crun.n_badcases if crun else 0, n_clusters=crun.n_clusters if crun else 0,
@@ -179,7 +180,9 @@ def render_markdown(card: EvidenceCard) -> str:
     L += ["## Summary", "",
           "| | |", "|---|---|",
           f"| Traces | {t.n_traces} across {t.n_tasks} tasks |",
-          f"| Environment failures (excluded) | {t.n_env_failures}" + (f" ({', '.join(f'{k}={v}' for k, v in t.env_kinds.items())})" if t.env_kinds else "") + " |",
+          f"| Environment failures (excluded) | {t.n_env_failures}"
+          + (f" ({', '.join(f'{k}={v}' for k, v in t.env_kinds.items())})" if t.env_kinds else "")
+          + (f"; the source said: {', '.join(f'{k}={v}' for k, v in sorted(t.env_causes.items()))}" if t.env_causes else "") + " |",
           f"| Precheck advisories (still judged) | {t.n_precheck_advisories}"
           + (f" ({', '.join(f'{k}={v}' for k, v in t.precheck_advisory_kinds.items())})" if t.precheck_advisory_kinds else "") + " |",
           f"| Scored by the panel | {t.n_scored} |",
@@ -265,7 +268,8 @@ def render_html(card: EvidenceCard) -> str:
          f"<tr><th>Badcases on a contested decision</th><td colspan='4'>{q.n_badcases_contested} of {t.n_badcases} <small>(that dimension had no independent tiebreaker)</small></td></tr>",
          f"<tr><th>Audit</th><td colspan='4'>{q.n_audited} dimension(s), {q.n_audit_disagreements} disagreement(s)"
          f" (locally-arbitrated {q.n_audit_disagreements_degraded}/{q.n_audited_degraded}, panel {q.n_audit_disagreements_panel}/{q.n_audited_panel})</td></tr>",
-         f"<tr><th>Environment failures</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in t.env_kinds.items()) or '-')}</td></tr>"
+         f"<tr><th>Environment failures</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in t.env_kinds.items()) or '-')}"
+         + (f" <small>(the source said: {e(', '.join(f'{k}={v}' for k, v in sorted(t.env_causes.items())))})</small>" if t.env_causes else "") + "</td></tr>"
          f"<tr><th>Precheck advisories</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in t.precheck_advisory_kinds.items()) or '-')} <small>(still judged)</small></td></tr></table>",
          "<h2>Clusters</h2>"]
     if not card.clusters:

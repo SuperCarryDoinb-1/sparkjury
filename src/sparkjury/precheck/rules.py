@@ -62,16 +62,16 @@ RuleFn = Callable[[Trace, PrecheckConfig], list[PrecheckFlag]]
 
 def rule_empty_trace(trace: Trace, cfg: PrecheckConfig) -> list[PrecheckFlag]:
     if not trace.steps:
-        return [PrecheckFlag(kind=PrecheckKind.EMPTY_TRACE, note="trace has no steps")]
+        return [PrecheckFlag(kind=PrecheckKind.EMPTY_TRACE, note="trace has no steps", cause=trace.failure_cause or "")]
     if not any(s.role == Role.ASSISTANT for s in trace.steps):
-        return [PrecheckFlag(kind=PrecheckKind.EMPTY_TRACE, note="trace has no assistant step")]
+        return [PrecheckFlag(kind=PrecheckKind.EMPTY_TRACE, note="trace has no assistant step", cause=trace.failure_cause or "")]
     return []
 
 
 def rule_infra_error(trace: Trace, cfg: PrecheckConfig) -> list[PrecheckFlag]:
     tr = (trace.outcome.termination_reason or "").lower()
     if tr in cfg.infra_terminations:
-        return [PrecheckFlag(kind=PrecheckKind.INFRA_ERROR, note=f"termination_reason={tr}")]
+        return [PrecheckFlag(kind=PrecheckKind.INFRA_ERROR, note=f"termination_reason={tr}", cause=trace.failure_cause or "")]
     return []
 
 

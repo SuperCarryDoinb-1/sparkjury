@@ -80,6 +80,11 @@ def _sim_to_trace(
         messages = _flatten_ticks(sim["ticks"])
     steps = _messages_to_steps(messages or [])
 
+    info = sim.get("info") or {}
+    failure_cause = str(info.get("error_type") or "") or None
+    if failure_cause and info.get("failed_after_attempts"):
+        failure_cause = f"{failure_cause} after {info['failed_after_attempts']} attempts"
+
     reward_info = sim.get("reward_info") or {}
     reward = reward_info.get("reward")
     outcome = Outcome(
@@ -98,6 +103,7 @@ def _sim_to_trace(
         trial=int(sim.get("trial") or 0),
         agent_model=agent_model,
         task_requirement=task_requirement,
+        failure_cause=failure_cause,
         steps=steps,
         outcome=outcome,
         metrics=TraceMetrics(

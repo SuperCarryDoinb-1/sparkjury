@@ -124,6 +124,12 @@ class Trace(BaseModel):
     # Grading against this text keeps the drift out of the score. It is the requirement, not the
     # answer: the reference call list stays out of every prompt.
     task_requirement: str | None = None
+    # The benchmark's own short record of how this run died, when it wrote one down
+    # (tau2: `info.error_type`, e.g. InternalServerError / Timeout). Only the report reads it, to
+    # explain *why* a trace was excluded instead of leaving the reader to guess: a batch whose
+    # traces died inside the harness's own evaluator looks identical to one where the agent under
+    # test crashed, and those two need opposite responses. It never enters a judge prompt.
+    failure_cause: str | None = None
     steps: list[Step] = Field(default_factory=list)
     outcome: Outcome = Field(default_factory=Outcome)
     metrics: TraceMetrics = Field(default_factory=TraceMetrics)

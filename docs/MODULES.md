@@ -56,7 +56,8 @@ uv run pytest
 - 所有阈值在 `PrecheckConfig` 里可调。
 - `store/sqlite.py`：新增 `precheck` 表，`put_precheck / get_precheck / list_precheck / scorable_traces / precheck_summary`。`scorable_traces()` 就是后面 M3 judge 的输入。
 - `cli.py`：`sparkjury precheck [--step-latency-ms N] [--max-duration-s N] [--step-latency-blocks] [--json]`。
-- `tests/test_m2_precheck.py`：13 个用例，每条规则一个正例加一个反例，另外对全部 14 条样本跑一遍确认只有 1 条被标。
+- 被排除的 trace 带上源数据自己记的失败原因：`Trace.failure_cause`（tau2 取 `info.error_type`）→ `PrecheckFlag.cause` → `precheck_summary()["blocking_causes"]` → 卡片那行 `the source said: …`。只报规则名的坏处是拿真批数据踩出来的：90 条里丢的 26 条一度被当成环境抖动，因为卡片只说得出「empty_trace=26」。
+- `tests/test_m2_precheck.py`：15 个用例，每条规则一个正例加一个反例，另外对全部 14 条样本跑一遍确认只有 1 条被标。
 - 事后补的分档（真批数据倒逼）：`PrecheckFlag` 加 `blocking` 字段，`is_env_failure` 只看阻断标志，非阻断的进 `advisories`。单步超阈值默认是非阻断，要恢复老口径把 `step_latency_blocks` 打开。原因是 2026-09-26 那批 90 条 τ²-bench 基线：21 条终止正常（`user_stop`）的 trace 仅因单步超 120 秒被排除，可评分只剩 42 条，等于把最慢的样本从体检里剔掉。改完在真批上重跑，可评分从 42 条涨到 63 条。
 
 **自测结果**：`uv run pytest` 292 passed / 3 skipped（M1 9 个 + M2 13 个）。
@@ -197,7 +198,8 @@ uv run sparkjury cluster --min-cluster-size 2 --json
 - `models/regress.py` 和 `regress/passk.py`：`compare(before_db, after_db)` 对比两次评测。输出 pass^1 与 pass^k 前后差、哪些任务从 fail 变 pass、哪些从 pass 变 fail、各维度均分变化、badcase 数量变化、每个失败标签的簇大小变化，并给一句结论：improved / improved with regressions / unchanged / regressed。
 - `judges/pairwise.py`：成对比较。同一任务同一 trial 的前后两条记录送裁判比，A/B 顺序交换跑两遍，两遍结论一致才算数，不一致记为 inconsistent。这是针对位置偏差的标准做法。`MockPairwiseJudge` 用规则分数比较，`OpenAIPairwiseJudge` 接真实模型。
 - `cli.py`：`sparkjury report [--out runs/card] [--format all|json|md|html] [--title]` 和 `sparkjury regress --before A.db --after B.db [--pairwise mock|文件.toml] [--out 报告.md] [--json]`。
-- `tests/test_m6_report_regress.py`：20 个用例。卡片的总量和簇内容、三种格式渲染、空库；判准校准（故意把一批裁决写反，卡片要报出与基准 0% 一致、两个通过率互补；库里没有基准时报 0 条）；回归：同库对比为 unchanged、修好一条后为 improved 且列出 retail_task_004、反向对比为 regressed；成对比较的交换一致性，包括一个"永远选 A"的偏见裁判被识别为不一致；CLI。
+- 被排除的 trace 那行会补上源数据记的原因（`the source said: …`），源数据没记就不显示这一段。
+- `tests/test_m6_report_regress.py`：22 个用例。卡片的总量和簇内容、三种格式渲染、空库；判准校准（故意把一批裁决写反，卡片要报出与基准 0% 一致、两个通过率互补；库里没有基准时报 0 条）；回归：同库对比为 unchanged、修好一条后为 improved 且列出 retail_task_004、反向对比为 regressed；成对比较的交换一致性，包括一个"永远选 A"的偏见裁判被识别为不一致；CLI。
 
 **自测结果**：`uv run pytest` 59 passed（M1 9 + M2 10 + M3 13 + M4 10 + M5 9 + M6 8）。
 

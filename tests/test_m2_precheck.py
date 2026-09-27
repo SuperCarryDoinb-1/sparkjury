@@ -5,9 +5,10 @@ from typer.testing import CliRunner
 from sparkjury.adapters.otel import load_otel
 from sparkjury.adapters.tau2 import load_tau2
 from sparkjury.cli import app
-from sparkjury.models.precheck import PrecheckKind
+from sparkjury.models.precheck import PrecheckFlag, PrecheckKind, PrecheckResult
 from sparkjury.models.trace import Outcome, Role, Step, ToolCall, ToolResult, Trace, TraceSource
 from sparkjury.precheck import PrecheckConfig, run, run_many
+from sparkjury.precheck.rules import rule_empty_trace, rule_infra_error
 from sparkjury.store import TraceStore
 
 runner = CliRunner(env={"COLUMNS": "200"})
@@ -152,7 +153,7 @@ def test_store_and_cli(tmp_path, tau2_path, otel_path):
         assert len(scorable) == 13 and all(t.trace_id != "retail_task_003-t1" for t in scorable)
         s = store.precheck_summary()
         assert s == {"n_checked": 14, "n_env_failures": 1, "n_scorable": 13, "kinds": {"tool_unavailable": 1},
-                     "advisory_kinds": {}, "n_traces_with_advisory": 0}
+                     "advisory_kinds": {}, "n_traces_with_advisory": 0, "blocking_causes": {}}
 
     r = runner.invoke(app, ["precheck", "--db", str(db), "--json"])
     assert r.exit_code == 0, r.output
@@ -199,3 +200,32 @@ def test_precheck_rows_written_before_the_blocking_field_still_block(tmp_path):
         s = store.precheck_summary()
         assert s["n_env_failures"] == 1 and s["kinds"] == {"timeout": 1}
         assert s["advisory_kinds"] == {} and s["n_traces_with_advisory"] == 0
+
+
+def test_excluded_traces_carry_the_source_s_own_cause():
+    """报告要说清这 27 条为什么被排除：是评测链路自己死的，还是被测 Agent 崩的，读的人要能分清。
+
+    这条是拿真批数据逼出来的——90 条里丢的 26 条一开始被当成环境抖动，因为卡片里只有
+    「empty_trace=26」这种规则名，没有源头自己记的失败原因。
+    """
+    trace = Trace(
+        trace_id="t-lost", source=TraceSource.TAU2, task_id="7", failure_cause="InternalServerError after 4 attempts",
+        outcome=Outcome(termination_reason="infrastructure_error"),
+    )
+    flags = rule_empty_trace(trace, PrecheckConfig()) + rule_infra_error(trace, PrecheckConfig())
+    assert {f.cause for f in flags} == {"InternalServerError after 4 attempts"}
+    assert all(f.blocking for f in flags)
+
+
+def test_a_trace_the_source_says_nothing_about_has_no_cause(tmp_path):
+    """源数据没写原因就别编一个出来：cause 为空，卡片就不显示这一行。"""
+    trace = Trace(trace_id="t-quiet", source=TraceSource.OTEL, task_id="1")
+    assert rule_empty_trace(trace, PrecheckConfig())[0].cause == ""
+    with TraceStore(tmp_path / "c.db") as store:
+        store.upsert_traces([trace, trace.model_copy(update={"trace_id": "t-lost",
+                                                            "failure_cause": "Timeout after 4 attempts"})])
+        store.put_precheck([PrecheckResult(trace_id="t-quiet", flags=[]),
+                            PrecheckResult(trace_id="t-lost", flags=[PrecheckFlag(
+                                kind=PrecheckKind.EMPTY_TRACE, cause="Timeout after 4 attempts")])])
+        s = store.precheck_summary()
+    assert s["blocking_causes"] == {"Timeout after 4 attempts": 1}

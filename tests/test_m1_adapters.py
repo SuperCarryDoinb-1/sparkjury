@@ -113,3 +113,22 @@ def test_otel_builds_one_trace_per_invocation(otel_path):
 def test_dispatch_by_source(tau2_path, otel_path):
     assert len(load(tau2_path, "tau2")) == 12
     assert len(load(otel_path, TraceSource.OTEL)) == 2
+
+
+def test_tau2_keeps_the_benchmark_s_own_failure_reason():
+    """90 条真批里丢了 26 条，卡片只说得出「empty_trace=26」这个规则名，读的人分不清是评测链路
+    自己死的还是被测 Agent 崩的——这两种要做的处置正好相反。原因就写在 tau2 自己的 info 里。"""
+    data = {
+        "info": {"agent_info": {"llm": "m"}},
+        "tasks": [{"id": "t1"}],
+        "simulations": [
+            {"id": "lost", "task_id": "t1", "trial": 0, "messages": [], "duration": 0.0,
+             "termination_reason": "infrastructure_error",
+             "info": {"error_type": "InternalServerError", "failed_after_attempts": 4}},
+            {"id": "clean", "task_id": "t1", "trial": 1, "messages": [{"role": "user", "content": "hi"}],
+             "termination_reason": "user_stop"},
+        ],
+    }
+    by_id = {t.trace_id: t for t in parse_tau2(data)}
+    assert by_id["lost"].failure_cause == "InternalServerError after 4 attempts"
+    assert by_id["clean"].failure_cause is None       # 没记录原因就不编一个

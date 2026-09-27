@@ -397,3 +397,35 @@ def test_cluster_says_how_many_of_its_members_rest_on_a_contested_decision(befor
     assert card.clusters[0].n_contested_members == expect and expect > 0
     assert f"Contested evidence: {expect} of {n_members}" in md
     assert "Contested evidence:" in html
+
+
+def test_card_says_why_the_excluded_traces_were_excluded(before_db):
+    """被排除的 trace 只报规则名不够：读的人要能看出是评测链路自己死的，还是被测 Agent 崩的。"""
+    from sparkjury.models.precheck import PrecheckFlag, PrecheckKind, PrecheckResult
+
+    with TraceStore(before_db) as store:
+        store.put_precheck([
+            PrecheckResult(trace_id="t-lost", flags=[PrecheckFlag(
+                kind=PrecheckKind.INFRA_ERROR, note="termination_reason=infrastructure_error",
+                cause="InternalServerError after 4 attempts")]),
+            PrecheckResult(trace_id="t-quiet", flags=[PrecheckFlag(
+                kind=PrecheckKind.EMPTY_TRACE, note="trace has no steps")]),
+        ])
+        card = build_card(store, run_id="r1")
+        assert card.totals.env_causes == {"InternalServerError after 4 attempts": 1}
+        md, html = card_md(card), render_html(card)
+    assert "the source said: InternalServerError after 4 attempts=1" in md
+    assert "the source said: InternalServerError after 4 attempts=1" in html
+
+
+def test_card_omits_the_cause_clause_when_the_source_kept_no_reason(tmp_path):
+    """源数据没记原因就别在卡片里造一行空话。"""
+    from sparkjury.models.precheck import PrecheckFlag, PrecheckKind, PrecheckResult
+    from sparkjury.store import TraceStore as S
+
+    db = tmp_path / "q.db"
+    with S(db) as store:
+        store.put_precheck([PrecheckResult(trace_id="t", flags=[PrecheckFlag(kind=PrecheckKind.EMPTY_TRACE)])])
+        card = build_card(store, run_id="r")
+        md = card_md(card)
+    assert card.totals.env_causes == {} and "the source said" not in md
