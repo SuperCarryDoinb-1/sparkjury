@@ -266,6 +266,9 @@ def load_skill_tools(root: Path | None = None, *, executor: Callable[[SkillInfo,
             shown = skill.run_py.relative_to(skill.path.parent.parent)
         except ValueError:
             shown = skill.run_py
+        # 一律用正斜杠：Windows 上 Path 会渲染成反斜杠，于是「模型看到的命令行」跟着宿主系统变，
+        # 提示词和会话记录在不同平台上就不是同一串字了（CI 的 windows job 就是这么抓到的）。
+        shown = shown.as_posix()
         head = f"$ python {shown} {' '.join(cli_args)}".rstrip()
         tail = f"退出码 {run.rc}"
         body = _truncate((run.stdout + ("\n" + run.stderr if run.stderr else "")).strip())
