@@ -160,6 +160,11 @@ def test_openai_judge_parses_and_nudges(traces):
     # outcome without label gets one derived from the score
     j = _Stub(['{"score": 1, "rationale": "bad"}'])
     assert j.score(t, Dimension.OUTCOME).label == "fail"
+    # 自报 label 与分数矛盾时以分数为准：错误的 label 会盖住真实分歧（真批上出现过）
+    j = _Stub(['{"score": 1, "label": "pass", "rationale": "自相矛盾"}'])
+    assert j.score(t, Dimension.OUTCOME).label == "fail"
+    j = _Stub(['{"score": 4, "label": "fail", "rationale": "自相矛盾"}'])
+    assert j.score(t, Dimension.OUTCOME).label == "pass"
     # backend failure -> errored verdict, never an exception
     j = _Stub([RuntimeError("connection refused")])
     v = j.score(t, Dimension.SAFETY)

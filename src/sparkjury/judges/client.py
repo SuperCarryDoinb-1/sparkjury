@@ -99,9 +99,13 @@ class OpenAICompatJudge:
                     return self._errored(trace, dimension, f"{type(e2).__name__}: {e2}", raw, t0)
             else:
                 return self._errored(trace, dimension, f"{type(e).__name__}: {e}", raw, t0)
-        if dimension == Dimension.OUTCOME and data["label"] is None:
+        if dimension == Dimension.OUTCOME:
+            # rubric 规定 label 是分数的函数（3-4 = pass，0-2 = fail），裁判自报的 label
+            # 与分数矛盾时以分数为准。真批上出现过一次（judge_b 给了 score=1、label=pass），
+            # 而 panel 的一致性只看 label，那条错的 label 正好把一次真实分歧盖住了：
+            # outcome 的 label 一致率读出 42/42，而分数有 3 条不同。
             data["label"] = "pass" if data["score"] >= 3 else "fail"
-        if dimension != Dimension.OUTCOME:
+        else:
             data["label"] = None
         return Verdict(
             trace_id=trace.trace_id, judge=self.name, model=self.model, dimension=dimension,
