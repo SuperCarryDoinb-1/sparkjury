@@ -1,0 +1,18 @@
+{
+  "pack_id": "retail-default",
+  "version": "0.1.0",
+  "state": "FROZEN",
+  "frozen_hash": "6ecbd6676c3bafd1fb62e8768c01504655b88b1ce84ff27966031dfa874194eb",
+  "owner": "万凌",
+  "created": "2026-09-26",
+  "frozen_at": "2026-09-26",
+  "content_versions": {
+    "rubrics": "0.1.0",
+    "taxonomy": "0.1.0",
+    "thresholds": "0.1.0",
+    "judges": "0.1.0",
+    "prompts": "0.1.0",
+    "checkers": "0.1.0"
+  },
+  "notes": "首版默认包：tau2-bench retail 域。DRAFT 态允许 clarify/govern 写；进入 FROZEN 后只读，回归对比以此为基准。"
+}
