@@ -5,6 +5,14 @@ Disagreements go to Jev; if Jev is unconfigured or fails within its timeout,
 a local judge arbitrates and the decision is marked degraded. A deterministic
 5% sample of traces is additionally re-scored by an audit judge so systematic
 blind spots of the small local judges become visible.
+
+一切走本地仲裁的决策（`degraded=True`）默认全部送审计，不参与 5% 抽样。原因是
+真批上量出来的：两块 30B 裁判组成的面板没有独立第三方，本地仲裁人必然是当事人
+之一，而审计一旦抽到这种决策就推翻它——judge-loop-real2 与 real6 两次跑批共 4 条
+被抽中的本地仲裁决策，4 条全被审计裁判推翻；同一批里 18 条面板决策被抽到，0 条
+不一致。只抽 5% 等于明知这条路径可疑还不查，所以改成降级决策必查，抽样留给面板
+决策。审计只记录不改判：两个裁判吵起来时任何本地裁判都是当事人，把结果标出来比
+换个人拍板更诚实。
 """
 
 from __future__ import annotations
@@ -30,6 +38,7 @@ class Arbiter:
         local_judge: Judge | None = None,
         audit_judge: Judge | None = None,
         audit_rate: float = 0.05,
+        audit_degraded: bool = True,
         transcript_width: int = 4000,
         transcript_max_chars: int | None = 45000,
         include_gold: bool = False,
@@ -39,6 +48,7 @@ class Arbiter:
         self.local_judge = local_judge
         self.audit_judge = audit_judge
         self.audit_rate = audit_rate
+        self.audit_degraded = audit_degraded
         self.transcript_width = transcript_width
         self.transcript_max_chars = transcript_max_chars
         self.include_gold = include_gold
@@ -54,7 +64,7 @@ class Arbiter:
                 arb = self._from_panel(trace, agreement, verdicts, DecisionSource.PANEL, degraded=False)
             else:
                 arb = self._arbitrate(trace, agreement, verdicts)
-            if audit and self.audit_judge is not None:
+            if self.audit_judge is not None and (audit or (self.audit_degraded and arb.degraded)):
                 self._audit(trace, arb)
             out.append(arb)
         return TraceDecision(trace_id=trace.trace_id, arbitrations=out)

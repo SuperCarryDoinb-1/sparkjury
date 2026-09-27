@@ -248,6 +248,7 @@ class Orchestrator:
         local, audit = panel.arbiter_judges()
         arb = Arbiter(jev=jev, local_judge=local, audit_judge=audit,
                       audit_rate=self.cfg.arbiter.audit_rate,
+                      audit_degraded=self.cfg.arbiter.audit_degraded,
                       transcript_width=pc.transcript_width,
                       transcript_max_chars=pc.transcript_max_chars,
                       include_gold=pc.include_gold)
@@ -272,7 +273,11 @@ class Orchestrator:
         return {"n_traces": len(decisions), "n_dimensions": len(arbs), "by_source": by_source,
                 "n_degraded": sum(1 for a in arbs if a.degraded),
                 "n_audited": sum(1 for a in arbs if a.audit_sampled),
-                "n_audit_disagreements": sum(1 for a in arbs if a.audit_disagrees)}
+                "n_audit_disagreements": sum(1 for a in arbs if a.audit_disagrees),
+                "n_audited_degraded": sum(1 for a in arbs if a.audit_sampled and a.degraded),
+                "n_audit_disagreements_degraded": sum(1 for a in arbs if a.audit_sampled and a.degraded and a.audit_disagrees),
+                "n_audited_panel": sum(1 for a in arbs if a.audit_sampled and not a.degraded),
+                "n_audit_disagreements_panel": sum(1 for a in arbs if a.audit_sampled and not a.degraded and a.audit_disagrees)}
 
     def _cluster(self) -> dict[str, Any]:
         assert self._store

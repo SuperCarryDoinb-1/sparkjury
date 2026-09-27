@@ -49,6 +49,9 @@ class ArbiterSettings(BaseModel):
     jev: str = "auto"                 # auto | off
     jev_timeout_s: float = 5.0
     audit_rate: float = 0.05
+    # 走本地仲裁的决策（degraded）默认全部送审计：真批上被抽到的 4 条全被审计推翻，
+    # 只抽 5% 等于明知可疑还不查。审计只记录不改判。
+    audit_degraded: bool = True
 
 
 class ClusterSettings(BaseModel):

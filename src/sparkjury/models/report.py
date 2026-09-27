@@ -89,6 +89,12 @@ class CardQuality(BaseModel):
     n_degraded: int = 0
     n_audited: int = 0
     n_audit_disagreements: int = 0
+    # 审计分歧落在哪一类决策上：面板决策与本地仲裁决策分开数。真实分歧集中在后者，
+    # 只报总数会让读者以为审计过的决策都差不多可信。
+    n_audited_degraded: int = 0
+    n_audit_disagreements_degraded: int = 0
+    n_audited_panel: int = 0
+    n_audit_disagreements_panel: int = 0
     n_outcome_fail: int = 0
     mean_scores: dict[str, float | None] = Field(default_factory=dict)   # dimension -> mean final score
     judges: dict[str, dict] = Field(default_factory=dict)

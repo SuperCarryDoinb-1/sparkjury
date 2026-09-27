@@ -45,6 +45,8 @@ def build_card(store: TraceStore, run_id: str = "latest", title: str | None = No
         judge_agreement_rate=vs["agreement_rate"], n_needing_arbitration=vs["n_needing_arbitration"],
         decisions_by_source=ar["by_source"], n_degraded=ar["n_degraded"],
         n_audited=ar["n_audited_dimensions"], n_audit_disagreements=ar["n_audit_disagreements"],
+        n_audited_degraded=ar.get("n_audited_degraded", 0), n_audit_disagreements_degraded=ar.get("n_audit_disagreements_degraded", 0),
+        n_audited_panel=ar.get("n_audited_panel", 0), n_audit_disagreements_panel=ar.get("n_audit_disagreements_panel", 0),
         n_outcome_fail=ar["n_outcome_fail"], mean_scores=_mean_scores(store), judges=vs["judges"],
         **_gold_agreement(store),
     )
@@ -161,7 +163,8 @@ def render_markdown(card: EvidenceCard) -> str:
           f"panel says pass {_pct(q.judge_pass_rate)}, benchmark says pass {_pct(q.gold_pass_rate)} on those same traces |",
           f"| Decisions by source | {', '.join(f'{k}={v}' for k, v in sorted(q.decisions_by_source.items())) or '-'} |",
           f"| Degraded decisions | {q.n_degraded} |",
-          f"| Audit | {q.n_audited} dimension(s) audited, {q.n_audit_disagreements} disagreement(s) |",
+          f"| Audit | {q.n_audited} dimension(s) audited, {q.n_audit_disagreements} disagreement(s)"
+          f" (locally-arbitrated {q.n_audit_disagreements_degraded}/{q.n_audited_degraded}, panel {q.n_audit_disagreements_panel}/{q.n_audited_panel}) |",
           f"| Mean final scores | {', '.join(f'{k} {_num(v)}' for k, v in q.mean_scores.items())} |",
           "", "## Recommendation", "", card.recommendation, "", f"> {card.disclaimer}", ""]
     L += ["## Clusters", ""]
@@ -225,7 +228,8 @@ def render_html(card: EvidenceCard) -> str:
          f"<tr><th>Arbitrated traces</th><td colspan='4'>{q.n_needing_arbitration}</td></tr>",
          f"<tr><th>Outcome vs benchmark</th><td colspan='4'>{e(_pct(q.gold_agreement_rate))} on the {q.n_gold_compared} judged trace(s)"
          f"; panel says pass {e(_pct(q.judge_pass_rate))}, benchmark says pass {e(_pct(q.gold_pass_rate))} on those same traces</td></tr>",
-         f"<tr><th>Audit</th><td colspan='4'>{q.n_audited} dimension(s), {q.n_audit_disagreements} disagreement(s)</td></tr>",
+         f"<tr><th>Audit</th><td colspan='4'>{q.n_audited} dimension(s), {q.n_audit_disagreements} disagreement(s)"
+         f" (locally-arbitrated {q.n_audit_disagreements_degraded}/{q.n_audited_degraded}, panel {q.n_audit_disagreements_panel}/{q.n_audited_panel})</td></tr>",
          f"<tr><th>Environment failures</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in t.env_kinds.items()) or '-')}</td></tr>"
          f"<tr><th>Precheck advisories</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in t.precheck_advisory_kinds.items()) or '-')} <small>(still judged)</small></td></tr></table>",
          "<h2>Clusters</h2>"]

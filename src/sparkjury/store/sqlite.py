@@ -501,6 +501,10 @@ class TraceStore:
         by_source = Counter(r["source"] for r in rows)
         n_traces = len({r["trace_id"] for r in rows})
         audited = [r for r in rows if r["audit_sampled"]]
+        # 审计分歧落在哪一类决策上，比分歧总数重要：面板决策被抽到 18 条零分歧，
+        # 本地仲裁决策被抽到 4 条分歧 4 条（两次跑批合计）。分开数才看得出问题在哪。
+        audited_degraded = [r for r in audited if r["degraded"]]
+        audited_panel = [r for r in audited if not r["degraded"]]
         return {
             "n_traces": n_traces,
             "n_dimensions": len(rows),
@@ -508,6 +512,10 @@ class TraceStore:
             "n_degraded": sum(r["degraded"] for r in rows),
             "n_audited_dimensions": len(audited),
             "n_audit_disagreements": sum(1 for r in audited if r["audit_disagrees"]),
+            "n_audited_degraded": len(audited_degraded),
+            "n_audit_disagreements_degraded": sum(1 for r in audited_degraded if r["audit_disagrees"]),
+            "n_audited_panel": len(audited_panel),
+            "n_audit_disagreements_panel": sum(1 for r in audited_panel if r["audit_disagrees"]),
             "n_outcome_fail": sum(1 for r in rows if r["dimension"] == "outcome" and r["final_label"] == "fail"),
             "mean_final_score": (statistics.fmean([r["final_score"] for r in rows if r["final_score"] is not None])
                                  if any(r["final_score"] is not None for r in rows) else None),

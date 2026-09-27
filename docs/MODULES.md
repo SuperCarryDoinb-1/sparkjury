@@ -128,12 +128,14 @@ uv run sparkjury verdicts retail_task_001-t2
   - Jev 未配置或调用失败：本地 Judge A 仲裁，标 degraded=true，理由里写明降级原因。
   - 本地也失败：退回面板中位数，标 degraded 并记录错误。
   - 5% 审计：按 trace_id 哈希确定性抽样，抽中的 trace 全部维度再由审计裁判打一遍，记录是否与最终裁决相差超过 1 分。审计人由 `Panel.arbiter_judges()` 挑，只可能是真裁判；面板里没有两个真裁判时 `audit_judge` 为 None，审计直接跳过（2026-09-27 修复：此前取的是面板最后一位，而节点上那一位恰好是健康检查失败后被换成 mock 的 judge_c，等于让 mock 审真裁判）。
+  - 本地仲裁的决策（degraded）全部送审计，不进抽样（`audit_degraded`，默认开）。依据是真批：judge-loop-real2 与 real6 两次跑批，被抽中的本地仲裁决策 4 条全被审计裁判推翻，同批抽中的 18 条面板决策 0 条不一致。
+  - 审计只记录不改判，分歧数按决策来源分开报（卡片、manifest 都有 locally-arbitrated / panel 两组）。理由是面板只有两个真裁判时，任何本地仲裁人都是当事人，把可疑标出来比换个当事人拍板更诚实。
 - `judges/prompts.py`：新增 `rubric_levels()`，从四份 rubric 里解析出 0 到 4 分的描述，供 Jev 的 score 问题使用。
 - `store/sqlite.py`：新增 `arbitration` 表，`put_decisions / get_decision / list_decisions / arbitration_summary`。
 - `cli.py`：`sparkjury arbitrate [--jev auto|off] [--jev-timeout-s 5] [--judges mock|文件.toml] [--audit-rate 0.05] [--trace ID] [--json]`。Jev 的 key 从环境变量 TYPESAFE_API_KEY 读。
-- `tests/test_m4_arbiter.py`：11 个用例（含「Jev 状态文本带任务原始要求、不带金标」一条）。用假的 HTTP 传输层验证 Jev 请求体和响应解析（含 1 起编号的 legend）；四条决策路径各一个用例：一致取中位数、分歧送 Jev、Jev 失败退本地并标降级、本地也失败退面板中位数；审计抽样的确定性和比例；存储与 CLI。
+- `tests/test_m4_arbiter.py`：12 个用例（含「Jev 状态文本带任务原始要求、不带金标」一条）。用假的 HTTP 传输层验证 Jev 请求体和响应解析（含 1 起编号的 legend）；四条决策路径各一个用例：一致取中位数、分歧送 Jev、Jev 失败退本地并标降级、本地也失败退面板中位数；审计抽样的确定性和比例；存储与 CLI。
 
-**自测结果**：`uv run pytest` 42 passed（M1 9 + M2 10 + M3 13 + M4 10）。
+**自测结果**：`uv run pytest` 293 passed / 3 skipped（M1 9 + M2 13 + M3 22 + M4 12 + …）。
 
 **人工验证步骤**
 

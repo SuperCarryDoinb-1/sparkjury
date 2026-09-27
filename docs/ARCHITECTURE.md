@@ -236,7 +236,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 | M1 | 数据契约 + 输入适配 + 存储 | P0 | 已完成，10 个用例 | `sparkjury-clean`（导入那半） |
 | M2 | Precheck 假 badcase 打标 | P0 | 已完成，13 个用例 | `sparkjury-clean`（预检那半） |
 | M3 | 三裁判面板 | P0 | 已完成，22 个用例 | `sparkjury-score` |
-| M4 | 仲裁与审计 | P0 | 已完成，11 个用例 | `sparkjury-score` |
+| M4 | 仲裁与审计 | P0 | 已完成，12 个用例 | `sparkjury-score` |
 | M5 | badcase 聚类与优先级 | P0 | 已完成，11 个用例 | `sparkjury-cluster` |
 | M6 | 证据卡片 + 回归对比 | P0 | 已完成，18 个用例 | `sparkjury-report` + `sparkjury-regress` |
 | M7 | Harness 编排器 | P0 | 已完成，11 个用例 | 六个技能调的都是它的 CLI |
@@ -324,8 +324,10 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 - 三票不一致送 Arbiter。首选 Jev：Score 给分数维度，Bool 给 outcome，Choice 给归类
 - Jev 超时 5 秒或返回 5xx，退回本地 Judge A，结果打 degraded=true
 - 5% 按 trace_id 哈希抽样送强模型审计，发现小模型系统性漏判。审计人必须是真模型：面板里没有两个真裁判时跳过审计，manifest 的 `models.arbiter.audit` 记 null——让 mock 去"审"真裁判只会写出一条看起来通过的审计记录
+- 走本地仲裁的决策（degraded）**全部送审计**，不进 5% 抽样（`[arbiter] audit_degraded`，默认开）。这是拿真批改的：两次跑批被抽中的本地仲裁决策 4 条、4 条全被审计裁判推翻，同批抽中的 18 条面板决策 0 条有分歧。只抽 5% 等于明知这条路径可疑还基本不查
+- 审计只记录不改判，卡片把分歧按决策来源分开报（写成 `locally-arbitrated 4/38, panel 0/18` 这种）。两个裁判吵起来时，本地任何裁判都是当事人，把结果标出来比换一个当事人拍板更诚实
 
-验收：断网时全部走本地且标记降级；有网时 Jev 调用成功率大于 95%（节点上没配 TYPESAFE_API_KEY，这条一直没验过）。本地仲裁人是面板里的第一个真裁判，仍属"当事人裁分歧"，独立第四方待补。
+验收：断网时全部走本地且标记降级；有网时 Jev 调用成功率大于 95%（节点上没配 TYPESAFE_API_KEY，这条一直没验过）。本地仲裁人是面板里的第一个真裁判，仍属"当事人裁分歧"，独立第四方待补；审计让这件事变得可数——2026-09-27 真批 63 条里本地仲裁的 38 维全部送审，审计裁判推翻了其中多少条，卡片直接写出来。审计是串行的、单条约 4 秒（没有 GPU 争用），38 条约 2.5 分钟，占整轮 33.5 分钟不到一成。
 
 ### M5 badcase 聚类与优先级
 
@@ -534,7 +536,7 @@ durable 那一段：
 
 ## 17. 当前进度与验证方法
 
-M1 到 M13 已完成（M10 节点执行、M11 录制待做），292 个 pytest 用例通过。一条命令跑通全流程：
+M1 到 M13 已完成（M10 节点执行、M11 录制待做），293 个 pytest 用例通过。一条命令跑通全流程：
 
 ```
 cd sparkjury

@@ -194,6 +194,29 @@ def test_audit_sampling_is_deterministic_and_rate_bound(trace):
     assert picked == [i for i in range(1000) if Arbiter(jev=None, audit_rate=0.05)._is_audit_sample(f"trace-{i}")]
 
 
+def test_degraded_decisions_are_always_audited(trace):
+    """本地仲裁的决策必须全查，不靠 5% 抽样。
+
+    真批上的证据：judge-loop-real2 与 real6 两次跑批，被抽中的本地仲裁决策 4 条、
+    4 条全被审计裁判推翻；同批被抽中的 18 条面板决策 0 条有分歧。只抽 5% 等于
+    明知这条路径可疑还基本不查。
+    """
+    arb = Arbiter(jev=None, local_judge=MockJudge("local"), audit_judge=MockJudge("audit"), audit_rate=0.0)
+    a = arb.decide(trace, _panel(Dimension.SAFETY, [4, 2, 4])).arbitrations[0]
+    assert a.source == DecisionSource.LOCAL and a.degraded
+    assert a.audit_sampled and a.audit_score is not None        # 抽样率为 0 也照查
+    # 面板决策仍然只按抽样率查
+    b = arb.decide(trace, _panel(Dimension.SAFETY, [4, 3, 4], agreed=True)).arbitrations[0]
+    assert not b.degraded and not b.audit_sampled
+    # 关掉这个行为就退回老的纯抽样
+    off = Arbiter(jev=None, local_judge=MockJudge("local"), audit_judge=MockJudge("audit"),
+                  audit_rate=0.0, audit_degraded=False)
+    assert not off.decide(trace, _panel(Dimension.SAFETY, [4, 2, 4])).arbitrations[0].audit_sampled
+    # 没有真裁判可审计时不该硬造一条审计记录
+    none = Arbiter(jev=None, local_judge=MockJudge("local"), audit_judge=None, audit_rate=0.0)
+    assert not none.decide(trace, _panel(Dimension.SAFETY, [4, 2, 4])).arbitrations[0].audit_sampled
+
+
 # ---- store + CLI ----------------------------------------------------------------------
 
 def test_store_and_cli(tmp_path, tau2_path, otel_path, monkeypatch):
