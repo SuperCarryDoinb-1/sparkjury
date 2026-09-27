@@ -70,6 +70,11 @@ class CardTotals(BaseModel):
 class CardQuality(BaseModel):
     pass_rate: float | None = None                 # pass^1 from gold
     pass_k: dict[int, float] = Field(default_factory=dict)
+    # pass^1 的分母不是「判了多少条」：基准给每条跑出结果的 trace 打 success，infra 崩掉、
+    # 没有结果的 trace 是 None，不进分母。两个分母不一样，卡片就得各自写清，否则同一张表里
+    # 会并排出现两个不同的「基准通过率」（实测 40.6% 对 41.3%）。
+    n_benchmark_result: int = 0
+    n_benchmark_success: int = 0
     agent_model: str | None = None
     judge_agreement_rate: float | None = None
     # 判准校准：outcome 维度的最终裁决与基准自带结果逐条对照。基准由环境状态算出，与这套裁判

@@ -40,6 +40,7 @@ def build_card(store: TraceStore, run_id: str = "latest", title: str | None = No
     )
     quality = CardQuality(
         pass_rate=st.pass_rate, pass_k=st.pass_k,
+        n_benchmark_result=st.n_with_gold, n_benchmark_success=st.n_gold_success,
         agent_model=max(st.agent_models, key=st.agent_models.get) if st.agent_models else None,
         judge_agreement_rate=vs["agreement_rate"], n_needing_arbitration=vs["n_needing_arbitration"],
         decisions_by_source=ar["by_source"], n_degraded=ar["n_degraded"],
@@ -151,13 +152,13 @@ def render_markdown(card: EvidenceCard) -> str:
           + (f" ({', '.join(f'{k}={v}' for k, v in t.precheck_advisory_kinds.items())})" if t.precheck_advisory_kinds else "") + " |",
           f"| Scored by the panel | {t.n_scored} |",
           f"| Badcases | {t.n_badcases} in {t.n_clusters} cluster(s) + {t.n_unclustered} unclustered |",
-          f"| pass^1 | {_pct(q.pass_rate)} |"]
+          f"| pass^1 | {_pct(q.pass_rate)} ({q.n_benchmark_success} of {q.n_benchmark_result} trace(s) with a benchmark result) |"]
     for k, v in sorted(q.pass_k.items()):
         if k > 1:
             L.append(f"| pass^{k} | {_pct(v)} |")
     L += [f"| Judge agreement | {_pct(q.judge_agreement_rate)} ({q.n_needing_arbitration} traces arbitrated) |",
-          f"| Outcome vs benchmark (calibration) | {_pct(q.gold_agreement_rate)} on {q.n_gold_compared} trace(s); "
-          f"panel says pass {_pct(q.judge_pass_rate)}, benchmark says pass {_pct(q.gold_pass_rate)} |",
+          f"| Outcome vs benchmark (calibration) | {_pct(q.gold_agreement_rate)} on the {q.n_gold_compared} judged trace(s); "
+          f"panel says pass {_pct(q.judge_pass_rate)}, benchmark says pass {_pct(q.gold_pass_rate)} on those same traces |",
           f"| Decisions by source | {', '.join(f'{k}={v}' for k, v in sorted(q.decisions_by_source.items())) or '-'} |",
           f"| Degraded decisions | {q.n_degraded} |",
           f"| Audit | {q.n_audited} dimension(s) audited, {q.n_audit_disagreements} disagreement(s) |",
@@ -222,8 +223,8 @@ def render_html(card: EvidenceCard) -> str:
          "<h2>Quality</h2><table><tr><th>Mean final score</th>" + "".join(f"<td>{e(k)} {e(_num(v))}</td>" for k, v in q.mean_scores.items()) + "</tr>",
          f"<tr><th>Decisions by source</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in sorted(q.decisions_by_source.items())) or '-')}</td></tr>",
          f"<tr><th>Arbitrated traces</th><td colspan='4'>{q.n_needing_arbitration}</td></tr>",
-         f"<tr><th>Outcome vs benchmark</th><td colspan='4'>{e(_pct(q.gold_agreement_rate))} on {q.n_gold_compared} trace(s)"
-         f"; panel says pass {e(_pct(q.judge_pass_rate))}, benchmark says pass {e(_pct(q.gold_pass_rate))}</td></tr>",
+         f"<tr><th>Outcome vs benchmark</th><td colspan='4'>{e(_pct(q.gold_agreement_rate))} on the {q.n_gold_compared} judged trace(s)"
+         f"; panel says pass {e(_pct(q.judge_pass_rate))}, benchmark says pass {e(_pct(q.gold_pass_rate))} on those same traces</td></tr>",
          f"<tr><th>Audit</th><td colspan='4'>{q.n_audited} dimension(s), {q.n_audit_disagreements} disagreement(s)</td></tr>",
          f"<tr><th>Environment failures</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in t.env_kinds.items()) or '-')}</td></tr>"
          f"<tr><th>Precheck advisories</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in t.precheck_advisory_kinds.items()) or '-')} <small>(still judged)</small></td></tr></table>",

@@ -121,6 +121,7 @@ class Stats:
     n_tasks: int = 0
     trials_per_task: dict[int, int] = field(default_factory=dict)  # k -> number of tasks with k trials
     n_with_gold: int = 0
+    n_gold_success: int = 0                       # of those, how many the benchmark passed
     pass_rate: float | None = None  # mean over traces with gold (= pass^1)
     pass_k: dict[int, float] = field(default_factory=dict)  # k -> fraction of tasks passing all k trials
     avg_steps: float | None = None
@@ -268,6 +269,7 @@ class TraceStore:
 
         gold = [r for r in rows if r["success"] is not None]
         st.n_with_gold = len(gold)
+        st.n_gold_success = sum(r["success"] for r in gold)
         if gold:
             st.pass_rate = sum(r["success"] for r in gold) / len(gold)
             # pass^k: task passes iff all of its first k trials succeed

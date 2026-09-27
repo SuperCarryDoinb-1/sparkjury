@@ -86,6 +86,9 @@ def test_build_card_totals_and_clusters(before_db):
     assert t.n_traces == 14 and t.n_tasks == 6 and t.n_env_failures == 1 and t.env_kinds == {"tool_unavailable": 1}
     assert t.n_scored == 13 and t.n_badcases == 5 and t.n_clusters >= 1
     assert abs(q.pass_rate - 9 / 14) < 1e-9 and abs(q.pass_k[3] - 0.25) < 1e-9
+    # pass^1 的分母是「基准给了结果的 trace」，不是「判了多少条」；两个数都要随卡片一起写出来，
+    # 否则同一张表里会并排出现两个没有说明分母的基准通过率
+    assert q.n_benchmark_result == 14 and q.n_benchmark_success == 9
     assert q.agent_model == "openai/qwen3-8b" and q.judge_agreement_rate is not None
     assert q.decisions_by_source["panel"] > 0 and q.n_outcome_fail == 4
     assert set(q.mean_scores) == {"outcome", "tool_use", "efficiency", "safety"}
