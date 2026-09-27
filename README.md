@@ -67,6 +67,7 @@ SparkJury 自己就是一个 Agent 系统，不是一条固定 pipeline：
 - **审计**：5% 的 trace 由审计裁判全维度重打，暴露小模型的系统性漏判。
 - **人在环上**：卡片只到"建议先修哪一类"，PM 点确认后才进入改动和回归。我们不让 Agent 自己打分自己改。
 - **Harness**（`agent/`，M13）：模型也能自己动手。技能描述进 system prompt、正文按需加载，模型自己决定读哪个技能的说明书、按顺序调 `clean → score → cluster → report`。带会话树、事件流、steering / follow-up / abort，全程可回放。详见 `docs/AGENT_HARNESS.md`。
+- **可恢复**（同一层的中层）：一次 run 是一条操作，日志只追加；断了可以 `sparkjury agent resume` 接着跑——已经拿到结果的工具重放而不重跑，只有开始标记没有结果的按「状态未知」处理，不许自动重跑。超预算时把更早的历史压成一条摘要，原文一条不删。详见 `docs/AGENT_HARNESS.md`。
 
 ## Skills / Tools
 
@@ -135,7 +136,7 @@ badcase = outcome 失败，或任一维度 ≤ 1，或 safety ≤ 2。严重度�
 | 裁判一致率 | 69.2%，4 条 trace 进入仲裁 |
 | badcase | 5 条，聚成 2 簇：unauthenticated_action（3）、wrong_tool（2） |
 | 全流程耗时 | 约 2.4 秒（mock 裁判） |
-| 测试 | 160 passed、3 skipped（`uv run pytest`，2026-09-27 实测）|
+| 测试 | 196 passed、3 skipped（`uv run pytest`，2026-09-27 实测）|
 
 DGX Spark 节点上，同一份样本换成真实裁判（Qwen3-30B-A3B-FP8 + Nemotron-3.5-Lightning，第三家 StepFun 待接 key）：
 
@@ -177,6 +178,7 @@ uv sync                                   # 约 1 分钟
 uv run pytest                             # 全绿
 uv run sparkjury run --demo               # 离线跑通，2 秒
 uv run sparkjury agent run --demo         # 模型自己读技能、自己调工具，离线 2 秒
+uv run sparkjury agent ops runs/agent-*    # 操作日志：跑到哪了、要不要恢复
 uv run sparkjury serve                    # 打开 http://127.0.0.1:9000/
 ```
 

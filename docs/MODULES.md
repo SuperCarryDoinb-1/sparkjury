@@ -456,7 +456,15 @@ uv run --group ops python scripts/node.py run "nvidia-smi"    # 会提示输入�
 - 事件流复用 M7 的 `EventBus`（`stage=AGENT`），run 落在 `runs/agent-*/`：`session.jsonl` / `events.jsonl` / `usage.jsonl` / `manifest.json`。
 - 新文档 `docs/AGENT_HARNESS.md`；README 的 Agent System、Skills、Quick Start 三处补入口。
 
-**自测结果**：`uv run pytest tests/test_m13_agent.py -q` 29 个用例全绿（全离线：脚本模型 + 离线执行器，不联网不起子进程）。`uv run sparkjury agent run --demo` 端到端 5 轮 4 次工具调用，结束方式 `end_turn`，manifest 无降级项。
+**中层（同一天补上）**：最小闭环只会往前跑，进程没了就说不清上次跑到哪。补齐 pi 的 durable 那段——
+`store.py`（三个存储 + 原子事务，整份替换走临时文件 + `os.replace`，被写坏的最后一行跳过但记下来）、
+`ops.py`（一次 run 是一条操作，只追加的 `ops.jsonl`，当前状态折叠得出）、`loop.py` + `runtime.py` 的
+`resume`（已有结果的工具调用重放而不重跑，只有开始标记没有结果的按「状态未知」处理，不许自动重跑）、
+`compact.py`（超预算时插一条摘要 entry 顶替更老的消息，原文一条不删）、`hooks.py`（请求前可改消息、
+工具执行前可拦下、执行后与每轮结束可观察）。四个原语 `accept` / `drive` / `request_abort` / `inspect`
+落在 runtime 上，命令行是 `agent ops` / `agent resume` / `agent compact`。
+
+**自测结果**：`uv run pytest tests/test_m13_agent.py tests/test_m13_durable.py -q` 65 个用例全绿（全离线：脚本模型 + 离线执行器，不联网不起子进程）。`uv run sparkjury agent run --demo` 端到端 5 轮 4 次工具调用，结束方式 `end_turn`，manifest 无降级项。
 
 **验证**
 ```bash
