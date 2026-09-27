@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable
@@ -94,9 +95,14 @@ class ToolCall:
 
 @dataclass
 class Turn:
-    """一次 assistant 回合：文本 + 想调的工具 + 用量。error 非空表示这次调用没成。"""
+    """一次 assistant 回合：文本 + 想调的工具 + 用量。error 非空表示这次调用没成。
+
+    `thinking` 单独存：Qwen3 系模型在节点上（vLLM 没开 reasoning parser）会把思考内容
+    混在 content 里，直接当正文用的话，会话、卡片和结论里全是重复的思考过程。
+    """
 
     text: str = ""
+    thinking: str = ""
     tool_calls: list[ToolCall] = field(default_factory=list)
     usage: dict[str, int] = field(default_factory=dict)
     model: str = ""
@@ -147,9 +153,29 @@ class OpenAICompatProvider(Provider):
             return Turn(error=f"{type(e).__name__}: {e}", model=self.spec.model,
                         latency_ms=(time.perf_counter() - t0) * 1000)
         msg = resp.choices[0].message
-        return Turn(text=msg.content or "", tool_calls=_parse_tool_calls(msg),
+        text, thinking = split_thinking(msg.content or "")
+        return Turn(text=text, thinking=thinking, tool_calls=_parse_tool_calls(msg),
                     usage=_parse_usage(resp), model=self.spec.model,
                     latency_ms=(time.perf_counter() - t0) * 1000)
+
+
+_THINK_RE = re.compile(r"<think(?:ing)?>.*?(?:</think(?:ing)?>|\Z)", re.S | re.I)
+
+
+def split_thinking(text: str) -> tuple[str, str]:
+    """把思考块从正文里剥出来，返回 (正文, 思考)。
+
+    节点上的 Qwen3-8B 走的是 `--tool-call-parser hermes`，没开 reasoning parser，于是
+    `<think>…</think>` 是 content 的一部分。不剥掉的话，模型每次回答前面都挂着一大段
+    自言自语，会话和结论都没法看。剥出来的思考仍然存进会话，调试时看得到。
+    闭合标签缺失（模型被截断）也算思考块，不然半截思考会混进正文。
+    """
+    if not text:
+        return "", ""
+    blocks = [m.group(0) for m in _THINK_RE.finditer(text)]
+    clean = _THINK_RE.sub("", text).strip()
+    inner = [re.sub(r"^<think(?:ing)?>|</think(?:ing)?>$", "", b, flags=re.I).strip() for b in blocks]
+    return clean, "\n".join(b for b in inner if b)
 
 
 def _parse_tool_calls(msg: Any) -> list[ToolCall]:
@@ -209,8 +235,8 @@ class ScriptedProvider(Provider):
         return getattr(self, "_last", Turn(error="scripted provider has no turn to repeat", model=self.spec.model))
 
 
-def text_turn(text: str) -> Turn:
-    return Turn(text=text)
+def text_turn(text: str, *, thinking: str = "") -> Turn:
+    return Turn(text=text, thinking=thinking)
 
 
 def tool_turn(*calls: tuple[str, dict[str, Any]], text: str = "") -> Turn:

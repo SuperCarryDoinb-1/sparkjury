@@ -456,7 +456,7 @@ uv run --group ops python scripts/node.py run "nvidia-smi"    # 会提示输入�
 - 事件流复用 M7 的 `EventBus`（`stage=AGENT`），run 落在 `runs/agent-*/`：`session.jsonl` / `events.jsonl` / `usage.jsonl` / `manifest.json`。
 - 新文档 `docs/AGENT_HARNESS.md`；README 的 Agent System、Skills、Quick Start 三处补入口。
 
-**自测结果**：`uv run pytest tests/test_m13_agent.py -q` 27 个用例全绿（全离线：脚本模型 + 离线执行器，不联网不起子进程）。`uv run sparkjury agent run --demo` 端到端 5 轮 4 次工具调用，结束方式 `end_turn`，manifest 无降级项。
+**自测结果**：`uv run pytest tests/test_m13_agent.py -q` 29 个用例全绿（全离线：脚本模型 + 离线执行器，不联网不起子进程）。`uv run sparkjury agent run --demo` 端到端 5 轮 4 次工具调用，结束方式 `end_turn`，manifest 无降级项。
 
 **验证**
 ```bash

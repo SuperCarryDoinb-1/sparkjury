@@ -161,7 +161,10 @@ class AgentLoop:
                 self._run_tools(turn.tool_calls)
                 continue
             result.text = turn.text
-            self.session.append("message", role="assistant", data={"text": turn.text})
+            answer: dict[str, Any] = {"text": turn.text}
+            if turn.thinking:
+                answer["thinking"] = turn.thinking
+            self.session.append("message", role="assistant", data=answer)
             if self._followups:
                 text = self._followups.pop(0)
                 self.session.append("message", role="user", data={"text": text, "followup": True})
@@ -192,11 +195,14 @@ class AgentLoop:
             self._publish(EventKind.PROGRESS, "插入 steering 消息", phase="steering")
 
     def _record_tool_calls(self, turn: Turn) -> None:
-        self.session.append("tool_call", data={
+        data: dict[str, Any] = {
             "text": turn.text,
             "calls": [{"id": c.id, "name": c.name, "arguments": c.raw_arguments or _dumps(c.arguments)}
                       for c in turn.tool_calls],
-        })
+        }
+        if turn.thinking:  # 思考单独存：回放时看得到，正文和卡片里不出现
+            data["thinking"] = turn.thinking
+        self.session.append("tool_call", data=data)
 
     def _run_tools(self, calls: Sequence[ToolCall]) -> None:
         for call in calls:

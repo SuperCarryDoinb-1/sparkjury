@@ -16,7 +16,15 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from sparkjury.agent.ai import ModelSpec, ScriptedProvider, Turn, resolve_model, text_turn, tool_turn
+from sparkjury.agent.ai import (
+    ModelSpec,
+    ScriptedProvider,
+    Turn,
+    resolve_model,
+    split_thinking,
+    text_turn,
+    tool_turn,
+)
 from sparkjury.agent.cli import DEMO_PROMPT, demo_provider
 from sparkjury.agent.loop import (
     STOPPED_ABORTED,
@@ -305,6 +313,29 @@ def test_loop_survives_keyboard_interrupt(tmp_path: Path):
     loop = AgentLoop(provider, registry, SessionTree(tmp_path / "s.jsonl"), skills=skills)
     result = loop.run("开始")
     assert result.stopped == STOPPED_ABORTED
+
+
+def test_loop_keeps_thinking_out_of_the_transcript(tmp_path: Path):
+    """Qwen3 系模型的 <think> 段落：会话里留着，正文和结论里不能有。"""
+    turns = [Turn(text="先清洗", thinking="我该先读说明书", tool_calls=[
+        tool_turn(("list_dir", {})).tool_calls[0]]), text_turn("结论", thinking="复述一遍要求")]
+    _loop, _provider, _registry, session, result = run_scripted(turns, tmp_path)
+    assert result.text == "结论"
+    assert all("<think>" not in str(e.data.get("text", "")) for e in session.entries)
+    assert session.entries[2].data["thinking"] == "我该先读说明书"
+    assert session.entries[-1].data["thinking"] == "复述一遍要求"
+    assert all("<think>" not in str(m.get("content")) for m in session.messages())
+
+
+def test_split_thinking_handles_closed_open_and_absent_blocks():
+    assert split_thinking("<think>想一下</think>答案") == ("答案", "想一下")
+    assert split_thinking("<thinking>想</thinking> 答案 ") == ("答案", "想")
+    assert split_thinking("答案") == ("答案", "")
+    assert split_thinking("") == ("", "")
+    clean, thinking = split_thinking("前 <think>半截")
+    assert clean == "前" and thinking == "半截"  # 模型被截断，半截思考不能当正文
+    clean2, thinking2 = split_thinking("<think>一</think>正文<think>二</think>")
+    assert (clean2, thinking2) == ("正文", "一\n二")
 
 
 # ---------------------------------------------------------------- runtime 与 CLI

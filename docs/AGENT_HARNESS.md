@@ -125,7 +125,7 @@ uv run sparkjury agent replay <session.jsonl>
 ## 验证
 
 ```bash
-uv run pytest tests/test_m13_agent.py -q     # 27 个用例，全离线
+uv run pytest tests/test_m13_agent.py -q     # 29 个用例，全离线
 uv run sparkjury agent run --demo            # 端到端：读说明书 → 清洗 → 打分 → 出卡片
 ```
 

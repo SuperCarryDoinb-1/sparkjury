@@ -25,6 +25,7 @@ from sparkjury.agent.ai import (
     Turn,
     describe_endpoints,
     resolve_model,
+    split_thinking,
     text_turn,
     tool_turn,
 )
@@ -53,7 +54,7 @@ from sparkjury.agent.tools import (
 
 __all__ = [
     "NODE_ENDPOINTS", "OpenAICompatProvider", "Provider", "ScriptedProvider", "ToolCall", "Turn",
-    "describe_endpoints", "resolve_model", "text_turn", "tool_turn",
+    "describe_endpoints", "resolve_model", "split_thinking", "text_turn", "tool_turn",
     "STOPPED_ABORTED", "STOPPED_END_TURN", "STOPPED_ERROR", "STOPPED_MAX_TURNS",
     "AgentLoop", "LoopResult", "default_system_prompt",
     "AgentRun", "AgentRuntime", "new_run_id",
