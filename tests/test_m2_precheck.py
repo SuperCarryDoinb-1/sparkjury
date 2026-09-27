@@ -135,7 +135,7 @@ def test_store_and_cli(tmp_path, tau2_path, otel_path):
 
     r = runner.invoke(app, ["precheck", "--db", str(db), "--json"])
     assert r.exit_code == 0, r.output
-    data = json.loads(r.output)
+    data = json.loads(r.stdout)
     assert data["summary"]["n_env_failures"] == 1
     assert data["flagged"][0]["trace_id"] == "retail_task_003-t1"
 

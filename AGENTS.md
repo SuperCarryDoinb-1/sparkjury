@@ -75,7 +75,7 @@ ssh ... 'cd ~/sparkjury && bash deploy/dgx/status.sh'
 
 ### PR 的完成定义
 
-代码改完、本地测试通过、节点部署并冒烟通过、结果贴进 PR 描述，四样齐了才算完成。缺任何一样都别标 ready for review。
+代码改完、`uv run python scripts/certificate.py` 全档通过、节点部署并冒烟通过、结果贴进 PR 描述，四样齐了才算完成。缺任何一样都别标 ready for review。
 
 ## 多人共用一台节点
 
@@ -106,9 +106,24 @@ cd .worktrees/fix-tau2-timeout
 git config core.hooksPath .githooks
 ```
 
-`pre-commit` 拦三类问题：不该进仓库的路径（`.env`、`node.env`、`runs/`、`logs/`、`*.db`、`.worktrees/`）、明文密钥、暂存文件里的语法错误（`.py` 编译、`.sh` 跑 `bash -n`）。`commit-msg` 要求提交信息首行是真的描述，`wip`、`fix`、`update` 这类会被拒，本仓统一用中文写清改了什么、为什么。
+`pre-commit` 拦三类问题：不该进仓库的路径（`.env`、`node.env`、`runs/`、`logs/`、`*.db`、`.worktrees/`）、明文密钥、暂存文件里的语法错误（`.py` 编译、`.sh` 跑 `bash -n`），跑完再跑一遍交付验收证书的快档（见下）。`commit-msg` 要求提交信息首行是真的描述，`wip`、`fix`、`update` 这类会被拒，本仓统一用中文写清改了什么、为什么。
 
 main 开了分支保护：非管理员的直接推送会被拒，改动一律走分支加 PR；PR 上会自动跑三平台测试（ubuntu、macOS、Windows），三个检查全绿才允许合并，强推和删除分支也禁掉了。PR 描述用 `.github/pull_request_template.md` 的模板，里面「节点部署验证」那一栏就是上面那条硬性规则的落地位置。管理员保留绕过权限，是留给节点出事时紧急处置用的，不是日常通道。
+
+### 交付验收证书
+
+文档里的数字和结构描述以前靠手抄、靠人眼核对，漂得很厉害：README 写「96 个测试」、ARCHITECTURE 写「98 个 pytest 用例通过」，实测是 117 passed + 3 skipped；仓库目录树里长期挂着 `arbiter/fallback.py`、`harness/run.py` 和一个并不存在的顶层 `cockpit/`。没有人会去数、去翻，于是它们就一直错着。
+
+`scripts/certificate.py` 把这些声称逐条变成断言：总测试数、每个模块的用例数、目录树里点名的每一条路径、树里写的类归属、预检规则条数、API 路由表、NAT 配置文件名、vLLM 绑定地址、端到端流水线每一阶段的数字，以及六个 Skill 封装是不是真能跑。它打印每条的「声称 | 实测」，有一条不符就非零退出。
+
+改文档、改测试、动 CLI 输出之后跑一次：
+
+```bash
+uv run python scripts/certificate.py          # 全档：再加端到端流水线与六个技能封装，CI 每次 PR 都跑
+uv run python scripts/certificate.py --fast   # 快档：只做 pytest --collect-only，pre-commit 跑的是这个
+```
+
+这不是「顺手也跑一下」的检查，而是文档和实现之间唯一的绑定：那些数字不再手抄，真源在 `scripts/certificate.py` 的 `PIPELINE` 常量里。证书报红就是文档或实现真的对不上，别靠改锚点绕过——锚点是故意写死的，文档改了写法它会报「找不到这条声称」，而不是放行。
 
 验证按风险相称，不要一律全仓：改一个模块就跑对应测试，碰了共享契约、部署脚本或入口才跑全套。确有理由绕过钩子时用 `--no-verify`，并在提交信息里写明理由。完整流程在 `.agents/skills/sj-worktree/SKILL.md`。
 

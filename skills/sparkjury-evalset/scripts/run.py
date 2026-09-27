@@ -4,6 +4,7 @@
 Usage: python scripts/run.py [CLI options...]
 Requires the `sparkjury` package (uv sync in the SparkJury repo, or pip install -e <repo>).
 """
+import json
 import pathlib
 import shutil
 import subprocess
@@ -11,6 +12,20 @@ import sys
 import tempfile
 
 MODE = "evalset"
+
+
+def toml_str(s: str) -> str:
+    """把字符串写成合法的 TOML 基本字符串。
+
+    Windows 路径里全是反斜杠，直接拼引号会写出非法的转义序列，TOML 解析当场失败。
+    借 json.dumps 来转义：它产出的转义写法是 TOML 基本字符串接受的子集，而且这样
+    源码里不需要出现反斜杠字面量——本文件是生成封装脚本的模板，反斜杠要在这里过两层
+    转义，能不写就不写。
+
+    这个封装在 Windows 上从来没跑通过，原因就是它从没被真的执行过
+    （tests/test_m9_skills_nat.py 对多命令封装只做编译检查，编译通过不等于跑得通）。
+    """
+    return json.dumps(s, ensure_ascii=False)
 
 
 def cli(*args: str) -> int:
@@ -42,11 +57,11 @@ def main(argv: list[str]) -> int:
         args = dict(zip(argv[::2], argv[1::2]))
         db = args.get("--db", "runs/sparkjury.db")
         run_id = args.get("--run-id", "evalset")
-        lines = [f'run_id = "{run_id}"', f'db = "{db}"', 'stages = ["EVALSET"]', "[evalset]"]
+        lines = [f"run_id = {toml_str(run_id)}", f"db = {toml_str(db)}", 'stages = ["EVALSET"]', "[evalset]"]
         if "--limit" in args:
             lines.append(f"limit = {int(args['--limit'])}")
         if "--task-ids" in args:
-            lines.append("task_ids = [" + ", ".join(f'"{t}"' for t in args["--task-ids"].split(",")) + "]")
+            lines.append("task_ids = [" + ", ".join(toml_str(t) for t in args["--task-ids"].split(",")) + "]")
         p = pathlib.Path(tempfile.mkdtemp()) / "evalset.toml"
         p.write_text("\n".join(lines) + "\n", encoding="utf-8")
         return cli("run", "--config", str(p))

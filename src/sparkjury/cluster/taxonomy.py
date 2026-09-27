@@ -76,8 +76,16 @@ def label_with_jev(cluster: Cluster, jev: JevClient) -> tuple[FailureLabel, floa
         raise JevError(f"unknown label from Jev: {choice}") from e
 
 
-def label_clusters(clusters: list[Cluster], badcases: list[BadCase], jev: JevClient | None = None) -> None:
+def label_clusters(clusters: list[Cluster], badcases: list[BadCase], jev: JevClient | None = None) -> dict[str, int]:
+    """给每个簇打标签，并如实回报这次走的是哪条路径。
+
+    返回值是给调用方记账用的：`jev` 传了但没配 key、或者 Jev 调用失败时，标签会退回启发式。
+    退回本身没问题（离线要能跑），但不该被瞒下来——AGENTS.md 的诚实降级规则要求每次降级都
+    写进 manifest 的 degradations。这里只数清「本来想用 Jev、实际没算成」的簇有几个，怎么记
+    由调用方决定，所以这一层不依赖 harness。
+    """
     by_id = {b.trace_id: b for b in badcases}
+    counts = {"jev": 0, "heuristic": 0, "n_jev_failed": 0}
     for c in clusters:
         if c.cluster_id == -1:
             c.label, c.label_source, c.label_confidence = FailureLabel.OTHER, "none", None
@@ -89,11 +97,15 @@ def label_clusters(clusters: list[Cluster], badcases: list[BadCase], jev: JevCli
             try:
                 label, conf = label_with_jev(c, jev)
                 c.label, c.label_source, c.label_confidence = label, "jev", conf
+                counts["jev"] += 1
             except JevError:
                 label = None
+                counts["n_jev_failed"] += 1
         if label is None:
             c.label, c.label_confidence = label_heuristic(c, by_id)
             c.label_source = "heuristic"
+            counts["heuristic"] += 1
         dims = ", ".join(f"{k}x{v}" for k, v in c.failed_dimension_counts.items())
         c.summary = f"{c.size} trace(s), {c.share:.0%} of badcases, failed dimensions: {dims}."
         c.suggestion = SUGGESTIONS[c.label]
+    return counts

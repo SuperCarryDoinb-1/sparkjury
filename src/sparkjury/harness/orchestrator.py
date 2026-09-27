@@ -65,14 +65,14 @@ class Orchestrator:
     def run(self) -> dict[str, Any]:
         t0 = time.perf_counter()
         self.bus.publish(EventKind.RUN_START, f"run {self.cfg.run_id}", stages=[s.value for s in self.cfg.stages])
-        if self.cfg.reset_db and Path(self.cfg.db).exists() and Stage.INGEST in self.cfg.stages:
-            Path(self.cfg.db).unlink()
-        self._store = TraceStore(self.cfg.db)
         handlers: dict[Stage, Callable[[], dict[str, Any]]] = {
             Stage.INGEST: self._ingest, Stage.PRECHECK: self._precheck, Stage.EVALSET: self._evalset,
             Stage.SCORE: self._score, Stage.ARBITRATE: self._arbitrate, Stage.CLUSTER: self._cluster, Stage.REPORT: self._report,
         }
         try:
+            if self.cfg.reset_db and Stage.INGEST in self.cfg.stages:
+                self._reset_db()
+            self._store = TraceStore(self.cfg.db)
             for stage in ALL_STAGES:
                 if stage not in self.cfg.stages:
                     continue
@@ -87,13 +87,35 @@ class Orchestrator:
             self.manifest["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
             # keep stage order canonical after a merge
             self.manifest["stages"] = {s.value: self.manifest["stages"][s.value] for s in ALL_STAGES if s.value in self.manifest["stages"]}
-            self._store.put_run(self.cfg.run_id, self.manifest["status"], self.manifest)
-            self._store.close()
+            if self._store is not None:  # 建库之前就失败了（例如 reset_db 被拒）：没有库可写
+                self._store.put_run(self.cfg.run_id, self.manifest["status"], self.manifest)
+                self._store.close()
             (self.run_dir / "manifest.json").write_text(json.dumps(self.manifest, ensure_ascii=False, indent=2), encoding="utf-8")
             self.bus.publish(EventKind.RUN_END, f"run {self.cfg.run_id} {self.manifest['status']}",
                              status=self.manifest["status"], duration_s=self.manifest["duration_s"],
                              degradations=len(self.manifest["degradations"]))
         return self.manifest
+
+    def _reset_db(self) -> None:
+        """reset_db 只删 runs_dir 之内的库，越界一律报错。
+
+        `db` 可以从配置文件或 API 请求体来，而这里以前是无条件 `unlink()`：一个
+        `POST /runs {"demo": true, "db": "<任意路径>"}` 就能删掉宿主机上的任意文件。
+        用 resolve() 比较是为了展开 symlink，`runs/link -> /etc` 这种也拦得住。
+
+        越界时不"跳过重置继续跑"：那会让人以为拿到的是全新的库，实际是上一次的旧数据，
+        是最难查的一类假象。宁可这一次 run 失败并把原因写进 manifest，要重建就手动删，
+        或者把 db 放进 runs_dir 里。
+        """
+        target = Path(self.cfg.db)
+        if not target.exists():
+            return
+        if not target.resolve().is_relative_to(Path(self.cfg.runs_dir).resolve()):
+            raise ValueError(
+                f"reset_db 拒绝删除 runs_dir({self.cfg.runs_dir}) 之外的库：{target}；"
+                "要重建请手动删除它，或把 db 放进 runs_dir"
+            )
+        target.unlink()
 
     # ---- stage wrapper ----------------------------------------------------------
 
@@ -240,13 +262,22 @@ class Orchestrator:
             clusters, used = cluster_badcases(badcases, emb, min_cluster_size=c.min_cluster_size, method=c.method)
             emb_name = emb.name + " (fallback)"
         jev = None if c.jev == "off" else JevClient()
-        label_clusters(clusters, badcases, jev)
+        # 和 _arbitrate 里同一条件同一写法：没配 key 的 Jev 是降级，要留痕。
+        # 这里曾经什么都不写，而离线 demo 走的正是这条路，于是卡片上的簇标签是启发式算的、
+        # manifest 的 degradations 里却只有一条 ARBITRATE，读 manifest 的人会以为簇标签来自 Jev。
+        if jev is not None and not jev.configured:
+            self._degrade(Stage.CLUSTER, "jev", "TYPESAFE_API_KEY not set", "heuristic cluster label")
+        label_counts = label_clusters(clusters, badcases, jev)
+        if label_counts["n_jev_failed"]:
+            self._degrade(Stage.CLUSTER, "jev", f"{label_counts['n_jev_failed']} cluster label(s) fell back",
+                          "heuristic cluster label")
         run = ClusterRun(n_badcases=len(badcases), n_clusters=sum(1 for x in clusters if x.cluster_id != -1),
                          n_noise=sum(x.size for x in clusters if x.cluster_id == -1), embedder=emb_name, method=used,
                          clusters=clusters, badcases=badcases)
         self._store.put_cluster_run(run)
         self.manifest["models"]["embedder"] = emb_name
         return {"n_badcases": run.n_badcases, "n_clusters": run.n_clusters, "n_noise": run.n_noise, "method": used,
+                "label_sources": label_counts,
                 "labels": {f"#{x.rank}": f"{x.label.value} ({x.size})" for x in clusters if x.cluster_id != -1}}
 
     def _report(self) -> dict[str, Any]:
