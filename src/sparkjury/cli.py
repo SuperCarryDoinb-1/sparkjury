@@ -163,7 +163,8 @@ def score(
     judges: str = typer.Option("mock", "--judges", help="'mock' or path to a panel TOML (see deploy/judges.example.toml)"),
     dims: str | None = typer.Option(None, "--dims", help="comma-separated subset of outcome,tool_use,efficiency,safety"),
     limit: int | None = typer.Option(None, "--limit"),
-    workers: int | None = typer.Option(None, "--workers"),
+    workers: int | None = typer.Option(None, "--workers",
+                                          help="concurrent calls per judge (default 1); a judge's own concurrency overrides it"),
     trace_id: str | None = typer.Option(None, "--trace", help="score a single trace"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
