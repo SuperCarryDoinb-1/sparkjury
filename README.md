@@ -24,7 +24,7 @@ uv run sparkjury run --demo           # 离线：4 个零售客服任务 x 3 次
 uv run sparkjury serve                # 打开 http://127.0.0.1:9000/ ，点 Run demo
 ```
 
-看板上会看到：七个阶段依次亮起，每条 trace 的打分进度，三位裁判分歧时的仲裁事件（没有 Jev key 时显示黄色的降级提示），右侧 GPU 显存和模型端点状态，底部一张证据卡片：本轮 14 条 trace，1 条环境问题被排除，5 条真 badcase 聚成 2 类，建议先修"未验证身份就执行写操作"，附代表 trace 的对话摘录和三位裁判的理由。点"PM: fix this first"，系统给出改完后回归对比的命令。
+看板上会看到：七个阶段依次亮起，每条 trace 的打分进度，三位裁判分歧时的仲裁事件（没有 Jev key 时显示黄色的降级提示），右侧 GPU 显存和模型端点状态，底部一张证据卡片：本轮 14 条 trace，1 条环境问题被排除，5 条真 badcase 聚成 2 类，建议先修"未验证身份就执行写操作"，附代表 trace 的对话摘录和三位裁判的理由。点"PM: fix this first"，系统给出改完后回归对比的命令。卡片下方是「检查台」，三个页签：裁判理由并排（点任意一条 trace，时间线里的打分行、簇成员表、卡片上的代表 trace 都能点，看三位裁判四个维度的分数与理由、仲裁结果和降级标记、对话记录里证据步骤高亮）、簇明细下钻（展开每个簇的成员明细）、回归对比（选一个更早的 run，看 pass^1 / pass^k 前后变化、修好与修坏的任务、簇的增减）。这三块以前都要切终端跑 `sparkjury verdicts` / `regress` 才能看到。界面是中文，视觉沿用 `docs/AGENT_VS_WORKFLOW.html` 的纸面加哑金风格，跟随系统深浅色，也可手动切换。
 
 ## Why DGX Spark
 
@@ -135,7 +135,7 @@ badcase = outcome 失败，或任一维度 ≤ 1，或 safety ≤ 2。严重度�
 | 裁判一致率 | 69.2%，4 条 trace 进入仲裁 |
 | badcase | 5 条，聚成 2 簇：unauthenticated_action（3）、wrong_tool（2） |
 | 全流程耗时 | 约 2.4 秒（mock 裁判） |
-| 测试 | 160 passed、3 skipped（`uv run pytest`，2026-09-27 实测）|
+| 测试 | 161 passed、3 skipped（`uv run pytest`，2026-09-27 实测）|
 
 DGX Spark 节点上，同一份样本换成真实裁判（Qwen3-30B-A3B-FP8 + Nemotron-3.5-Lightning，第三家 StepFun 待接 key）：
 
@@ -194,13 +194,23 @@ uv run sparkjury serve                    # 打开 http://127.0.0.1:9000/
 
 ## Screenshots
 
-Cockpit（DGX 节点实机，公网端口，令牌保护）：
+Cockpit（本机 demo run，1920x1080；节点实机截图待合并部署后重拍）：
 
 ![cockpit](docs/img/cockpit.png)
+
+深色主题：
+
+![cockpit dark](docs/img/cockpit_dark.png)
 
 真实裁判产出的证据卡片（两个本地裁判 + 一个降级的第三裁判）：
 
 ![card](docs/img/card.png)
+
+检查台三块视图（本机 demo run，1920x1080）：三位裁判理由并排、簇明细下钻、两次 run 的回归对比。
+
+![verdicts](docs/img/cockpit_verdicts.png)
+![clusters](docs/img/cockpit_clusters.png)
+![regress](docs/img/cockpit_regress.png)
 
 ## Limitations
 

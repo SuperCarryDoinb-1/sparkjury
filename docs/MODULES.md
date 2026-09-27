@@ -285,6 +285,20 @@ uv run sparkjury serve --host 127.0.0.1 --port 9000
 
 **验收人**：待确认
 
+### M8 补充：检查台三块视图与中文化改版（2026-09-27，剑乔）
+
+`docs/TEAM.md` 第 5 轮给看板定的产出口是「把视频里需要切终端才能看的环节搬进看板」。这一版在证据卡片下面加了「检查台」，三个页签，全部只调用 M8 已有端点，后端和契约没动。同一次改版把整页视觉换成 `docs/AGENT_VS_WORKFLOW.html` 的语言（象牙白纸面、炭黑侧栏、哑金罗马数字、衬线标题，跟随系统深浅色并可手动切换），界面文字全部中文；字体走本机字体栈不加外链，断网照常。后端生成的裁判理由、建议、事件文案仍是英文，事件里常见的几种（已打分 / 已裁决 / 导入 / 阶段完成）在前端翻成了中文，其余原样：
+
+- **裁判理由并排**：`GET /runs/{id}/traces/{trace_id}`。四个维度 x 三位裁判的分数、置信度、证据步骤、理由并排成表，分歧行标黄；最右一列是最终裁决（来源 panel / jev / local、降级标记、审计抽样结果）；下方对话记录把所有裁判引用的证据步骤高亮。入口有三个：时间线里 `scored …` / `decided …` 行可点，卡片上的代表 trace 可点，簇成员表每行可点；也可以用下拉框加左右键逐条翻。对应终端命令 `sparkjury verdicts <trace_id>`。
+- **簇明细下钻**：`GET /runs/{id}/clusters` 加 `GET /runs/{id}/traces?cluster=<cid>`。每个簇的 rank、label、size、severity、priority、失败维度计数，展开后是成员明细表（四维最终分、严重度、证据摘录），行点开就是上面的 verdicts 视图。
+- **回归对比**：`GET /runs/{id}/regress?before=<run_id>`。before 从 run 列表里选，after 是当前 run；显示 verdict 徽标（improved / regressed / mixed / unchanged）、pass^1 与 pass^k 前后及差值、badcase 数、fixed 与 broken 任务清单、四维平均分变化、簇的增减，并给出等价的 `sparkjury regress` 命令。
+
+顺手修了一个原有 bug：回放已结束 run 的事件流时，`run_end` 事件会再次触发 `loadRun`，页面无限重载、每轮都打一遍 API。现在只有实时流里收到的 `run_end` 才重载。另外加了内联 SVG favicon，浏览器不再请求 `/favicon.ico` 报 404。
+
+**自测**：`uv run pytest tests/test_m8_api.py` 新增一条页面用例（三个视图的挂点、调用的端点、无外网资源）；Playwright 驱动本机 Edge 在 1920x1080 无头跑了一遍三块视图（时间线点击、翻页、簇展开、成员点开、回归对比），控制台无 JS 报错。断网条件：页面无任何 `http(s)://` 外链，字体走系统字体栈。
+
+**验收人**：滨辉（`docs/TEAM.md` 第 5 轮表）
+
 ---
 
 ## M9 Agent Skills 打包 + NeMo Agent Toolkit 集成（2026-09-26）
