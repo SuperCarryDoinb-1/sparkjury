@@ -8,9 +8,10 @@
 
     {"id":"e0007","parent":"e0006","kind":"tool_result","role":null,"ts":"...","data":{...}}
 
-kind 有五种：`message`（system/user/assistant 的文本）、`tool_call`（一次 assistant
+kind 有六种：`message`（system/user/assistant 的文本）、`tool_call`（一次 assistant
 回合里要求调的所有工具）、`tool_result`（一个工具的执行结果）、`note`（harness 自己
-记的事，比如被中断）、`branch`（从哪条分出来的标记）。把它翻译成模型吃的 messages
+记的事，比如被中断、某个工具刚开始执行）、`branch`（从哪条分出来的标记）、
+`compaction`（历史压缩的摘要，顶替它前面那些消息）。把它翻译成模型吃的 messages
 是 `messages()` 的活，翻译规则就是 OpenAI 那套：一轮里的多个工具调用合成一条
 assistant 消息，工具结果一条对一个 `tool_call_id`。
 """
@@ -24,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-KINDS = ("message", "tool_call", "tool_result", "note", "branch")
+KINDS = ("message", "tool_call", "tool_result", "note", "branch", "compaction")
 
 
 def _now() -> str:
@@ -62,6 +63,11 @@ class Entry:
             text = f"{self.data.get('name', '?')} → " + str(self.data.get("output", ""))
         elif self.kind == "branch":
             text = f"从 {self.data.get('from')} 分出新分支"
+        elif self.kind == "compaction":
+            text = (f"更早的 {self.data.get('replaced', '?')} 条已压成摘要"
+                    f"（来源 {self.data.get('source', '?')}）：" + str(self.data.get("summary", "")))
+        elif self.kind == "note" and self.data.get("phase") == "tool_start":
+            text = f"开始执行 {self.data.get('name', '?')}"
         else:
             text = str(self.data.get("text", ""))
         text = " ".join(text.split())
@@ -76,6 +82,8 @@ class SessionTree:
         self.session_id = session_id or uuid.uuid4().hex[:12]
         self._entries: list[Entry] = []
         self._leaf: str | None = None
+        # 崩溃时最后一行可能只写了一半：读的时候跳过它，但要记下来（静默丢掉和「本来就没有」是两回事）
+        self.torn_lines: list[int] = []
 
     # ------------------------------------------------------------ 读
     @property
@@ -103,9 +111,19 @@ class SessionTree:
         return [e for e in self._entries if e.id not in parents]
 
     def messages(self, leaf: str | None = None) -> list[dict[str, Any]]:
-        """把这条分支翻译成模型吃的一串消息。"""
+        """把这条分支翻译成模型吃的一串消息。
+
+        压缩过的分支：从最后一次 `compaction` 开始算，它前面那些 entry 不再逐条发给模型，
+        由这一条摘要顶上——但它们在文件里一条没少，回放时照样看得到。
+        """
+        branch = self._compacted_branch(leaf)
         out: list[dict[str, Any]] = []
-        for e in self.path_to(leaf):
+        for e in branch:
+            if e.kind == "compaction":
+                out.append({"role": "system",
+                            "content": "以下是这次会话更早部分的摘要（原文仍在 session.jsonl 里）：\n"
+                                       + str(e.data.get("summary", ""))})
+                continue
             if e.kind == "message" and e.role:
                 out.append({"role": e.role, "content": str(e.data.get("text", ""))})
             elif e.kind == "tool_call":
@@ -121,6 +139,55 @@ class SessionTree:
                 out.append({"role": "tool", "tool_call_id": e.data.get("call_id") or "",
                             "content": str(e.data.get("output", ""))})
         return out
+
+    def _compacted_branch(self, leaf: str | None = None) -> list[Entry]:
+        """「模型实际看到的」那条分支：摘要打头，后面接没被压掉的原文。
+
+        实现上不重排任何 entry（entry 是只追加的，parent 指针不能改），而是每次读的时候
+        按最后一次压缩记录里的 `to` 切一刀：`to` 之前的部分由那条摘要顶上，`to` 及其之后的
+        原文照旧。切完把中间那些历史摘要记录滤掉，免得同一段被 summarise 两遍。
+        """
+        branch = self.path_to(leaf)
+        last = next((e for e in reversed(branch) if e.kind == "compaction"), None)
+        if last is None:
+            return branch
+        to_id = last.data.get("to")
+        start = next((i for i, e in enumerate(branch) if e.id == to_id), None)
+        if start is None:      # 记录里指的那条不在了（文件被手工改过）：退回整条分支，不猜
+            return branch
+        tail = [e for e in branch[start:] if e.kind != "compaction"]
+        return [last, *tail]
+
+    def results_by_call_id(self, leaf: str | None = None) -> dict[str, str]:
+        """这条分支上已经拿到的工具结果：call_id → 输出。
+
+        中断恢复靠它：下次启动时，凡是这里有了的调用都不再执行第二遍。
+        """
+        out: dict[str, str] = {}
+        for e in self.path_to(leaf):
+            if e.kind == "tool_result" and e.data.get("call_id"):
+                out[str(e.data["call_id"])] = str(e.data.get("output", ""))
+        return out
+
+    def started_call_ids(self, leaf: str | None = None) -> set[str]:
+        """已经有「开始执行」标记的调用。
+
+        标记在结果之前写：所以在标记和结果之间被打断的那些调用，无从判断它到底跑没跑完——
+        恢复时不能想当然地重跑（可能重复副作用），得当成「状态未知」交给模型决定。
+        """
+        return {str(e.data.get("call_id")) for e in self.path_to(leaf)
+                if e.kind == "note" and e.data.get("phase") == "tool_start" and e.data.get("call_id")}
+
+    def pending_calls(self, leaf: str | None = None) -> list[dict[str, Any]]:
+        """最后一条 tool_call 里还没拿到结果的调用（按原顺序）。"""
+        branch = self.path_to(leaf)
+        done = self.results_by_call_id(leaf)
+        for entry in reversed(branch):
+            if entry.kind != "tool_call":
+                continue
+            calls = entry.data.get("calls") or []
+            return [c for c in calls if str(c.get("id")) not in done]
+        return []
 
     def transcript(self, limit: int | None = None) -> str:
         """人类可读回放：`[e0003 assistant] …`。默认走当前分支，`limit` 只看最后几条。"""
@@ -158,11 +225,14 @@ class SessionTree:
         tree = cls(path, session_id=session_id)
         if not path.is_file():
             return tree
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for lineno, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), start=1):
             line = line.strip()
             if not line:
                 continue
-            tree._entries.append(Entry.from_dict(json.loads(line)))
+            try:
+                tree._entries.append(Entry.from_dict(json.loads(line)))
+            except (json.JSONDecodeError, KeyError, TypeError):
+                tree.torn_lines.append(lineno)   # 崩溃时写了一半的最后一行：跳过，但不装作没发生
         tree._leaf = tree._entries[-1].id if tree._entries else None
         return tree
 

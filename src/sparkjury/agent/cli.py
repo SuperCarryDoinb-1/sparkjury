@@ -19,8 +19,9 @@ from rich.console import Console
 from rich.table import Table
 
 from sparkjury.agent.ai import ScriptedProvider, describe_endpoints, resolve_model, text_turn, tool_turn
+from sparkjury.agent.compact import CompactionPolicy, Compactor, deterministic_summary, plan_compaction
 from sparkjury.agent.loop import STOPPED_ABORTED, LoopResult
-from sparkjury.agent.runtime import AgentRuntime
+from sparkjury.agent.runtime import AgentRuntime, load_manifest
 from sparkjury.agent.session import SessionTree
 from sparkjury.agent.tools import OfflineSkillExecutor, load_skill_tools
 
@@ -60,11 +61,15 @@ def demo_provider() -> ScriptedProvider:
 
 
 def build_runtime(prompt: str | None, *, model: str | None, max_turns: int, runs_dir: str,
-                  workdir: Path, demo: bool, session: Path | None) -> AgentRuntime:
+                  workdir: Path, demo: bool, session: Path | None,
+                  compact_budget: int = 0) -> AgentRuntime:
     executor = OfflineSkillExecutor(DEMO_REPLIES) if demo else None
     provider = demo_provider() if demo else _real_provider(model)
     return AgentRuntime(provider, runs_dir=runs_dir, workdir=workdir, executor=executor,
-                        max_turns=max_turns, session_path=session)
+                        max_turns=max_turns, session_path=session,
+                        # 离线 demo 没有真模型可问摘要，用确定性兜底，别白跑一轮
+                        compaction=CompactionPolicy(max_prompt_tokens=compact_budget),
+                        use_model_summary=not demo)
 
 
 def _real_provider(model: str | None):
@@ -107,6 +112,8 @@ def run_cmd(
     workdir: Path = typer.Option(Path("."), "--workdir", help="工作目录，文件工具只能在这里面活动"),
     demo: bool = typer.Option(False, "--demo", help="离线跑一通：脚本模型 + 离线执行器，不联网不落地命令"),
     session: Path | None = typer.Option(None, "--session", help="续用一份已有的 session.jsonl"),
+    compact_budget: int = typer.Option(0, "--compact-budget",
+                                        help="prompt 超过这么多 token 就把更早的历史压成摘要；0 表示不压"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """跑一次 agent run。结果落在 runs/<run_id>/，manifest.json 里能看降级项。"""
@@ -114,7 +121,8 @@ def run_cmd(
         console.print("[red]要么给 --prompt，要么加 --demo。[/red]")
         raise typer.Exit(code=2)
     runtime = build_runtime(prompt, model=model, max_turns=max_turns, runs_dir=runs_dir,
-                            workdir=workdir, demo=demo, session=session)
+                            workdir=workdir, demo=demo, session=session,
+                            compact_budget=compact_budget)
     if not as_json:
         spec = runtime.provider.spec
         console.print(f"[bold]agent run[/bold] {runtime.run_id}")
@@ -160,6 +168,103 @@ def replay_cmd(
         return
     console.print(f"[bold]{session}[/bold]｜{len(tree)} 条记录｜分支 {len(tree.leaves())} 条")
     console.print(tree.transcript(limit), markup=False)
+
+
+@agent_app.command("ops")
+def ops_cmd(
+    run_dir: Path = typer.Argument(..., exists=True, file_okay=False, help="runs/agent-* 目录"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """看一次 run 的操作日志与现场：跑到哪了、有没有没结束的操作、要不要 resume。"""
+    runtime = AgentRuntime.reopen(run_dir)
+    payload = runtime.inspect()
+    if as_json:
+        print_json(payload)
+        return
+    console.print(f"[bold]{payload['run_id']}[/bold]｜会话 {payload['session']['entries']} 条"
+                  f"｜叶子 {payload['session']['leaf']}｜末尾 {payload['session']['tail']}")
+    table = Table(title="操作日志（只追加，当前状态是折叠出来的）")
+    table.add_column("操作", style="bold")
+    table.add_column("类型")
+    table.add_column("状态")
+    table.add_column("记录")
+    table.add_column("要点", overflow="fold")
+    for op in payload["operations"]:
+        detail = " ".join(f"{k}={v}" for k, v in op["detail"].items() if k not in ("session_id", "leaf"))
+        table.add_row(op["id"], op["kind"], op["status"], str(op["records"]),
+                      (op["error"] or detail) or "-")
+    console.print(table)
+    console.print(f"用量 {payload['usage'] or '（端点没回 usage）'}")
+    if payload["torn_lines"]:
+        console.print(f"[yellow]日志有半行（崩溃时写了一半）：{payload['torn_lines']}[/yellow]")
+    if payload["pending_tools"]:
+        console.print(f"[yellow]有没拿到结果的工具调用：{payload['pending_tools']}[/yellow]")
+    console.print("判断：" + ("有没跑完的活，可以 `sparkjury agent resume <目录>` 接着跑"
+                             if payload["needs_resume"] else "没有未完成的操作，不需要恢复"))
+
+
+@agent_app.command("resume")
+def resume_cmd(
+    run_dir: Path = typer.Argument(..., exists=True, file_okay=False, help="runs/agent-* 目录"),
+    model: str = typer.Option("subject", "--model", "-m"),
+    max_turns: int = typer.Option(12, "--max-turns"),
+    workdir: Path = typer.Option(Path("."), "--workdir"),
+    compact_budget: int = typer.Option(0, "--compact-budget"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """从中断处接着跑：已经拿到结果的工具重放而不重跑，状态未知的交给模型决定。"""
+    probe = AgentRuntime.reopen(run_dir).inspect()
+    if not probe["needs_resume"]:
+        console.print("没有未完成的操作，也没有待执行的工具——这次 run 不需要恢复。")
+        raise typer.Exit()
+    runtime = AgentRuntime(_real_provider(model), run_dir=run_dir, reopen=True, workdir=workdir,
+                           max_turns=max_turns, compaction=CompactionPolicy(max_prompt_tokens=compact_budget))
+    result = runtime.resume()
+    if as_json:
+        print_json(json.loads(runtime.run.manifest_path.read_text(encoding="utf-8")))
+    else:
+        console.print(f"[bold]resume[/bold] {runtime.run_id}｜{runtime.session.transcript(limit=6).splitlines()[-1]}")
+        console.print(f"结束方式 {result.stopped}｜轮数 {result.turns}｜重放的调用 {result.replayed_calls}")
+        console.print(f"manifest {runtime.run.manifest_path}")
+    if not result.ok:
+        raise typer.Exit(code=1)
+
+
+@agent_app.command("compact")
+def compact_cmd(
+    session: Path = typer.Argument(..., exists=True, readable=True, help="session.jsonl 路径"),
+    keep_tail: int = typer.Option(8, "--keep-tail", help="末尾保留多少条原文"),
+    apply: bool = typer.Option(False, "--apply", help="真的写进去；默认只试算"),
+    model: str | None = typer.Option(None, "--model", help="给了就用真模型写摘要，否则用确定性兜底摘要"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """压缩历史：插一条摘要 entry 顶替更早的消息，原文一条不删。默认只试算不落盘。"""
+    tree = SessionTree.load(session)
+    plan = plan_compaction(tree, keep_tail_entries=keep_tail, reason="手动压缩")
+    if plan is None:
+        console.print(f"没什么可压的：这条分支只有 {len(tree._compacted_branch())} 条"  # noqa: SLF001
+                      f"（末尾保留 {keep_tail} 条 + 至少一条才值得压）。")
+        raise typer.Exit()
+    if not apply:
+        payload = {"plan": {"from": plan.from_id, "to": plan.to_id, "replaced": plan.replaced},
+                   "branch_entries": len(tree._compacted_branch()),  # noqa: SLF001
+                   "kept": keep_tail, "applied": False}
+        print_json(payload) if as_json else console.print(
+            f"试算（没落盘）：压 {plan.replaced} 条 → 1 条摘要，末尾保留 {keep_tail} 条。"
+            f"\n加 --apply 才会写进 {session}。")
+        return
+    compactor = Compactor(policy=CompactionPolicy(keep_tail_entries=keep_tail),
+                          provider=_real_provider(model) if model else None, use_model=bool(model))
+    entry = compactor.compact(tree, reason="手动压缩")
+    if entry is None:
+        console.print("没压成：条件不满足。")
+        raise typer.Exit(code=1)
+    summary = str(entry.data.get("summary", ""))
+    payload = {"entry": entry.id, "replaced": entry.data.get("replaced"), "source": entry.data.get("source"),
+               "summary": summary, "applied": True, "path": str(session)}
+    print_json(payload) if as_json else console.print(
+        f"已压缩：{entry.data.get('replaced')} 条 → {entry.id}（来源 {entry.data.get('source')}）"
+        f"\n—— 原文一条没删，`sparkjury agent replay {session}` 照样看得到全部记录。")
 
 
 @agent_app.command("endpoints")
