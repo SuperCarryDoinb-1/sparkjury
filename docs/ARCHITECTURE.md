@@ -236,7 +236,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 |---|---|---|---|---|
 | M1 | 数据契约 + 输入适配 + 存储 | P0 | 已完成，11 个用例 | `sparkjury-clean`（导入那半） |
 | M2 | Precheck 假 badcase 打标 | P0 | 已完成，16 个用例 | `sparkjury-clean`（预检那半） |
-| M3 | 三裁判面板 | P0 | 已完成，24 个用例 | `sparkjury-score` |
+| M3 | 三裁判面板 | P0 | 已完成，26 个用例 | `sparkjury-score` |
 | M4 | 仲裁与审计 | P0 | 已完成，12 个用例 | `sparkjury-score` |
 | M5 | badcase 聚类与优先级 | P0 | 已完成，11 个用例 | `sparkjury-cluster` |
 | M6 | 证据卡片 + 回归对比 | P0 | 已完成，22 个用例 | `sparkjury-report` + `sparkjury-regress` |
@@ -369,6 +369,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 
 ### M6 证据卡片 + 回归对比
 
+- 裁判后端报「上下文长度超了」时把 transcript 预算减半重问（最多两次）：事先算准预算要后端的tokenizer，错误本身却是现成的信号。
 - EvidenceCard 支持 JSON、Markdown、HTML 三种渲染
 - 被排除的 trace 不只报规则名，还带源数据自己记的原因：`Environment failures (excluded) | 27 (empty_trace=26, infra_error=26); the source said: InternalServerError after 4 attempts=25, Timeout=1`
 - 卡片自带判准校准一行（`Outcome vs benchmark`）：outcome 维度的最终裁决与基准自带结果逐条对照，同时给裁判通过率与基准通过率。基准是这套裁判唯一的外部尺子，差多少就写在卡片上，别让读者把「裁判说 pass」当成「基准说 pass」；`REPORT` 阶段摘要同步带 `n_gold_compared` / `gold_agreement_rate` / `judge_pass_rate` / `gold_pass_rate`
@@ -564,7 +565,7 @@ durable 那一段：
 
 ## 17. 当前进度与验证方法
 
-M1 到 M13 已完成（M10 节点执行、M11 录制待做），308 个 pytest 用例通过。一条命令跑通全流程：
+M1 到 M13 已完成（M10 节点执行、M11 录制待做），310 个 pytest 用例通过。一条命令跑通全流程：
 
 ```
 cd sparkjury

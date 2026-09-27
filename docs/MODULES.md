@@ -94,7 +94,8 @@ uv run sparkjury precheck --json
 - `deploy/judges.example.toml`：三 judge 的真实配置模板（Qwen 本地 8001、Gemma 本地 8002、StepFun API），API key 只从环境变量读。
 - `store/sqlite.py`：新增 `verdicts`、`panel` 两张表，`put_panel_results / get_panel_result / list_panel_results / verdict_summary`。
 - `cli.py`：`sparkjury score [--judges mock|文件.toml] [--dims ...] [--trace ID] [--limit N] [--json]` 和 `sparkjury verdicts <trace_id>`。
-- `tests/test_m3_judges.py`：24 个用例，覆盖 prompt（含"金标默认不进 prompt"、"任务原始要求进 prompt 而参考调用不进"、"预算装不下才丢步且留痕"几条）、按裁判开并发（点名的裁判才拿到高并发，判定顺序不变）、JSON 解析、四类坏例的规则打分、LLM 裁判的解析与追问与容错（用桩后端）、一致性规则、TOML 配置、仲裁人与审计人的挑选规则、存储与 CLI。
+- 提示词撑爆裁判上下文窗口时（真批实测：16k 的 Nemotron 遇上最长的那条 trace，回 400 「maximum context length is 16384 tokens」），把 transcript 预算减半重问，最多两次；只有这一类错误才缩，连不上端点重问是白等。
+- `tests/test_m3_judges.py`：26 个用例，覆盖 prompt（含"金标默认不进 prompt"、"任务原始要求进 prompt 而参考调用不进"、"预算装不下才丢步且留痕"几条）、按裁判开并发（点名的裁判才拿到高并发，判定顺序不变）、JSON 解析、四类坏例的规则打分、LLM 裁判的解析与追问与容错（用桩后端）、一致性规则、TOML 配置、仲裁人与审计人的挑选规则、存储与 CLI。
 
 **自测结果**：`uv run pytest` 32 passed（M1 9 + M2 10 + M3 13）。
 

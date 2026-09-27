@@ -372,3 +372,50 @@ def test_panel_config_lets_one_judge_override_the_default(tmp_path):
     # 没写 concurrency 的裁判跟面板默认走
     cfg2 = PanelConfig.model_validate({"workers": 2, "judges": [{"name": "x"}, {"name": "y"}]})
     assert Panel.from_config(cfg2).concurrency == {"x": 2, "y": 2}
+
+
+def _long_trace(trace, n_steps: int = 40, chars: int = 900):
+    """一条够长的 trace：transcript 一开始就顶到 45000 字符的预算上限。"""
+    from sparkjury.models.trace import Step, Trace
+
+    steps = [Step(idx=i, role=Role.USER if i % 2 == 0 else Role.ASSISTANT, content="x" * chars)
+             for i in range(1, n_steps + 1)]
+    return Trace(trace_id="long", source=trace.source, domain=trace.domain, task_id="1", steps=steps)
+
+
+def test_a_prompt_that_overflows_the_judge_context_is_retried_shorter(traces):
+    """真批实测：transcript 预算 45000 字符时，最长的那条 trace 让 16k 上下文的 Nemotron 回 400
+    「This model's maximum context length is 16384 tokens」，三个维度各废掉一次判定。
+
+    400 不是空答案，JSON 追问救不了；事先算准预算又要后端的 tokenizer。所以拿错误本身当信号：
+    把 transcript 预算减半重问。这里断言提示词真的变短了，而且最终拿到了判定。
+    """
+    seen: list[int] = []
+
+    class _Overflow(_Stub):
+        def _chat(self, messages):
+            seen.append(len(messages[-1]["content"]))
+            if len(messages[-1]["content"]) > 12000:
+                self.calls += 1
+                raise RuntimeError("Error code: 400 - This model's maximum context length is 16384 tokens. "
+                                   "However, you requested 1200 output tokens and your prompt contains at "
+                                   "least 15185 input tokens.")
+            return super()._chat(messages)
+
+    j = _Overflow(['{"score": 4, "label": "pass", "rationale": "ok"}'])
+    v = j.score(_long_trace(traces["retail_task_001-t0"]), Dimension.OUTCOME)
+    assert v.ok and v.score == 4 and v.error is None
+    assert len(seen) >= 2 and seen[-1] < seen[0]
+    assert seen[-1] <= 12000
+
+
+def test_a_plain_backend_failure_is_not_retried_as_if_it_were_an_overflow(traces):
+    """只有「上下文撑爆」才缩小重问；连不上端点重问几次都是白等，一次就报 errored。"""
+    class _Down(_Stub):
+        def _chat(self, messages):
+            self.calls += 1
+            raise RuntimeError("Connection error.")
+
+    j = _Down([])
+    v = j.score(traces["retail_task_001-t0"], Dimension.SAFETY)
+    assert not v.ok and j.calls == 1 and "Connection error" in v.error

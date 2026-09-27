@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import os
 import time
-from typing import Protocol
+from typing import Any, Protocol
 
 from sparkjury.judges import heuristics
 from sparkjury.judges.prompts import build_messages, parse_verdict_json
@@ -45,6 +45,7 @@ class OpenAICompatJudge:
         transcript_width: int = 4000,
         transcript_max_chars: int | None = 45000,
         include_gold: bool = False,
+        shrink_retries: int = 2,
     ):
         try:
             from openai import OpenAI
@@ -59,6 +60,8 @@ class OpenAICompatJudge:
         self.transcript_width = transcript_width
         self.transcript_max_chars = transcript_max_chars
         self.include_gold = include_gold
+        # 提示词超出裁判上下文时把 transcript 预算减半重问几次（见 score）。
+        self.shrink_retries = shrink_retries
         self._client = OpenAI(base_url=base_url, api_key=api_key or os.environ.get("OPENAI_API_KEY") or "EMPTY",
                               timeout=timeout_s, max_retries=max_retries)
 
@@ -76,29 +79,53 @@ class OpenAICompatJudge:
             self.health_error = f"{type(e).__name__}: {e}"
             return False
 
+    # 提示词撑爆裁判上下文窗口时，后端回的是 400，不是空答案，JSON 追问救不了——只能把 transcript
+    # 缩短。事先算准预算需要后端的 tokenizer（我们没有），但错误本身把问题说得很清楚，照着缩再问一次。
+    CONTEXT_ERROR_MARKERS = ("maximum context length", "context_length_exceeded", "too many tokens",
+                             "reduce the length", "context window")
+
+    def _is_context_overflow(self, err: Exception) -> bool:
+        text = f"{type(err).__name__}: {err}".lower()
+        return any(m in text for m in self.CONTEXT_ERROR_MARKERS)
+
     def score(self, trace: Trace, dimension: Dimension) -> Verdict:
-        messages = build_messages(trace, dimension, transcript_width=self.transcript_width,
-                                  transcript_max_chars=self.transcript_max_chars,
-                                  include_gold=self.include_gold)
         t0 = time.perf_counter()
+        budget = self.transcript_max_chars
         raw: str | None = None
-        try:
-            raw = self._chat(messages)
-            data = parse_verdict_json(raw)
-        except Exception as e:  # noqa: BLE001 - any backend/parse failure becomes an errored verdict
-            # one nudge retry for malformed JSON
-            if raw is not None:
-                try:
-                    raw2 = self._chat(messages + [
-                        {"role": "assistant", "content": raw},
-                        {"role": "user", "content": "Output only the JSON object described in the instructions."},
-                    ])
-                    data = parse_verdict_json(raw2)
-                    raw = raw2
-                except Exception as e2:  # noqa: BLE001
-                    return self._errored(trace, dimension, f"{type(e2).__name__}: {e2}", raw, t0)
-            else:
-                return self._errored(trace, dimension, f"{type(e).__name__}: {e}", raw, t0)
+        data: dict[str, Any] | None = None
+        last_err: Exception | None = None
+        for _ in range(self.shrink_retries + 1):
+            messages = build_messages(trace, dimension, transcript_width=self.transcript_width,
+                                      transcript_max_chars=budget, include_gold=self.include_gold)
+            raw = None
+            try:
+                raw = self._chat(messages)
+                data = parse_verdict_json(raw)
+                break
+            except Exception as e:  # noqa: BLE001 - any backend/parse failure becomes an errored verdict
+                last_err = e
+                if self._is_context_overflow(e) and budget and budget > 2000:
+                    # 真批实测：transcript 预算 45000 字符时，最长的那条 trace 让 16k 上下文的
+                    # Nemotron 回「at least 15185 input tokens」，三个维度各废掉一次判定。
+                    budget = max(2000, budget // 2)
+                    continue
+                # one nudge retry for malformed JSON
+                if raw is not None:
+                    try:
+                        raw2 = self._chat(messages + [
+                            {"role": "assistant", "content": raw},
+                            {"role": "user", "content": "Output only the JSON object described in the instructions."},
+                        ])
+                        data = parse_verdict_json(raw2)
+                        raw = raw2
+                        break
+                    except Exception as e2:  # noqa: BLE001
+                        return self._errored(trace, dimension, f"{type(e2).__name__}: {e2}", raw, t0)
+                else:
+                    return self._errored(trace, dimension, f"{type(e).__name__}: {e}", raw, t0)
+        if data is None:
+            return self._errored(trace, dimension,
+                                 f"{type(last_err).__name__}: {last_err}", raw, t0)
         if dimension == Dimension.OUTCOME:
             # rubric 规定 label 是分数的函数（3-4 = pass，0-2 = fail），裁判自报的 label
             # 与分数矛盾时以分数为准。真批上出现过一次（judge_b 给了 score=1、label=pass），
