@@ -39,6 +39,34 @@ def test_prompt_includes_gold_only_when_explicitly_asked(traces):
     assert "Gold outcome: SUCCESS" in u
 
 
+def test_prompt_carries_the_task_requirement_but_never_the_reference_calls(traces):
+    t = traces["retail_task_001-t2"]
+    # 真实批次的 trace 带任务原始要求；样例文件里没有，先照真实形状补上
+    t.task_requirement = "Exchange the keyboard only if a clicky full-size one exists."
+    t.outcome.gold = {"reward": 1.0, "db_check": {"db_match": True},
+                      "action_checks": [{"action": {"name": "cancel_pending_order",
+                                                     "arguments": {"order_id": "#NEVER-LEAK"}}}]}
+    u = build_messages(t, Dimension.OUTCOME)[1]["content"]
+    assert "Task requirement" in u and "only if a clicky full-size one exists" in u
+    # 要求是"用户来干什么"，不是答案：参考调用清单与奖励判定都不能进 prompt
+    assert "NEVER-LEAK" not in u and "Gold outcome" not in u and "db_match" not in u
+
+
+def test_task_requirement_is_absent_from_the_prompt_when_the_source_has_none(traces):
+    t = traces["retail_task_001-t2"]
+    assert t.task_requirement is None
+    assert "Task requirement" not in build_messages(t, Dimension.OUTCOME)[1]["content"]
+
+
+def test_task_requirement_counts_against_the_transcript_budget(traces):
+    t = traces["retail_task_001-t2"]
+    t.task_requirement = "R" * 4000
+    u = build_messages(t, Dimension.OUTCOME, transcript_max_chars=6000)[1]["content"]
+    assert "R" * 4000 in u
+    # 预算里要扣掉要求本身的长度，否则整条 prompt 会超过给 16k 上下文裁判留的余量
+    assert len(u) <= 4000 + 6000 + 400
+
+
 def test_transcript_shrinks_to_fit_the_budget_without_losing_step_indices(traces):
     t = max(traces.values(), key=lambda x: len(x.transcript(width=4000)))
     # 样例里的工具返回只有几十字符，"收缩"和"丢弃"分不出来，先造一条远超预算的 trace

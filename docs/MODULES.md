@@ -81,17 +81,18 @@ uv run sparkjury precheck --json
 
 - `models/verdict.py`：Dimension（outcome / tool_use / efficiency / safety）、Verdict、DimensionAgreement、PanelResult 数据模型。
 - `judges/rubrics/*.md`：四个维度各一份 rubric，0 到 4 分的评分标准写死，要求模型只输出一个 JSON 对象。
-- `judges/prompts.py`：拼 prompt（rubric + 金标摘要 + 带 [n] 步骤序号的对话流水）；`parse_verdict_json` 容忍代码围栏和废话，校验分数范围和标签。
+- `judges/prompts.py`：拼 prompt（rubric + 带 [n] 步骤序号的对话流水 + 任务原始要求）；`parse_verdict_json` 容忍代码围栏和废话，校验分数范围和标签。
 - `judges/client.py`：
   - `OpenAICompatJudge`：任何 OpenAI 兼容接口（DGX 上的 vLLM、StepFun、OpenRouter）。超时、重试可配；输出不是 JSON 时追问一次；后端挂了返回带 error 的 Verdict，绝不抛异常。
   - `MockJudge`：基于规则的裁判，用于离线测试和断网兜底；可加确定性抖动，让 mock 面板也会出现分歧。
 - `judges/heuristics.py`：规则裁判的规则，编码零售客服策略：先认证、先读后写、破坏性操作前要确认、不能编造订单状态、用户反对后不能重复同一写操作。
 - `judges/panel.py`：`PanelConfig`（TOML 或内置 mock 三人组，含 prompt 预算 `transcript_width` / `transcript_max_chars` 与 `include_gold`）、`Panel.score(trace)` 并发跑 3 judge × 4 维，`decide_agreement` 判定一致性：outcome 看三票 pass/fail 是否相同，分数维度看极差是否 ≤ 1，任一 judge 出错即视为不一致。`Panel.arbiter_judges()` 统一挑仲裁人与审计人：审计只用真裁判，面板里没有两个真裁判就跳过审计。
 - `judges/prompts.py` + `models/trace.py`：prompt 预算与金标开关。`build_messages(trace, dim, *, transcript_width=4000, transcript_max_chars=45000, include_gold=False)`；`Trace.transcript(width, max_chars=..., min_width=...)` 超预算时二分收缩每步宽度，保住每条 `[n]` 骨架，连最小宽度都装不下才丢中间步并留 `[... N step(s) omitted ...]` 标记。金标默认不进 prompt——2026-09-27 修复：在此之前三家真裁判都拿到了基准金标，outcome 维度退化成复述。
+- 任务原始要求进 prompt（2026-09-27）：`Trace.task_requirement` 由 tau2 适配器从 `tasks[].user_scenario.instructions.reason_for_call` 填，`build_messages` 与 `Arbiter._state_text` 都带上它。原因：裁判只看对话时拿到的是模拟用户的说法，用户模拟器会把条件说糊、把"如果没有就只换恒温器"说成一句可以被读成同意的话，裁判照对话判就把漂移记在了被测 Agent 头上（实测 retail 30×3 真批里 21 条误判，绝大多数属于这一类）。要求写的是"用户来干什么"，不是答案：`evaluation_criteria.actions`（参考调用清单）与奖励判定都不进任何 prompt，测试里有专门的防泄漏断言。
 - `deploy/judges.example.toml`：三 judge 的真实配置模板（Qwen 本地 8001、Gemma 本地 8002、StepFun API），API key 只从环境变量读。
 - `store/sqlite.py`：新增 `verdicts`、`panel` 两张表，`put_panel_results / get_panel_result / list_panel_results / verdict_summary`。
 - `cli.py`：`sparkjury score [--judges mock|文件.toml] [--dims ...] [--trace ID] [--limit N] [--json]` 和 `sparkjury verdicts <trace_id>`。
-- `tests/test_m3_judges.py`：19 个用例，覆盖 prompt（含"金标默认不进 prompt"与"预算装不下才丢步且留痕"两条）、JSON 解析、四类坏例的规则打分、LLM 裁判的解析与追问与容错（用桩后端）、一致性规则、TOML 配置、仲裁人与审计人的挑选规则、存储与 CLI。
+- `tests/test_m3_judges.py`：22 个用例，覆盖 prompt（含"金标默认不进 prompt"、"任务原始要求进 prompt 而参考调用不进"、"预算装不下才丢步且留痕"几条）、JSON 解析、四类坏例的规则打分、LLM 裁判的解析与追问与容错（用桩后端）、一致性规则、TOML 配置、仲裁人与审计人的挑选规则、存储与 CLI。
 
 **自测结果**：`uv run pytest` 32 passed（M1 9 + M2 10 + M3 13）。
 

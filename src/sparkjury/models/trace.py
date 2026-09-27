@@ -117,6 +117,13 @@ class Trace(BaseModel):
     task_id: str
     trial: int = 0
     agent_model: str | None = None
+    # The task's own statement of what the user came for, when the source carries one
+    # (tau2: `tasks[].user_scenario.instructions.reason_for_call`). A judge that only sees the
+    # conversation inherits the simulated user's wording, which drifts from the task: the user
+    # narrows the request, forgets a condition, or blurs a fallback into an unconditional ask.
+    # Grading against this text keeps the drift out of the score. It is the requirement, not the
+    # answer: the reference call list stays out of every prompt.
+    task_requirement: str | None = None
     steps: list[Step] = Field(default_factory=list)
     outcome: Outcome = Field(default_factory=Outcome)
     metrics: TraceMetrics = Field(default_factory=TraceMetrics)

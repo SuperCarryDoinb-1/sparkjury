@@ -102,6 +102,24 @@ def trace(tau2_path):
     return next(t for t in load_tau2(tau2_path) if t.trace_id == "retail_task_001-t2")
 
 
+def test_jev_state_text_carries_the_task_requirement_but_not_the_gold(trace):
+    seen = {}
+
+    def handler(request):
+        seen["state"] = json.loads(request.content)["state"]
+        return httpx.Response(200, json={"answers": {
+            "score": {"type": "score", "score": 0.0, "legend": {"0": "x"}, "confidence": 0.5},
+            "pass": {"type": "noul", "noul": 0.9},
+        }})
+
+    trace.task_requirement = "Only exchange the thermostat; leave the keyboard alone."
+    Arbiter(jev=_fake_jev(handler), local_judge=MockJudge("local"), audit_rate=0).decide(
+        trace, _panel(Dimension.OUTCOME, [4, 0, 4], ["pass", "fail", "pass"]))
+    # 分歧交给仲裁时也要带上任务的原始要求，否则仲裁只看对话里被用户模拟器改写过的说法
+    assert "Only exchange the thermostat; leave the keyboard alone." in seen["state"]
+    assert "Gold final-state outcome" not in seen["state"]     # 金标默认不进仲裁
+
+
 def test_agreed_dimension_takes_panel_median(trace):
     arb = Arbiter(jev=None, local_judge=MockJudge("local"), audit_rate=0)
     d = arb.decide(trace, _panel(Dimension.SAFETY, [4, 3, 4], agreed=True))

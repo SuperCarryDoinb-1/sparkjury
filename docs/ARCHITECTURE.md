@@ -202,6 +202,7 @@ sparkjury/
 | task_id | str | 任务 ID |
 | trial | int | 第几次跑 |
 | agent_model | str | 被评模型 |
+| task_requirement | str \| null | 任务的原始要求（tau2 取 `tasks[].user_scenario.instructions.reason_for_call`），进裁判与仲裁 prompt；参考调用清单与奖励不进 |
 | steps | list[Step] | 有序步骤 |
 | outcome | Outcome | success / reward / termination_reason / gold |
 | metrics | TraceMetrics | n_steps / n_tool_calls / n_tool_errors / duration_s / tokens / cost |
@@ -232,10 +233,10 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 
 | 模块 | 名称 | 优先级 | 状态 | 对应 Skill |
 |---|---|---|---|---|
-| M1 | 数据契约 + 输入适配 + 存储 | P0 | 已完成，9 个用例 | `sparkjury-clean`（导入那半） |
+| M1 | 数据契约 + 输入适配 + 存储 | P0 | 已完成，10 个用例 | `sparkjury-clean`（导入那半） |
 | M2 | Precheck 假 badcase 打标 | P0 | 已完成，10 个用例 | `sparkjury-clean`（预检那半） |
-| M3 | 三裁判面板 | P0 | 已完成，19 个用例 | `sparkjury-score` |
-| M4 | 仲裁与审计 | P0 | 已完成，10 个用例 | `sparkjury-score` |
+| M3 | 三裁判面板 | P0 | 已完成，22 个用例 | `sparkjury-score` |
+| M4 | 仲裁与审计 | P0 | 已完成，11 个用例 | `sparkjury-score` |
 | M5 | badcase 聚类与优先级 | P0 | 已完成，11 个用例 | `sparkjury-cluster` |
 | M6 | 证据卡片 + 回归对比 | P0 | 已完成，16 个用例 | `sparkjury-report` + `sparkjury-regress` |
 | M7 | Harness 编排器 | P0 | 已完成，11 个用例 | 六个技能调的都是它的 CLI |
@@ -254,7 +255,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 做什么：
 
 - Trace 统一模型，对齐 OTel GenAI 语义约定
-- tau2 适配器：读 τ²-bench Results JSON，支持 messages 与 ticks 两种布局，reward ≥ 1 视为成功
+- tau2 适配器：读 τ²-bench Results JSON，支持 messages 与 ticks 两种布局，reward ≥ 1 视为成功；`tasks[].user_scenario.instructions.reason_for_call` 存进 `Trace.task_requirement` 供裁判对照，`evaluation_criteria` 里的参考调用不进 trace
 - otel 适配器：按 invoke_agent / chat / execute_tool 三层 span 重建步骤，识别 error.type
 - SQLite 存储：traces、runs 两张表，幂等写入，统计任务数、trial 分布、pass^1、pass^k、平均步数、终止原因
 - CLI：ingest / stats / show / list / export
@@ -515,7 +516,7 @@ durable 那一段：
 
 ## 17. 当前进度与验证方法
 
-M1 到 M13 已完成（M10 节点执行、M11 录制待做），282 个 pytest 用例通过。一条命令跑通全流程：
+M1 到 M13 已完成（M10 节点执行、M11 录制待做），287 个 pytest 用例通过。一条命令跑通全流程：
 
 ```
 cd sparkjury

@@ -175,8 +175,11 @@ class Arbiter:
         lines = [
             head,
             f"Dimension under arbitration: {dim.value}.",
-            "Three independent judges disagreed:",
         ]
+        requirement = (trace.task_requirement or "").strip()
+        if requirement:
+            lines.append(f"Task requirement (what the user came for, as the task defines it): {requirement}")
+        lines.append("Three independent judges disagreed:")
         for v in verdicts:
             if v.ok:
                 lines.append(f"- {v.judge} ({v.model}): score {v.score}" + (f", {v.label}" if v.label else "") +

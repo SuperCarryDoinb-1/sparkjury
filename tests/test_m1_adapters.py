@@ -42,6 +42,27 @@ def test_tau2_tool_errors_counted(tau2_path):
     assert "503" in errs[0].tool_result.content
 
 
+def test_tau2_carries_the_task_requirement_to_the_judge():
+    data = {
+        "info": {"agent_info": {"llm": "m"}, "environment_info": {"domain_name": "retail"}},
+        "tasks": [{
+            "id": "t1",
+            "user_scenario": {"instructions": {"reason_for_call": "Swap the keyboard, but only if a clicky one exists."}},
+            "evaluation_criteria": {"actions": [{"name": "exchange_delivered_order_items",
+                                                 "arguments": {"item_ids": ["should-never-reach-a-judge"]}}]},
+        }, {"id": "t2", "description": {"purpose": None}}],
+        "simulations": [
+            {"id": "a", "task_id": "t1", "trial": 0, "messages": [], "reward_info": {"reward": 1.0}},
+            {"id": "b", "task_id": "t2", "trial": 0, "messages": [], "reward_info": {"reward": 0.0}},
+        ],
+    }
+    by_id = {t.task_id: t for t in parse_tau2(data)}
+    assert by_id["t1"].task_requirement == "Swap the keyboard, but only if a clicky one exists."
+    assert by_id["t2"].task_requirement is None      # a task without user_scenario stays empty
+    # the reference call list is the answer key and is never copied onto the trace
+    assert "should-never-reach-a-judge" not in by_id["t1"].model_dump_json()
+
+
 def test_tau2_ticks_fallback():
     data = {
         "info": {"agent_info": {"llm": "m"}, "environment_info": {"domain_name": "retail"}},

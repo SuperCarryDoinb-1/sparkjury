@@ -52,14 +52,31 @@ def build_messages(
     truth, so all three judges agree by construction and the dimension carries no
     information. Gold stays on the trace for the report's judge-vs-gold agreement, which
     is only a real yardstick while the judges cannot see it.
+
+    `trace.task_requirement` is the task's own statement of what the user came for, and it
+    does belong in the prompt. The transcript alone hands the judge the simulated user's
+    wording, which drifts from the task — a condition gets blurred, a fallback turns into an
+    unconditional ask — and the judge then grades the drift instead of the task. The
+    requirement states what was asked, never whether it was achieved, so it does not leak the
+    verdict; the reference call list stays on the trace and out of every prompt.
     """
     system = load_rubric(dimension) + "\n" + OUTPUT_CONTRACT
-    visible = trace.transcript(width=transcript_width, max_chars=transcript_max_chars)
+    requirement = (trace.task_requirement or "").strip()
+    budget = transcript_max_chars
+    if budget and requirement:
+        budget = max(1000, budget - len(requirement) - 200)
+    visible = trace.transcript(width=transcript_width, max_chars=budget)
     n_visible = sum(1 for st in trace.steps if st.role != Role.SYSTEM)
     user = (
         f"Task id: {trace.task_id} (trial {trace.trial}); domain: {trace.domain}; agent model: {trace.agent_model or 'unknown'}\n"
         f"Termination reason: {trace.outcome.termination_reason or 'unknown'}\n"
         + (f"{_gold_summary(trace)}\n" if include_gold else "")
+        + (
+            "Task requirement (what the user came for, as the task defines it; the wording in the\n"
+            f"conversation below may be narrower or vaguer than this):\n{requirement}\n"
+            if requirement
+            else ""
+        )
         + f"Transcript ({n_visible} steps; [n] is the step index):\n"
         f"{visible}\n"
     )

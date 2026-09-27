@@ -42,9 +42,29 @@ def parse_tau2(data: dict[str, Any], raw_ref: str | None = None) -> list[Trace]:
         or "unknown"
     )
     traces: list[Trace] = []
+    requirements = _task_requirements(data.get("tasks") or [])
     for i, sim in enumerate(data.get("simulations") or []):
-        traces.append(_sim_to_trace(sim, i, agent_model, domain, raw_ref))
+        traces.append(
+            _sim_to_trace(sim, i, agent_model, domain, raw_ref,
+                          requirements.get(str(sim.get("task_id"))))
+        )
     return traces
+
+
+def _task_requirements(tasks: list[dict[str, Any]]) -> dict[str, str]:
+    """task id -> the requirement the task was built around, for the judge prompt.
+
+    Only the user's own statement of what they came for is taken. The reference calls sit next
+    to it under `evaluation_criteria.actions` and stay out: they name the exact calls a passing
+    run makes, so a judge holding them would diff against the answer key instead of judging the
+    transcript. The recorded reward is stripped for the same reason.
+    """
+    out: dict[str, str] = {}
+    for t in tasks:
+        text = _dig(t, "user_scenario", "instructions", "reason_for_call")
+        if isinstance(text, str) and text.strip():
+            out[str(t.get("id"))] = text.strip()
+    return out
 
 
 def _sim_to_trace(
@@ -53,6 +73,7 @@ def _sim_to_trace(
     agent_model: str | None,
     domain: str,
     raw_ref: str | None,
+    task_requirement: str | None = None,
 ) -> Trace:
     messages = sim.get("messages")
     if not messages and sim.get("ticks"):
@@ -76,6 +97,7 @@ def _sim_to_trace(
         task_id=str(sim.get("task_id")),
         trial=int(sim.get("trial") or 0),
         agent_model=agent_model,
+        task_requirement=task_requirement,
         steps=steps,
         outcome=outcome,
         metrics=TraceMetrics(
