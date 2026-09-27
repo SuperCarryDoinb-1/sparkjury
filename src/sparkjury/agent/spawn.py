@@ -17,11 +17,12 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from sparkjury.agent.ai import CHAT_ENDPOINTS, OpenAICompatProvider, Provider, ScriptedProvider
+from sparkjury.agent.ai import CHAT_ENDPOINTS, NODE_ENDPOINTS, OpenAICompatProvider, Provider, ScriptedProvider
 from sparkjury.agent.tools import ToolError, ToolSpec
 from sparkjury.harness.events import EventKind
 
@@ -95,23 +96,26 @@ class SubagentRunner:
 
     @staticmethod
     def _check_model(model: str) -> None:
-        """起子 run 之前先把 model 校验掉。
+        """起子 run 之前先把 model 校验掉：名字不对、或者云端端点没配 key，都在这里说清楚。
 
         节点上真跑过一次才知道这一步不能省：Qwen3-8B 拿到「model：短名见 agent endpoints」
         这句话之后，自己编了 `claude` / `codex` / `default` 这些名字（大概是照着仓库里的
         `.claude`、`.codex` 目录猜的），每次都在端点那边换回一个 404，父 agent 连着试了五种，
-        把 12 轮全烧光。名单外的名字当场说清楚，比让它一次次撞 404 便宜得多。
+        把 12 轮全烧光。后来又挑了 stepfun 这个云端端点，而它的 key 是空的，照样白跑一次子 run。
+        名单外的名字、要 key 却没 key 的端点，当场说清楚，比让子 agent 去撞 404 / 401 便宜得多。
         """
-        if not model or model in CHAT_ENDPOINTS:
+        if not model or model.startswith(("http://", "https://")):
             return
-        if model.startswith(("http://", "https://")):
-            return
-        if "/" in model:          # 完整的模型 id（形如 Qwen/Qwen3-8B）照给，那是另一个端点的模型名
-            return
-        raise ToolError(f"没有这个端点短名：{model}。能用的只有 {', '.join(CHAT_ENDPOINTS)}；"
-                        f"要连别的地址就写完整形式 http://host:port/v1#模型名。"
-                        f"不要用别的名字重试——名字不对，重试多少次都是同一个 404。")
-
+        spec = NODE_ENDPOINTS.get(model)
+        if spec is None:
+            if "/" in model:      # 完整的模型 id（形如 Qwen/Qwen3-8B）照给，那是另一个端点的模型名
+                return
+            raise ToolError(f"没有这个端点短名：{model}。能用的只有 {', '.join(CHAT_ENDPOINTS)}；"
+                            f"要连别的地址就写完整形式 http://host:port/v1#模型名。"
+                            f"不要用别的名字重试——名字不对，重试多少次都是同一个 404。")
+        if spec.api_key_env and not os.environ.get(spec.api_key_env):
+            raise ToolError(f"{model} 是云端端点，要环境变量 {spec.api_key_env}，现在这个变量是空的。"
+                            f"换 judge-a / judge-b / subject 这些本地端点，或者先让人把 key 配上。")
     # ------------------------------------------------------------ 派活
     def run(self, prompt: str, *, model: str | None = None, max_turns: int | None = None) -> str:
         """跑一个子 run，把它的结论回给父 agent；没干完就抛 ToolError，不美化。"""

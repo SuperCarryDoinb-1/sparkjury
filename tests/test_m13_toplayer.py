@@ -659,6 +659,18 @@ def test_full_model_id_is_still_allowed(tmp_path: Path):
         runner._check_model("gjorewgj")            # noqa: SLF001
 
 
+def test_cloud_endpoint_without_a_key_is_refused_up_front(tmp_path: Path, monkeypatch):
+    """云端端点没配 key 时说清楚，别让子 agent 拿着空 key 去撞 401。"""
+    monkeypatch.delenv("STEPFUN_API_KEY", raising=False)
+    runner = SubagentRunner(_FakeParent(tmp_path), max_depth=1)
+    with pytest.raises(ToolError) as excinfo:
+        runner._check_model("stepfun")            # noqa: SLF001
+    assert "STEPFUN_API_KEY" in str(excinfo.value) and "空" in str(excinfo.value)
+
+    monkeypatch.setenv("STEPFUN_API_KEY", "sk-假的但非空")
+    runner._check_model("stepfun")                # noqa: SLF001 - 配了就放行，连不连得上是另一回事
+
+
 def test_failed_child_is_reported_once_not_three_times(tmp_path: Path):
     runtime = make_runtime(tmp_path, [tool_turn(("task", {"prompt": "查一下"})), text_turn("知道了")])
     runtime.subagents.factory = lambda _model: ScriptedProvider([Turn(error="端点掉线了", model="x")])
