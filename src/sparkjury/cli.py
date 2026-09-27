@@ -16,6 +16,8 @@ from sparkjury.store import TraceStore
 
 app = typer.Typer(help="SparkJury: agent evaluation harness for DGX Spark.", no_args_is_help=True)
 console = Console()
+# 降级提示走 stderr：`--json` 的 stdout 要能直接喂给 json.loads，混一行警告进去就解析不了。
+err_console = Console(stderr=True)
 
 
 @app.callback()
@@ -315,11 +317,17 @@ def cluster(
             clusters, used = cluster_badcases(badcases, emb, min_cluster_size=min_cluster_size, method=method)
             emb_name = emb.name
         except Exception as e:  # noqa: BLE001 - embedding server down -> offline embedder
-            console.print(f"[yellow]embedder {emb.name} failed ({type(e).__name__}); falling back to hashing[/]")
+            err_console.print(f"[yellow]embedder {emb.name} failed ({type(e).__name__}); falling back to hashing[/]")
             emb = HashingEmbedder()
             clusters, used = cluster_badcases(badcases, emb, min_cluster_size=min_cluster_size, method=method)
             emb_name = emb.name + " (fallback)"
-        label_clusters(clusters, badcases, None if jev == "off" else JevClient())
+        jev_client = None if jev == "off" else JevClient()
+        if jev_client is not None and not jev_client.configured:
+            err_console.print("[yellow]TYPESAFE_API_KEY not set; cluster labels fall back to heuristic[/]")
+        label_counts = label_clusters(clusters, badcases, jev_client)
+        if label_counts["n_jev_failed"]:
+            err_console.print(f"[yellow]Jev failed on {label_counts['n_jev_failed']} cluster(s); "
+                              "those labels fall back to heuristic[/]")
         run = ClusterRun(
             n_badcases=len(badcases), n_clusters=sum(1 for c in clusters if c.cluster_id != -1),
             n_noise=sum(c.size for c in clusters if c.cluster_id == -1), embedder=emb_name, method=used,

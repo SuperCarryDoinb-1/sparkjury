@@ -270,8 +270,16 @@ def main(argv: list[str]) -> int:
     if op == "get":
         get(args[0], args[1]); return 0
     if op == "sync":
+        # sync 会覆盖节点上共享的 ~/sparkjury。以前这里不看多余参数，于是 `sync --help`
+        # 被当成一次真的 sync 执行了，而当时那棵主树上正跑着两个长任务。要看用法请 `node.py --help`。
+        if args:
+            print(f"sync 不接受参数，收到：{args}\n要看用法请跑 python scripts/node.py --help", file=sys.stderr)
+            return 2
         return sync()
     if op == "check":
+        if args:
+            print(f"check 不接受参数，收到：{args}\n要看用法请跑 python scripts/node.py --help", file=sys.stderr)
+            return 2
         return check()
     print(__doc__)
     return 2

@@ -60,7 +60,7 @@ def test_cli_ingest_stats_show(tmp_path, tau2_path):
 
     r = runner.invoke(app, ["stats", "--db", str(db), "--json"])
     assert r.exit_code == 0, r.output
-    data = json.loads(r.output)
+    data = json.loads(r.stdout)
     assert data["n_traces"] == 12 and data["n_tasks"] == 4
     assert abs(data["pass_k"]["3"] - 0.25) < 1e-9
 

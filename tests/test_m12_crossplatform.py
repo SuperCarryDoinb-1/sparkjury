@@ -47,7 +47,7 @@ def test_docs_have_no_windows_only_commands():
 
 
 def test_helper_scripts_compile_and_use_no_shell_specific_calls():
-    for name in ("node.py", "screenshot.py", "validate_skills.py", "gen_skills.py", "make_samples.py"):
+    for name in ("node.py", "screenshot.py", "validate_skills.py", "gen_skills.py", "make_samples.py", "certificate.py"):
         p = ROOT / "scripts" / name
         py_compile.compile(str(p), doraise=True)
         src = p.read_text(encoding="utf-8")
@@ -138,6 +138,45 @@ def test_skill_mirrors_stay_in_sync():
             assert body == copy, f"镜像与正文不一致，两边要一起改：{f.relative_to(ROOT)}"
 
 
+# AGENTS.md 的「红线」是真源，技能里那份是给只加载技能的 Agent 看的副本。
+# 这两份真的分叉过：技能里压成了一句摘要，漏掉 scp 的 1GB 上限、8888/9000 必须鉴权、
+# 节点活动结束会清盘三条——只读技能、没读 AGENTS.md 正文的 Agent 就真的不知道。
+REDLINE_TOKENS = [
+    "reboot",
+    "shutdown",
+    "poweroff",
+    "192.168.110.0/24",
+    "scp",
+    "tmux",
+    "8888",
+    "9000",
+]
+
+
+def test_skill_restates_every_red_line():
+    """AGENTS.md 的红线必须在技能里逐条写全，不能只留一句摘要。
+
+    判断依据取自 AGENTS.md 正文而不是这里另抄一份，所以往 AGENTS.md 加一条红线、
+    忘了同步到技能时，这个测试会直接点名缺的是哪几个词。
+    """
+    contract = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    assert "## 红线" in contract, "AGENTS.md 里找不到「## 红线」一节"
+    source = contract.split("## 红线", 1)[1].split("\n## ", 1)[0]
+
+    for rel in (
+        ".agents/skills/sj-push-and-deploy/SKILL.md",
+        ".claude/skills/sj-push-and-deploy/SKILL.md",
+    ):
+        skill = (ROOT / rel).read_text(encoding="utf-8")
+        assert "## 红线" in skill, f"{rel} 里没有「## 红线」一节"
+        copy = skill.split("## 红线", 1)[1]
+        missing = [t for t in REDLINE_TOKENS if t in source and t not in copy]
+        assert missing == [], (
+            f"{rel} 的红线漏了 AGENTS.md 里写着的：{missing}。"
+            "技能常常是 Agent 唯一的规矩来源，不能比 AGENTS.md 少。"
+        )
+
+
 # 上手提示词里点名的入口，改名或搬走之后这里会先红，而不是等新人撞墙
 ONBOARDING_PATHS = [
     "AGENTS.md",
@@ -170,3 +209,95 @@ def test_onboarding_paths_are_not_stale():
     named = [p for p in ONBOARDING_PATHS if p in onboarding or p in contract]
     missing = sorted({p for p in named if not (ROOT / p).exists()})
     assert missing == [], f"点到了不存在的路径：{missing}"
+
+def test_certificate_is_wired_into_the_gates():
+    """证书必须真的被门禁调用，否则它只是一份没人跑、会过期的报告。
+
+    一条规矩写进文档只是「请求」，挂到钩子和 CI 上才是「强制」。这条测试盯着两处接线：
+    pre-commit 跑快档（不执行测试，几秒回来），CI 跑全档（含端到端流水线与六个技能封装）。
+    """
+    pre = (ROOT / ".githooks" / "pre-commit").read_text(encoding="utf-8")
+    ci = (ROOT / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
+    assert "certificate.py" in pre, "pre-commit 没有跑 scripts/certificate.py"
+    assert "certificate.py" in ci, "CI 没有跑 scripts/certificate.py"
+    assert "--fast" in pre, "pre-commit 该跑证书快档，全档交给 CI"
+
+
+def test_json_assertions_read_stdout_not_the_mixed_output():
+    """`--json` 的断言必须读 r.stdout，不能读 r.output。
+
+    typer 的 CliRunner 会把 stderr 混进 output（typer/testing.py 里 BytesIOCopy(copy_to=...)，
+    它的类文档第一句就是 "Mixes stdout and stderr streams"）。于是只要命令往 stderr 写一句降级
+    提示，拿 r.output 去 json.loads 就会以 JSONDecodeError 崩掉，而且报错看不出真正原因。本轮就
+    踩过一次：cluster 加了「Jev 没配 key」的提示，六处解析 JSON 的断言里立刻红了一个。stdout 才是
+    「机器可读」这份契约。
+
+    这里用 ast 找真实调用而不是按文本 grep：这段说明本身就写着要禁的那串字符，按文本找会先把自己
+    算成违规。
+    """
+    import ast
+
+    offenders = []
+    for f in sorted((ROOT / "tests").glob("test_*.py")):
+        tree = ast.parse(f.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and node.args):
+                continue
+            fn, arg = node.func, node.args[0]
+            if not (isinstance(fn, ast.Attribute) and fn.attr == "loads"
+                    and isinstance(fn.value, ast.Name) and fn.value.id == "json"):
+                continue
+            if isinstance(arg, ast.Attribute) and arg.attr == "output":
+                offenders.append(f"{f.name}:{node.lineno}")
+    assert offenders == [], f"这些地方连 stderr 一起当 JSON 解析，应改用 r.stdout：{offenders}"
+
+
+def _load_script(name):
+    """按路径加载 scripts/ 下的脚本，不要求它是包的一部分。"""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(f"sj_{name}", ROOT / "scripts" / f"{name}.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_node_py_rejects_extra_args_instead_of_acting():
+    """`node.py sync --help` 不能真的 sync。
+
+    `node.py` 用 main(argv) 手工分发，sync 分支以前不看多余参数——于是「看看用法」这个动作会
+    把代码推过去，覆盖团队共享的 `~/sparkjury`，而上面常驻着 loop、tau2full 这类无人值守任务。
+    本仓库自己就踩过一次（主树当时正跑着两个长任务）。这里不碰网络：只验证分发层在参数多余时
+    返回非零，并且压根不去调 sync()/check()。
+    """
+    mod = _load_script("node")
+    called = []
+    mod.sync = lambda: (called.append("sync"), 0)[1]
+    mod.check = lambda: (called.append("check"), 0)[1]
+
+    assert mod.main(["sync", "--help"]) == 2, "sync 收到多余参数应当直接失败"
+    assert mod.main(["check", "--dry-run"]) == 2, "check 收到多余参数应当直接失败"
+    assert called == [], f"多余的参数不该触发动作，却调用了 {called}"
+    # 不带参数时照常工作，别把正常路径一起堵死
+    assert mod.main(["sync"]) == 0 and called == ["sync"]
+
+
+def test_gen_skills_refuses_args_instead_of_regenerating():
+    """`gen_skills.py --help` 不能顺手把六个技能重新生成。
+
+    它的 main() 以前完全不看 sys.argv，所以想看用法的人会得到一次真实的重新生成，
+    把手改过的 `skills/*/SKILL.md`、`scripts/run.py`、`skill-card.md` 全部覆盖。
+    """
+    mod = _load_script("gen_skills")
+
+    def snapshot():
+        # 比字节而不是解码后的文本：skills/ 下有 __pycache__ 这类二进制产物。
+        # __pycache__ 本身要跳过——它是跑技能时生成的字节码，不是生成物，且每次都变。
+        return {p: p.read_bytes() for p in sorted((ROOT / "skills").rglob("*"))
+                if p.is_file() and "__pycache__" not in p.parts}
+
+    before = snapshot()
+    assert mod.main(["--help"]) == 0, "--help 应当打印用法并以 0 退出"
+    assert mod.main(["--dry-run"]) == 2, "不认识的参数应当返回非零"
+    assert snapshot() == before, "带参数调用不该重新生成技能"
+

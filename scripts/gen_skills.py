@@ -5,6 +5,7 @@ Re-run after changing the CLI; `scripts/validate_skills.py` checks the result ag
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1] / "skills"
@@ -198,6 +199,7 @@ RUN_PY = '''#!/usr/bin/env python3
 Usage: python scripts/run.py [CLI options...]
 Requires the `sparkjury` package (uv sync in the SparkJury repo, or pip install -e <repo>).
 """
+import json
 import pathlib
 import shutil
 import subprocess
@@ -205,6 +207,20 @@ import sys
 import tempfile
 
 MODE = "__MODE__"
+
+
+def toml_str(s: str) -> str:
+    """把字符串写成合法的 TOML 基本字符串。
+
+    Windows 路径里全是反斜杠，直接拼引号会写出非法的转义序列，TOML 解析当场失败。
+    借 json.dumps 来转义：它产出的转义写法是 TOML 基本字符串接受的子集，而且这样
+    源码里不需要出现反斜杠字面量——本文件是生成封装脚本的模板，反斜杠要在这里过两层
+    转义，能不写就不写。
+
+    这个封装在 Windows 上从来没跑通过，原因就是它从没被真的执行过
+    （tests/test_m9_skills_nat.py 对多命令封装只做编译检查，编译通过不等于跑得通）。
+    """
+    return json.dumps(s, ensure_ascii=False)
 
 
 def cli(*args: str) -> int:
@@ -236,11 +252,11 @@ def main(argv: list[str]) -> int:
         args = dict(zip(argv[::2], argv[1::2]))
         db = args.get("--db", "runs/sparkjury.db")
         run_id = args.get("--run-id", "evalset")
-        lines = [f'run_id = "{run_id}"', f'db = "{db}"', 'stages = ["EVALSET"]', "[evalset]"]
+        lines = [f"run_id = {toml_str(run_id)}", f"db = {toml_str(db)}", 'stages = ["EVALSET"]', "[evalset]"]
         if "--limit" in args:
             lines.append(f"limit = {int(args['--limit'])}")
         if "--task-ids" in args:
-            lines.append("task_ids = [" + ", ".join(f'"{t}"' for t in args["--task-ids"].split(",")) + "]")
+            lines.append("task_ids = [" + ", ".join(toml_str(t) for t in args["--task-ids"].split(",")) + "]")
         p = pathlib.Path(tempfile.mkdtemp()) / "evalset.toml"
         p.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
         return cli("run", "--config", str(p))
@@ -268,7 +284,24 @@ CARD = """# Skill card: {name}
 """
 
 
-def main() -> None:
+USAGE = """用法：python scripts/gen_skills.py
+
+没有参数。它按本文件里的 SKILLS / RUN_PY / CARD 重新生成 skills/ 下六个技能目录
+（每个目录的 SKILL.md、scripts/run.py、skill-card.md）。手改过这些生成物的话会被覆盖，
+要改内容请改本文件里的模板再重新生成。
+"""
+
+
+def main(argv: list[str]) -> int:
+    # 这里以前不看 sys.argv，于是 `gen_skills.py --help` 不会打印用法，而是把六个技能整个
+    # 重新生成一遍——想「看看怎么用」的人反而把手改过的 SKILL.md 覆盖了。要看用法就打印用法，
+    # 别的参数一律拒绝并返回非零，绝不顺手干活。
+    if argv:
+        if argv[0] in ("-h", "--help"):
+            print(USAGE)
+            return 0
+        print(f"gen_skills.py 不接受参数，收到：{argv}\n\n{USAGE}", file=sys.stderr)
+        return 2
     for name, s in SKILLS.items():
         d = ROOT / name
         (d / "scripts").mkdir(parents=True, exist_ok=True)
@@ -295,7 +328,8 @@ def main() -> None:
         risk = "read/write (local files)" if name == "sparkjury-report" else "write (local store)"
         (d / "skill-card.md").write_text(CARD.format(name=name, cmd=s["cmd"], risk=risk), encoding="utf-8")
     print(f"wrote {len(SKILLS)} skills to {ROOT}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main(sys.argv[1:]))

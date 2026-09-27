@@ -200,7 +200,7 @@ def test_store_and_cli(tmp_path, tau2_path, otel_path, monkeypatch):
 
     r = runner.invoke(app, ["arbitrate", "--db", str(db), "--jev", "off", "--json"])
     assert r.exit_code == 0, r.output
-    data = json.loads(r.output)
+    data = json.loads(r.stdout)
     assert data["summary"]["n_traces"] == 13 and data["summary"]["n_degraded"] > 0
 
     r = runner.invoke(app, ["arbitrate", "--db", str(db)])

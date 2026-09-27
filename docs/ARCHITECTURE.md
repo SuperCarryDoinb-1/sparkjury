@@ -143,27 +143,34 @@ sparkjury/
 ├── src/sparkjury/
 │   ├── models/                   # M1 数据契约
 │   │   ├── trace.py              #   Trace / Step / ToolCall / Outcome
-│   │   ├── verdict.py            #   Verdict / Arbitration
-│   │   └── report.py             #   BadCase / Cluster / EvidenceCard
+│   │   ├── verdict.py            #   Verdict / PanelResult
+│   │   ├── arbitration.py        #   Arbitration / TraceDecision
+│   │   ├── precheck.py           #   PrecheckFlag / PrecheckResult
+│   │   ├── cluster.py            #   BadCase / Cluster
+│   │   └── report.py             #   EvidenceCard / CardCluster
 │   ├── adapters/                 # M1 输入适配
 │   │   ├── tau2.py               #   τ²-bench JSON → Trace
-│   │   └── otel.py               #   OTel span JSON → Trace
+│   │   ├── otel.py               #   OTel span JSON → Trace
+│   │   └── nat.py                #   NeMo Agent Toolkit 轨迹 → Trace
 │   ├── store/sqlite.py           # M1 存储
 │   ├── precheck/rules.py         # M2
 │   ├── judges/                   # M3
 │   │   ├── client.py             #   OpenAI 兼容客户端 + mock
 │   │   ├── rubrics/              #   4 维 rubric
 │   │   └── panel.py              #   三裁判面板
-│   ├── arbiter/                  # M4  jev.py / fallback.py
-│   ├── cluster/                  # M5  embed.py / group.py / taxonomy.py
+│   ├── arbiter/                  # M4  arbiter.py / jev.py
+│   ├── cluster/                  # M5  badcase.py / embed.py / group.py / taxonomy.py
 │   ├── report/cards.py           # M6
 │   ├── regress/passk.py          # M6
-│   ├── harness/                  # M7  orchestrator.py / config.py / run.py
-│   ├── api/app.py                # M8
+│   ├── harness/                  # M7  orchestrator.py / config.py / events.py
+│   ├── api/                      # M8
+│   │   ├── app.py                #   FastAPI 路由与 token 鉴权
+│   │   ├── runs.py               #   run 目录与 manifest 读写
+│   │   ├── dgx.py                #   nvidia-smi 采样
+│   │   └── static/index.html     #   Cockpit 单页前端
 │   └── cli.py                    # 所有 Skill 的命令入口
 ├── skills/                       # M9 每个 Skill 一个 SKILL.md
 ├── nat/                          # M9 NeMo Agent Toolkit 配置
-├── cockpit/                      # M8 前端
 ├── deploy/dgx/                   # M10 vLLM 启动脚本、env 模板
 ├── data/samples/                 # 演示与测试样本
 └── tests/
@@ -211,17 +218,21 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 
 | 模块 | 名称 | 优先级 | 状态 |
 |---|---|---|---|
-| M1 | 数据契约 + 输入适配 + 存储 | P0 | 已完成，9 个测试通过 |
-| M2 | Precheck 假 badcase 打标 | P0 | 已完成，10 个测试通过 |
-| M3 | 三裁判面板 | P0 | 已完成，13 个测试通过 |
-| M4 | 仲裁与审计 | P0 | 已完成，10 个测试通过 |
-| M5 | badcase 聚类与优先级 | P0 | 已完成，9 个测试通过 |
-| M6 | 证据卡片 + 回归对比 | P0 | 已完成，8 个测试通过 |
-| M7 | Harness 编排器 | P0 | 已完成，6 个测试通过 |
-| M8 | API + Agent Cockpit | 后端 P0 / 前端 P1 | 后端与兜底页已完成，4 个测试通过 |
-| M9 | Agent Skills 打包 + NeMo Agent Toolkit | P1 | 已完成，13 个测试（3 个跳过）|
-| M10 | DGX 部署 + τ²-bench 跑数 + 演示数据 | P0 | 脚本与 token 已完成，13 个测试通过；节点上执行待做 |
-| M11 | README / 征文 / 视频脚本 | P0 | 初稿已完成，2 个测试通过；截图、真实数字、录制待补 |
+| M1 | 数据契约 + 输入适配 + 存储 | P0 | 已完成，9 个用例 |
+| M2 | Precheck 假 badcase 打标 | P0 | 已完成，10 个用例 |
+| M3 | 三裁判面板 | P0 | 已完成，15 个用例 |
+| M4 | 仲裁与审计 | P0 | 已完成，10 个用例 |
+| M5 | badcase 聚类与优先级 | P0 | 已完成，9 个用例 |
+| M6 | 证据卡片 + 回归对比 | P0 | 已完成，8 个用例 |
+| M7 | Harness 编排器 | P0 | 已完成，8 个用例 |
+| M8 | API + Agent Cockpit | 后端 P0 / 前端 P1 | 后端与兜底页已完成，5 个用例 |
+| M9 | Agent Skills 打包 + NeMo Agent Toolkit | P1 | 已完成，16 个用例（3 个跳过）|
+| M10 | DGX 部署 + τ²-bench 跑数 + 演示数据 | P0 | 脚本与 token 已完成，16 个用例；节点上执行待做 |
+| M11 | README / 征文 / 视频脚本 | P0 | 初稿已完成，2 个用例；截图、真实数字、录制待补 |
+| M12 | 跨平台与仓库约定守卫 | P1 | 已完成，17 个用例 |
+
+「N 个用例」指该模块测试文件被收集到的用例数（不是通过数），有跳过的在括号里注明。
+这张表由 `scripts/certificate.py` 逐行核对，改测试不改表会红。
 
 ### M1 数据契约 + 输入适配 + 存储
 
@@ -242,6 +253,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 
 | 规则 | 判定 |
 |---|---|
+| empty_trace | trace 里没有任何 step，空跑或采集失败 |
 | infra_error | termination_reason 是 infrastructure_error / unexpected_error / user_error |
 | timeout | termination_reason 是 timeout，或单步延迟超阈值 |
 | context_overflow | termination_reason 是 context_window_exceeded |
@@ -281,7 +293,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 
 ### M5 badcase 聚类与优先级
 
-- badcase 定义：outcome 为 fail，或任一维度 ≤ 1 分，且未被 Precheck 打标
+- badcase 定义：outcome 为 fail，或任一维度 ≤ 1 分（safety 更严，≤ 2 分即算失败），且未被 Precheck 打标
 - 特征文本：失败 step 内容 + 工具调用 + 三份 rationale 摘要
 - Embedding 后 HDBSCAN 聚类，min_cluster_size 为 3，噪声点归"其他"
 - 每簇取 2 到 3 条代表交 Jev Choice 贴标签：wrong_tool / wrong_args / missing_confirmation / hallucinated_info / premature_stop / policy_violation / loop
@@ -312,12 +324,23 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | POST | /runs | 启动一次评测 |
-| GET | /runs/{id}/events | SSE 时间线 |
-| GET | /runs/{id}/card | 证据卡片 |
-| GET | /runs/{id}/traces?cluster= | 某簇的 trace 列表 |
-| GET | /traces/{id} | 单条 trace 与三 judge 意见 |
-| POST | /runs/{id}/confirm | PM 选择先修哪类 |
+| GET | /runs | 列出所有 run |
+| GET | /runs/{run_id} | 单个 run 的 manifest 与摘要 |
+| GET | /runs/{run_id}/events | SSE 时间线 |
+| GET | /runs/{run_id}/events.json | 同上的 JSON 快照 |
+| GET | /runs/{run_id}/card | 证据卡片 JSON |
+| GET | /runs/{run_id}/card.html | 证据卡片 HTML |
+| GET | /runs/{run_id}/clusters | 聚类与优先级 |
+| GET | /runs/{run_id}/traces | trace 列表（支持 cluster= 与 failed= 过滤） |
+| GET | /runs/{run_id}/traces/{trace_id} | 单条 trace 与三 judge 意见 |
+| GET | /runs/{run_id}/confirm | 读取 PM 的先修选择 |
+| POST | /runs/{run_id}/confirm | 写入 PM 的先修选择 |
+| GET | /runs/{run_id}/regress | 回归对比 |
 | GET | /dgx | nvidia-smi 采样：显存、利用率、常驻模型 |
+| GET | /health | 健康检查，唯一免 token 的路由 |
+| GET | / | Cockpit 单页 |
+
+这张表由 `scripts/certificate.py` 与 `src/sparkjury/api/app.py` 里注册的路由逐条比对，多写少写都会红。
 
 Cockpit 三栏：左 USER TASK（本轮配置），中 AGENT TIMELINE（状态机进度与每条 trace 流水），右 DGX SPARK（模型显存、GPU 利用率、本地与云端调用计数）。底部 FINAL ARTIFACT 是证据卡片。
 
@@ -325,12 +348,12 @@ Cockpit 三栏：左 USER TASK（本轮配置），中 AGENT TIMELINE（状态�
 
 - 六个 Skill 各一个目录：SKILL.md（名称、触发条件、输入输出、示例命令）+ 调用 CLI 的脚本
 - 按 NVIDIA/skills 仓库格式提交注册，万凌负责签名
-- nat/eval_config.yml 把 sparkjury score 注册为自定义 evaluator，judge 指向本地 vLLM
+- nat/configs/sparkjury_eval.yml 把 sparkjury score 注册为自定义 evaluator，judge 指向本地 vLLM
 - README 说明：NAT 提供轨迹评估与 profiler，SparkJury 补多 judge 仲裁与归因优先级
 
 ### M10 DGX 部署 + τ²-bench 跑数 + 演示数据
 
-- deploy/dgx/start_judges.sh：tmux 三窗口起 vLLM，绑 0.0.0.0，端口 8001 到 8003；对外只暴露 API 端口 9000
+- deploy/dgx/start_judges.sh：tmux 里每个 vLLM 端点一个窗口，全部只绑 127.0.0.1（judge_a 8001、judge_b 8002、embed 8003，agent 8004 可选）；对外只暴露 API 端口 9000
 - deploy/dgx/env.example：StepFun key、Jev key、各 base_url
 - τ²-bench 跑数：tau2 run --domain retail --agent-llm openai/qwen3-8b --num-trials 3，agent 指向本地 vLLM
 - 预跑一份结果打包进 data/samples，断网时直接用
@@ -415,7 +438,7 @@ Cockpit 三栏：左 USER TASK（本轮配置），中 AGENT TIMELINE（状态�
 
 ## 16. 当前进度与验证方法
 
-M1 到 M11 已完成（M10 节点执行、M11 录制待做），98 个 pytest 用例通过。一条命令跑通全流程：
+M1 到 M12 已完成（M10 节点执行、M11 录制待做），122 个 pytest 用例通过。一条命令跑通全流程：
 
 ```
 cd sparkjury
@@ -442,6 +465,15 @@ uv run sparkjury report
 uv run sparkjury regress --before runs/sparkjury.db --after runs/sparkjury.db
 ```
 
-预期：pytest 显示 98 passed；validate_skills 显示 6/6 valid；serve 后浏览器打开 http://127.0.0.1:9000/ 能看到 Cockpit；run --demo 七个阶段全部 ok；report 写出 runs/card/card.html；regress 同库对比为 unchanged；cluster 从 5 条 badcase 聚出簇并给出建议；arbitrate 显示 13 traces x 52 dimensions；precheck 显示 1 条环境失败、13 条进裁判；score 显示 13 traces 156 verdicts 并列出需仲裁的条数；stats 显示 14 条 trace、6 个任务、pass^1 64.3%、pass^3 25.0%；list 列出 5 条失败；show 能看到 AI 两次错误调用 modify_user_address。
+上面这些预期不再靠人眼核对：`uv run python scripts/certificate.py` 会真跑一遍并逐条断言——测试总数、
+validate_skills 显示 6/6 valid、六个技能封装都能真跑通、`run --demo` 七个阶段全部 ok、report 写出
+三个卡片文件、regress 同库对比为 unchanged、cluster 的 badcase 数与簇数、arbitrate 的维度数、
+precheck 的环境失败与进裁判条数、score 的裁决数与 verdict 数、stats 的 trace/任务数与 pass^1、pass^3。
+
+这些数字唯一的真源是 `scripts/certificate.py` 里的 `PIPELINE` 常量，文档不再手抄一遍——手抄的那份
+已经在 96 / 98 / 116 之间漂过。要看当前值就跑证书，它会打印每一条的实测值。
+
+要人看界面和终端的两条，证书不覆盖：serve 后浏览器打开 http://127.0.0.1:9000/ 能看到 Cockpit；
+`show retail_task_002-t1` 能看到 AI 两次错误调用 modify_user_address。
 
 下一步：在 DGX 节点执行 deploy/README.md 的步骤，接真实裁判跑 τ²-bench，补 README 数字与截图，录视频。

@@ -202,7 +202,7 @@ def test_store_and_cli(tmp_path, tau2_path, otel_path):
 
     r = runner.invoke(app, ["score", "--db", str(db), "--json"])
     assert r.exit_code == 0, r.output
-    data = json.loads(r.output)
+    data = json.loads(r.stdout)
     assert data["summary"]["n_traces_scored"] == 13
 
     r = runner.invoke(app, ["score", "--db", str(db)])

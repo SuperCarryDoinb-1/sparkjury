@@ -176,4 +176,4 @@ def test_cli_report_and_regress(before_db, after_db, tmp_path):
 
     r = runner.invoke(app, ["regress", "--before", str(before_db), "--after", str(after_db), "--json"])
     assert r.exit_code == 0, r.output
-    assert json.loads(r.output)["fixed_tasks"][0]["task_id"] == "retail_task_004"
+    assert json.loads(r.stdout)["fixed_tasks"][0]["task_id"] == "retail_task_004"
