@@ -87,13 +87,13 @@ uv run sparkjury precheck --json
   - `OpenAICompatJudge`：任何 OpenAI 兼容接口（DGX 上的 vLLM、StepFun、OpenRouter）。超时、重试可配；输出不是 JSON 时追问一次；后端挂了返回带 error 的 Verdict，绝不抛异常。
   - `MockJudge`：基于规则的裁判，用于离线测试和断网兜底；可加确定性抖动，让 mock 面板也会出现分歧。
 - `judges/heuristics.py`：规则裁判的规则，编码零售客服策略：先认证、先读后写、破坏性操作前要确认、不能编造订单状态、用户反对后不能重复同一写操作。
-- `judges/panel.py`：`PanelConfig`（TOML 或内置 mock 三人组，含 prompt 预算 `transcript_width` / `transcript_max_chars` 与 `include_gold`）、`Panel.score(trace)` 并发跑 3 judge × 4 维，`decide_agreement` 判定一致性：outcome 看三票 pass/fail 是否相同，分数维度看极差是否 ≤ 1，任一 judge 出错即视为不一致。`Panel.arbiter_judges()` 统一挑仲裁人与审计人：审计只用真裁判，面板里没有两个真裁判就跳过审计。
+- `judges/panel.py`：`PanelConfig`（TOML 或内置 mock 三人组，含 prompt 预算 `transcript_width` / `transcript_max_chars` 与 `include_gold`）、`Panel.score(trace)` 并发跑 3 judge × 4 维；并发按裁判定（2026-09-27 改）：`PanelConfig.workers` 是「每个裁判默认几路」（默认 1），`[[panel.judges]] concurrency` 单独覆盖某个裁判，`Panel` 给每个裁判开一个自己的池子、池子之间并行，有效并发写进 manifest 的 `models.judge_concurrency`。改之前是一个全局池子跑所有任务，把两个端点的需求平均掉，最不需要并发的 judge_a 反而被灌最多并发（实测全局 1 路时 3.7/3.0 秒，全局 6 路时 18.9/10.7 秒，墙钟只省 24%），`decide_agreement` 判定一致性：outcome 看三票 pass/fail 是否相同，分数维度看极差是否 ≤ 1，任一 judge 出错即视为不一致。`Panel.arbiter_judges()` 统一挑仲裁人与审计人：审计只用真裁判，面板里没有两个真裁判就跳过审计。
 - `judges/prompts.py` + `models/trace.py`：prompt 预算与金标开关。`build_messages(trace, dim, *, transcript_width=4000, transcript_max_chars=45000, include_gold=False)`；`Trace.transcript(width, max_chars=..., min_width=...)` 超预算时二分收缩每步宽度，保住每条 `[n]` 骨架，连最小宽度都装不下才丢中间步并留 `[... N step(s) omitted ...]` 标记。金标默认不进 prompt——2026-09-27 修复：在此之前三家真裁判都拿到了基准金标，outcome 维度退化成复述。
 - 任务原始要求进 prompt（2026-09-27）：`Trace.task_requirement` 由 tau2 适配器从 `tasks[].user_scenario.instructions.reason_for_call` 填，`build_messages` 与 `Arbiter._state_text` 都带上它。原因：裁判只看对话时拿到的是模拟用户的说法，用户模拟器会把条件说糊、把"如果没有就只换恒温器"说成一句可以被读成同意的话，裁判照对话判就把漂移记在了被测 Agent 头上（实测 retail 30×3 真批里 21 条误判，绝大多数属于这一类）。要求写的是"用户来干什么"，不是答案：`evaluation_criteria.actions`（参考调用清单）与奖励判定都不进任何 prompt，测试里有专门的防泄漏断言。
 - `deploy/judges.example.toml`：三 judge 的真实配置模板（Qwen 本地 8001、Gemma 本地 8002、StepFun API），API key 只从环境变量读。
 - `store/sqlite.py`：新增 `verdicts`、`panel` 两张表，`put_panel_results / get_panel_result / list_panel_results / verdict_summary`。
 - `cli.py`：`sparkjury score [--judges mock|文件.toml] [--dims ...] [--trace ID] [--limit N] [--json]` 和 `sparkjury verdicts <trace_id>`。
-- `tests/test_m3_judges.py`：22 个用例，覆盖 prompt（含"金标默认不进 prompt"、"任务原始要求进 prompt 而参考调用不进"、"预算装不下才丢步且留痕"几条）、JSON 解析、四类坏例的规则打分、LLM 裁判的解析与追问与容错（用桩后端）、一致性规则、TOML 配置、仲裁人与审计人的挑选规则、存储与 CLI。
+- `tests/test_m3_judges.py`：24 个用例，覆盖 prompt（含"金标默认不进 prompt"、"任务原始要求进 prompt 而参考调用不进"、"预算装不下才丢步且留痕"几条）、按裁判开并发（点名的裁判才拿到高并发，判定顺序不变）、JSON 解析、四类坏例的规则打分、LLM 裁判的解析与追问与容错（用桩后端）、一致性规则、TOML 配置、仲裁人与审计人的挑选规则、存储与 CLI。
 
 **自测结果**：`uv run pytest` 32 passed（M1 9 + M2 10 + M3 13）。
 
@@ -135,7 +135,7 @@ uv run sparkjury verdicts retail_task_001-t2
 - `cli.py`：`sparkjury arbitrate [--jev auto|off] [--jev-timeout-s 5] [--judges mock|文件.toml] [--audit-rate 0.05] [--trace ID] [--json]`。Jev 的 key 从环境变量 TYPESAFE_API_KEY 读。
 - `tests/test_m4_arbiter.py`：12 个用例（含「Jev 状态文本带任务原始要求、不带金标」一条）。用假的 HTTP 传输层验证 Jev 请求体和响应解析（含 1 起编号的 legend）；四条决策路径各一个用例：一致取中位数、分歧送 Jev、Jev 失败退本地并标降级、本地也失败退面板中位数；审计抽样的确定性和比例；存储与 CLI。
 
-**自测结果**：`uv run pytest` 293 passed / 3 skipped（M1 9 + M2 13 + M3 22 + M4 12 + …）。
+**自测结果**：`uv run pytest` 296 passed / 3 skipped（M1 10 + M2 13 + M3 24 + M4 12 + …）。
 
 **人工验证步骤**
 
@@ -197,7 +197,7 @@ uv run sparkjury cluster --min-cluster-size 2 --json
 - `models/regress.py` 和 `regress/passk.py`：`compare(before_db, after_db)` 对比两次评测。输出 pass^1 与 pass^k 前后差、哪些任务从 fail 变 pass、哪些从 pass 变 fail、各维度均分变化、badcase 数量变化、每个失败标签的簇大小变化，并给一句结论：improved / improved with regressions / unchanged / regressed。
 - `judges/pairwise.py`：成对比较。同一任务同一 trial 的前后两条记录送裁判比，A/B 顺序交换跑两遍，两遍结论一致才算数，不一致记为 inconsistent。这是针对位置偏差的标准做法。`MockPairwiseJudge` 用规则分数比较，`OpenAIPairwiseJudge` 接真实模型。
 - `cli.py`：`sparkjury report [--out runs/card] [--format all|json|md|html] [--title]` 和 `sparkjury regress --before A.db --after B.db [--pairwise mock|文件.toml] [--out 报告.md] [--json]`。
-- `tests/test_m6_report_regress.py`：18 个用例。卡片的总量和簇内容、三种格式渲染、空库；判准校准（故意把一批裁决写反，卡片要报出与基准 0% 一致、两个通过率互补；库里没有基准时报 0 条）；回归：同库对比为 unchanged、修好一条后为 improved 且列出 retail_task_004、反向对比为 regressed；成对比较的交换一致性，包括一个"永远选 A"的偏见裁判被识别为不一致；CLI。
+- `tests/test_m6_report_regress.py`：19 个用例。卡片的总量和簇内容、三种格式渲染、空库；判准校准（故意把一批裁决写反，卡片要报出与基准 0% 一致、两个通过率互补；库里没有基准时报 0 条）；回归：同库对比为 unchanged、修好一条后为 improved 且列出 retail_task_004、反向对比为 regressed；成对比较的交换一致性，包括一个"永远选 A"的偏见裁判被识别为不一致；CLI。
 
 **自测结果**：`uv run pytest` 59 passed（M1 9 + M2 10 + M3 13 + M4 10 + M5 9 + M6 8）。
 

@@ -21,7 +21,7 @@ step_latency_ms = 120000
 # Judge panel: same shape as deploy/judges.example.toml. Delete this whole block to use mock judges.
 [panel]
 score_tolerance = 1
-workers = 6
+workers = 1            # per-judge concurrency; [[panel.judges]] concurrency overrides it
 
 [[panel.judges]]
 name = "judge_a"

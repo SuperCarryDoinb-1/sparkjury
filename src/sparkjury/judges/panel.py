@@ -29,13 +29,19 @@ class JudgeSpec(BaseModel):
     max_tokens: int = 1200             # room for models that add prose before the JSON
     temperature: float = 0.0
     extra_body: dict = Field(default_factory=dict)  # e.g. {"chat_template_kwargs": {"enable_thinking": false}}
+    concurrency: int = 0               # 单独覆盖「这个裁判同时在飞几个请求」；0 = 跟 [panel] workers
 
 
 class PanelConfig(BaseModel):
     judges: list[JudgeSpec]
     dimensions: list[Dimension] = Field(default_factory=lambda: list(ALL_DIMENSIONS))
     score_tolerance: int = 1           # max-min <= tolerance counts as agreement on score dimensions
-    workers: int = 4
+    # 每个裁判同时在飞的请求数（不是整个面板的总数）。并发只能按裁判定：面板里每个裁判是
+    # 一个独立端点，能扛几路是那个端点的属性。真批 2026-09-27 实测（同 8 条 trace）——
+    # 全局 6 路时 judge_a 单条判定中位 18.9s、judge_b 10.7s；全局 1 路时 3.7s / 3.0s，
+    # 而整段 SCORE 只慢 1.31 倍。原因是 Qwen3-30B-FP8 从 1 路加到 4 路解码只从 24 涨到
+    # 29 tok/s，而 Nemotron-NVFP4 能到 150 tok/s：灌给 judge_a 的并发全变成了延迟。
+    workers: int = 1                   # 默认值，单个裁判可用 concurrency 覆盖
     # Prompt budget. Real tau2 tool results run to ~1000 characters a step, so the old
     # per-step cut of 400 dropped about two thirds of the evidence before a judge saw it;
     # the total budget keeps the biggest trace inside a 16k-context judge (Nemotron).
@@ -111,17 +117,22 @@ def decide_agreement(verdicts: Sequence[Verdict], dimension: Dimension, toleranc
 
 class Panel:
     def __init__(self, judges: Sequence[Judge], dimensions: Sequence[Dimension] | None = None,
-                 *, score_tolerance: int = 1, workers: int = 4):
+                 *, score_tolerance: int = 1, workers: int = 1,
+                 concurrency: dict[str, int] | None = None):
         if len(judges) < 2:
             raise ValueError("a panel needs at least two judges")
         self.judges = list(judges)
         self.dimensions = list(dimensions or ALL_DIMENSIONS)
         self.score_tolerance = score_tolerance
         self.workers = max(1, workers)
+        # 每个裁判一个池子，键是裁判名；没点名的按 workers 走
+        self.concurrency = {j.name: max(1, (concurrency or {}).get(j.name, self.workers)) for j in self.judges}
 
     @classmethod
     def from_config(cls, cfg: PanelConfig) -> "Panel":
-        return cls(build_judges(cfg), cfg.dimensions, score_tolerance=cfg.score_tolerance, workers=cfg.workers)
+        over = {s.name: s.concurrency for s in cfg.judges if s.concurrency > 0}
+        return cls(build_judges(cfg), cfg.dimensions, score_tolerance=cfg.score_tolerance,
+                   workers=cfg.workers, concurrency=over)
 
     def arbiter_judges(self) -> tuple[Judge | None, Judge | None]:
         """(local arbiter, audit judge) for this panel — one place, so no caller picks wrong.
@@ -142,14 +153,24 @@ class Panel:
         return local, audit
 
     def score(self, trace: Trace) -> PanelResult:
-        jobs = [(j, d) for d in self.dimensions for j in self.judges]
-        if self.workers == 1:
-            verdicts = [j.score(trace, d) for j, d in jobs]
-        else:
-            with ThreadPoolExecutor(max_workers=self.workers) as ex:
-                verdicts = list(ex.map(lambda jd: jd[0].score(trace, jd[1]), jobs))
+        """每个裁判一个池子，池子之间并行，池子大小 = 那个端点能扛的并发。
+
+        以前是一个全局池子跑 dims × judges 个任务，等于把两个端点的需求平均掉，最不需要
+        并发的那个裁判反而被灌了最多并发（见 PanelConfig.workers 的实测数字）。
+        """
+        with ThreadPoolExecutor(max_workers=len(self.judges)) as outer:
+            futs = [outer.submit(self._score_one, j, trace) for j in self.judges]
+            per_judge = [f.result() for f in futs]
+        verdicts = [per_judge[i][d] for d in self.dimensions for i in range(len(self.judges))]
         agreement = [decide_agreement(verdicts, d, self.score_tolerance) for d in self.dimensions]
         return PanelResult(trace_id=trace.trace_id, verdicts=verdicts, agreement=agreement)
+
+    def _score_one(self, judge: Judge, trace: Trace) -> dict[Dimension, Verdict]:
+        n = self.concurrency.get(judge.name, 1)
+        if n == 1:
+            return {d: judge.score(trace, d) for d in self.dimensions}
+        with ThreadPoolExecutor(max_workers=n) as ex:
+            return dict(zip(self.dimensions, ex.map(lambda d: judge.score(trace, d), self.dimensions)))
 
     def score_many(self, traces: Iterable[Trace], on_result=None) -> list[PanelResult]:
         out: list[PanelResult] = []

@@ -213,7 +213,12 @@ class Orchestrator:
             if drop:
                 judges = [j for i, j in enumerate(judges) if i not in failed]
         self.manifest["models"]["judges"] = {j.name: j.model for j in judges}
-        return Panel(judges, cfg.dimensions, score_tolerance=cfg.score_tolerance, workers=cfg.workers)
+        # 每个裁判同时在飞几个请求是分裁判定的（见 PanelConfig.workers 的实测），
+        # 写进 manifest 才看得出配置有没有生效
+        panel = Panel(judges, cfg.dimensions, score_tolerance=cfg.score_tolerance, workers=cfg.workers,
+                      concurrency={s.name: s.concurrency for s in cfg.judges if s.concurrency > 0})
+        self.manifest["models"]["judge_concurrency"] = dict(panel.concurrency)
+        return panel
 
     def _score(self) -> dict[str, Any]:
         assert self._store

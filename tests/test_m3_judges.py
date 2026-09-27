@@ -321,3 +321,54 @@ def test_parse_verdict_json_repairs_common_slips():
     d = parse_verdict_json('{"score": 3, "rationale": "line one\nline two", "evidence_steps": [1]}')
     assert d["score"] == 3 and "line one" in d["rationale"]
     assert parse_verdict_json('{“score”: 4, “rationale”: “smart quotes”}')["score"] == 4
+
+
+class _CountingJudge:
+    """记录自己同时在飞几个请求的假裁判。"""
+
+    def __init__(self, name: str, delay: float = 0.05):
+        self.name, self.model, self.delay = name, f"{name}-model", delay
+        self.inflight = self.peak = 0
+
+    def score(self, trace, dimension):
+        import time
+        self.inflight += 1
+        self.peak = max(self.peak, self.inflight)
+        try:
+            time.sleep(self.delay)
+        finally:
+            self.inflight -= 1
+        return Verdict(trace_id=trace.trace_id, judge=self.name, dimension=dimension,
+                       model=self.model, score=4, label="pass")
+
+
+def test_each_judge_gets_its_own_concurrency(traces):
+    """并发按裁判定，不是一个池子跑全面板。
+
+    真批实测：全局 6 路时 judge_a 单条中位 18.9s（它从 1 路加到 4 路解码只从 24 涨到
+    29 tok/s），judge_b 10.7s（NVFP4 能到 150 tok/s）；全局 1 路时 3.7s / 3.0s，而整段
+    SCORE 只慢 1.31 倍。所以 judge_a 该留在 1 路，judge_b 才值得开高。
+    """
+    a, b = _CountingJudge("judge_a"), _CountingJudge("judge_b")
+    panel = Panel([a, b], workers=1, concurrency={"judge_b": 4})
+    r = panel.score(traces["retail_task_001-t2"])
+    assert a.peak == 1 and b.peak == 4          # 高并发只给了点名的那个
+    assert panel.concurrency == {"judge_a": 1, "judge_b": 4}
+    # 判定顺序仍是「按维度、按裁判」，和单池时代一致，下游不该看出区别
+    assert [v.dimension for v in r.verdicts] == [d for d in panel.dimensions for _ in panel.judges]
+    assert [v.judge for v in r.verdicts[:2]] == ["judge_a", "judge_b"]
+
+
+def test_panel_config_lets_one_judge_override_the_default(tmp_path):
+    p = tmp_path / "judges.toml"
+    p.write_text('[panel]\nworkers = 1\n'
+                 '[panel.judges]\nname = "judge_a"\nkind = "mock"\n'
+                 '[[panel.judges]]\nname = "judge_b"\nkind = "mock"\nconcurrency = 3\n'.replace(
+                     '[panel.judges]\nname = "judge_a"\nkind = "mock"\n',
+                     '[[panel.judges]]\nname = "judge_a"\nkind = "mock"\n'), encoding="utf-8")
+    cfg = PanelConfig.from_toml(p)
+    assert [s.concurrency for s in cfg.judges] == [0, 3]
+    assert Panel.from_config(cfg).concurrency == {"judge_a": 1, "judge_b": 3}
+    # 没写 concurrency 的裁判跟面板默认走
+    cfg2 = PanelConfig.model_validate({"workers": 2, "judges": [{"name": "x"}, {"name": "y"}]})
+    assert Panel.from_config(cfg2).concurrency == {"x": 2, "y": 2}
