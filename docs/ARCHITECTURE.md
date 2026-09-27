@@ -236,7 +236,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 | M2 | Precheck 假 badcase 打标 | P0 | 已完成，10 个用例 | `sparkjury-clean`（预检那半） |
 | M3 | 三裁判面板 | P0 | 已完成，15 个用例 | `sparkjury-score` |
 | M4 | 仲裁与审计 | P0 | 已完成，10 个用例 | `sparkjury-score` |
-| M5 | badcase 聚类与优先级 | P0 | 已完成，10 个用例 | `sparkjury-cluster` |
+| M5 | badcase 聚类与优先级 | P0 | 已完成，11 个用例 | `sparkjury-cluster` |
 | M6 | 证据卡片 + 回归对比 | P0 | 已完成，16 个用例 | `sparkjury-report` + `sparkjury-regress` |
 | M7 | Harness 编排器 | P0 | 已完成，10 个用例 | 六个技能调的都是它的 CLI |
 | M8 | API + Agent Cockpit | 后端 P0 / 前端 P1 | 后端与兜底页已完成，13 个用例 | 不对应：读产物、触发 run |
@@ -363,7 +363,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 
 请求里的路径一律先归位再用，越界报 400：`run_id` 只能是单层目录名（`RunManager.run_dir()` 是所有读写的公共出口），`db` 必须落在 `runs_dir` 之内（否则 `reset_db` 的 `unlink()` 会作用到宿主机上任意一个文件），`config_path` 必须落在服务进程工作目录之内。没配 token 时只服务回环来的请求；`sparkjury serve` 绑公网又不给 token 会直接拒绝启动，`deploy/dgx/start_judges.sh` 在起 tmux 之前就把这种情况拦掉。
 
-卡片上的动作是决策事件的生产端：`POST /runs/{run_id}/decision` 收 `accept_card / override_priority / reject_proposal`，写 append-only 的 `governance/events.jsonl`（`contracts/event-ledger.schema.json` 的形状）。`override_priority` 必须带 `taxonomy_id`（pack 类目 id）和 `to_rank`，缺了会被治理层判 unmatched、排序不会变，所以服务端直接拒掉。簇标签到类目的映射表在 `standards/label-taxonomy-map.yaml`（pack 已冻结，映射只能放在 pack 之外）；响应里的每个簇会带一个 `taxonomy_id`，落盘文件不加字段。
+卡片上的动作是决策事件的生产端：`POST /runs/{run_id}/decision` 收 `accept_card / override_priority / reject_proposal`，写 append-only 的 `governance/events.jsonl`（`contracts/event-ledger.schema.json` 的形状）。`override_priority` 必须带 `taxonomy_id`（pack 类目 id）和 `to_rank`，缺了会被治理层判 unmatched、排序不会变，所以服务端直接拒掉。簇标签到类目的映射优先读 pack 的 `taxonomy.yaml`（v0.2 起每个类自带 `runtime_label`），pack 还没有该字段时兜底用 `standards/label-taxonomy-map.yaml`（pack 已冻结，兜底表只能放在 pack 之外）；响应里的每个簇会带一个 `taxonomy_id`，落盘文件不加字段。
 
 Cockpit 三栏：左 USER TASK（本轮配置），中 AGENT TIMELINE（状态机进度与每条 trace 流水），右 DGX SPARK（模型显存、GPU 利用率、本地与云端调用计数）。底部 FINAL ARTIFACT 是证据卡片。
 
@@ -512,7 +512,7 @@ durable 那一段：
 
 ## 17. 当前进度与验证方法
 
-M1 到 M13 已完成（M10 节点执行、M11 录制待做），276 个 pytest 用例通过。一条命令跑通全流程：
+M1 到 M13 已完成（M10 节点执行、M11 录制待做），277 个 pytest 用例通过。一条命令跑通全流程：
 
 ```
 cd sparkjury

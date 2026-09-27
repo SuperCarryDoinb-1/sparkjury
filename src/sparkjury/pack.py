@@ -127,11 +127,30 @@ def regress_policy(pack: str | Path | None = None) -> dict[str, Any]:
     return pol
 
 
-def label_category_map(path: str | Path | None = None) -> dict[str, str]:
-    """失败标签 -> 类目 id（F\\d\\d）。
+def pack_label_map(pack: str | Path | None = None) -> dict[str, str]:
+    """pack 自带的 `runtime_label` 映射（pack v0.2 起）：`taxonomy.yaml` 的
+    `categories[].runtime_label` -> `id`。
 
-    这张表不能放进 pack：pack 已 FROZEN，加一个键就会改 frozen_hash。它落在
-    `standards/label-taxonomy-map.yaml`（pack 目录之外），内容由 pack 层确认后再考虑收进 pack。
+    v0.2 的 taxonomy 头里写得很清楚：「消费方凭 runtime_label 自动翻译，不再需要手工映射表」。
+    所以有它就用它——pack 是标准的真源，运行时不该再维护一份自己的翻译表。
+    """
+    data = _read_yaml_cached(str(pack_dir(pack) / "taxonomy.yaml"))
+    cats = data.get("categories")
+    if not isinstance(cats, list):
+        return {}
+    out: dict[str, str] = {}
+    for c in cats:
+        if isinstance(c, dict) and c.get("runtime_label") and c.get("id"):
+            out[str(c["runtime_label"])] = str(c["id"])
+    return out
+
+
+def label_category_map(path: str | Path | None = None) -> dict[str, str]:
+    """兜底映射：失败标签 -> 类目 id（F\\d\\d），来自 `standards/label-taxonomy-map.yaml`。
+
+    pack v0.2 起 taxonomy 自带 `runtime_label`，那条路优先级更高（见 `category_for_label`）；
+    这张表是 pack 还没有该字段时的兜底（也是 `other` 这类 pack 没给 runtime_label 的标签的去处）。
+    它落在 pack 目录之外，因为 pack 已 FROZEN：往里加一个键就会改 frozen_hash。
     """
     data = dict(_read_yaml_cached(str(label_map_path(path))))
     mapping = data.get("map")
@@ -140,11 +159,16 @@ def label_category_map(path: str | Path | None = None) -> dict[str, str]:
     return {str(k): str(v) for k, v in mapping.items()}
 
 
-def category_for_label(label: str | None, path: str | Path | None = None) -> str | None:
-    """一个失败标签对应的 pack 类目；没映射给 None（调用方负责说清「会判 unmatched」）。"""
+def category_for_label(label: str | None, path: str | Path | None = None, pack: str | Path | None = None) -> str | None:
+    """一个失败标签对应的 pack 类目；没映射给 None（调用方负责说清「会判 unmatched」）。
+
+    顺序：pack 的 `runtime_label`（v0.2 起是权威）→ `standards/label-taxonomy-map.yaml`（pack 还没有
+    这个字段时的兜底，也是 `other` 这类没有 runtime_label 的标签的去处）。
+    """
     if not label:
         return None
-    return label_category_map(path).get(str(label))
+    lab = str(label)
+    return pack_label_map(pack).get(lab) or label_category_map(path).get(lab)
 
 
 def clear_cache() -> None:
