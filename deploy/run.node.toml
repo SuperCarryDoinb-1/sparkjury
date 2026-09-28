@@ -45,6 +45,10 @@ base_url = "https://api.stepfun.com/v1"
 api_key_env = "STEPFUN_API_KEY"
 timeout_s = 60
 concurrency = 4            # 云端，不占本地 GPU，瓶颈是网络往返
+# step-3.7-flash 是思维模型：输出预算被推理吃光时 content 是空串，判定直接废掉。真批实测
+# （max_tokens=1200、同一条 prompt 重跑 8 次）：6 次 content 0 字、finish_reason=length，
+# 8 条 trace 的 32 个维度废掉 17 个；给到 4000 后 32 个维度只剩 1 个失手，单次中位 5.2 秒。
+max_tokens = 4000
 [arbiter]
 jev = "auto"
 audit_rate = 0.1

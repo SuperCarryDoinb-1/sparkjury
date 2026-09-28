@@ -62,6 +62,8 @@ class OpenAICompatJudge:
         self.include_gold = include_gold
         # 提示词超出裁判上下文时把 transcript 预算减半重问几次（见 score）。
         self.shrink_retries = shrink_retries
+        # 上一次 _chat 为什么停下来："length" 是被 token 上限截断，"stop" 是自然写完
+        self._last_finish_reason: str | None = None
         self._client = OpenAI(base_url=base_url, api_key=api_key or os.environ.get("OPENAI_API_KEY") or "EMPTY",
                               timeout=timeout_s, max_retries=max_retries)
 
@@ -88,6 +90,18 @@ class OpenAICompatJudge:
         text = f"{type(err).__name__}: {err}".lower()
         return any(m in text for m in self.CONTEXT_ERROR_MARKERS)
 
+    def _bigger_budget(self) -> int:
+        """被截断或空答案之后该用的预算：原样再问一遍等于再截一次，4 倍才够（上限 8000）。"""
+        return min(self.max_tokens * self.EMPTY_ANSWER_MULTIPLIER, self.EMPTY_ANSWER_MAX_TOKENS)
+
+    # 思维模型的输出预算被推理吃光时，content 会是空串（OpenAI 兼容接口把推理放在
+    # reasoning_content 里，我们只读 content）。真批实测（step-3.7-flash、max_tokens=1200、
+    # 同一条 prompt 重跑 8 次）：6 次整段输出都花在推理上、content 0 字、finish_reason=length，
+    # 三十二个维度里十七个因此废掉；预算给到 4000 后同样 8 次里 8 次都拿到 JSON，三十二个
+    # 维度只剩一个失手。空答案重问一次（加大预算）比原样再问一遍有用得多。
+    EMPTY_ANSWER_MULTIPLIER = 4
+    EMPTY_ANSWER_MAX_TOKENS = 8000
+
     def score(self, trace: Trace, dimension: Dimension) -> Verdict:
         t0 = time.perf_counter()
         budget = self.transcript_max_chars
@@ -100,6 +114,10 @@ class OpenAICompatJudge:
             raw = None
             try:
                 raw = self._chat(messages)
+                if not raw.strip():
+                    # 一个字都没输出：不是 JSON 写坏了，是预算不够写不完。原样再问一遍没用
+                    # （真批上这种空答案重问后仍然为空），加大预算才是对症的那一下。
+                    raw = self._chat(messages, max_tokens=self._bigger_budget())
                 data = parse_verdict_json(raw)
                 break
             except Exception as e:  # noqa: BLE001 - any backend/parse failure becomes an errored verdict
@@ -112,12 +130,16 @@ class OpenAICompatJudge:
                 # one nudge retry for malformed JSON
                 if raw is not None:
                     try:
+                        # 上一句是被 token 上限截断的，就加大预算再问：原预算只会截在同一个地方
+                        # （上面那一处管「一个字都没出来」，这里管「有内容但 JSON 没写完」）。
+                        bump = self._bigger_budget() if self._last_finish_reason == "length" else None
                         raw2 = self._chat(messages + [
                             {"role": "assistant", "content": raw},
                             {"role": "user", "content": "Output only the JSON object described in the instructions."},
-                        ])
-                        data = parse_verdict_json(raw2)
+                        ], max_tokens=bump)
+                        # 先记下来再解析：解析再失败时留的是模型最后说的那句，不是上一句
                         raw = raw2
+                        data = parse_verdict_json(raw2)
                         break
                     except Exception as e2:  # noqa: BLE001
                         return self._errored(trace, dimension, f"{type(e2).__name__}: {e2}", raw, t0)
@@ -142,12 +164,15 @@ class OpenAICompatJudge:
             latency_ms=(time.perf_counter() - t0) * 1000, raw=raw, **data,
         )
 
-    def _chat(self, messages: list[dict[str, str]]) -> str:
+    def _chat(self, messages: list[dict[str, str]], max_tokens: int | None = None) -> str:
         resp = self._client.chat.completions.create(
             model=self.model, messages=messages, temperature=self.temperature,
-            max_tokens=self.max_tokens, extra_body=self.extra_body or None,
+            max_tokens=max_tokens or self.max_tokens, extra_body=self.extra_body or None,
         )
-        return resp.choices[0].message.content or ""
+        choice = resp.choices[0]
+        # 记下这次为什么停：被截断（length）和自然写完（stop）要用不同的预算重问
+        self._last_finish_reason = getattr(choice, "finish_reason", None)
+        return choice.message.content or ""
 
     def _errored(self, trace: Trace, dimension: Dimension, err: str, raw: str | None, t0: float) -> Verdict:
         return Verdict(trace_id=trace.trace_id, judge=self.name, model=self.model, dimension=dimension,

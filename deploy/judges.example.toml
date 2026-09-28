@@ -40,6 +40,9 @@ model = "step-3.7-flash"
 base_url = "https://api.stepfun.com/v1"
 api_key_env = "STEPFUN_API_KEY"
 timeout_s = 60
+# step-3.7-flash 是思维模型，思考文本也占输出预算：默认 1200 会被思考吃满、content 截空，
+# 判定报 no JSON object（节点实测 8 条 trace 的 32 个维度废掉 17 个，给到 4000 只剩 1 个）。
+max_tokens = 4000
 
 # Offline / demo fallback: replace any judge above with a mock one
 # [[panel.judges]]
