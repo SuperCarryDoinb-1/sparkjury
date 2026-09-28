@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SparkJury 评测驾驶舱</title>
-<meta name="description" content="SparkJury Agent Cockpit：读入 trace，三位裁判打分，分歧仲裁，badcase 聚类，证据卡片让人拍板，改完回归对比。">
+<meta name="description" content="SparkJury Agent Cockpit：读入 trace，三位裁判打分，分歧仲裁，badcase 聚类，证据卡片交由人工确认，修复后回归对比。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%274%27 fill=%27%23111111%27/%3E%3C/svg%3E">
 <style>
 /* 视觉语言：白底、细灰线、黑色主按钮、等宽粗体大数字，绿正红负。
@@ -262,8 +262,8 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     </ul>
   </nav>
   <div class="side-bottom">
-    <label for="actor">拍板人（决策账本署名）</label>
-    <input id="actor" placeholder="你的名字" autocomplete="off">
+    <label for="actor">决策人（记入决策账本）</label>
+    <input id="actor" placeholder="姓名" autocomplete="off">
     <div class="side-status" id="status">空闲</div>
     <button class="theme-btn" id="themeBtn">切换深色 / 浅色</button>
   </div>
@@ -276,7 +276,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     <span class="st" id="tbStatus">—</span>
     <span class="tb-meta" id="tbMeta"></span>
   </div>
-  <button id="btnDemo" class="btn pri">▷ 跑一次离线演示</button>
+  <button id="btnDemo" class="btn pri">▷ 执行离线演示</button>
 </header>
 
 <div class="content">
@@ -296,45 +296,45 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
 
 <div class="sec-h">一、评测总览</div>
 <div class="kpis">
-  <div class="kpi"><div class="lab">trace 总数</div><div class="val" id="cTraces">—</div><div class="sub">环境失败排除 <b id="cEnv">—</b> · 可评分 <b id="cScorable">—</b></div><div class="note">环境的错不算 Agent 的，预检阶段排除</div></div>
-  <div class="kpi good"><div class="lab">pass^1 通过率</div><div class="val" id="cPass">—</div><div class="sub">pass^3 <b id="cPassK">—</b> · 基准通过 <b id="cBench">—</b></div><div class="note" id="cPassNote">pass^3 要求同一任务三次全过</div></div>
-  <div class="kpi bad"><div class="lab">badcase</div><div class="val" id="cBad">—</div><div class="sub">聚成 <b id="cClusters">—</b> 簇 · 占可评分 <b id="cBadRate">—</b></div><div class="note">裁判判失败且不是环境原因的 trace</div></div>
-  <div class="kpi"><div class="lab">裁判一致率</div><div class="val" id="cAgree">—</div><div class="sub">进入仲裁 <b id="cArb">—</b> 条 · 降级 <b id="cDeg">—</b> 次</div><div class="note" id="cAgreeNote">三票一致的不用仲裁</div></div>
+  <div class="kpi"><div class="lab">trace 总数</div><div class="val" id="cTraces">—</div><div class="sub">环境失败排除 <b id="cEnv">—</b> · 可评分 <b id="cScorable">—</b></div><div class="note">环境故障由预检阶段排除，不计入 Agent 评分</div></div>
+  <div class="kpi good"><div class="lab">pass^1 通过率</div><div class="val" id="cPass">—</div><div class="sub">pass^3 <b id="cPassK">—</b> · 基准通过 <b id="cBench">—</b></div><div class="note" id="cPassNote">pass^k：同一任务 k 次试验全部通过</div></div>
+  <div class="kpi bad"><div class="lab">badcase</div><div class="val" id="cBad">—</div><div class="sub">聚成 <b id="cClusters">—</b> 簇 · 占可评分 <b id="cBadRate">—</b></div><div class="note">裁判判定失败且已排除环境原因的 trace</div></div>
+  <div class="kpi"><div class="lab">裁判一致率</div><div class="val" id="cAgree">—</div><div class="sub">进入仲裁 <b id="cArb">—</b> 条 · 降级 <b id="cDeg">—</b> 次</div><div class="note" id="cAgreeNote">三票一致的维度不进入仲裁</div></div>
 </div>
 
 <div class="two w" style="margin-top:14px">
   <div class="card">
     <p class="ct">裁决来源分布</p>
-    <p class="cs" id="srcSub">按维度计：每条 trace 四个维度各出一个裁决</p>
+    <p class="cs" id="srcSub">按维度统计：每条 trace 的四个维度各产生一个裁决</p>
     <div class="donut-wrap"><div id="donut"></div><div class="legend" id="srcLegend"><div class="empty">—</div></div></div>
   </div>
   <div class="card flush">
-    <div class="chead"><p class="ct">失败维度分布</p><p class="cs">按 badcase 命中的维度切分，一条 badcase 可同时命中多维，四项之和可能超过 100%</p></div>
+    <div class="chead"><p class="ct">失败维度分布</p><p class="cs">按 badcase 命中的维度统计；一条 badcase 可命中多个维度，各项占比之和可能超过 100%</p></div>
     <div class="cols" id="dimCols"></div>
     <div class="cfoot" id="dimFoot"><span class="empty">四个维度的平均分（0–4）：—</span></div>
   </div>
 </div>
 
-<div class="sec-h">二、badcase 情况 <small>只与裁判判失败的 trace 条数有关，与基准结果无关</small></div>
+<div class="sec-h">二、badcase 情况 <small>统计口径为裁判判定失败的 trace 条数，与基准结果无关</small></div>
 <div class="two w">
   <div class="card flush">
     <div class="chead"><p class="ct">badcase 规模</p></div>
     <div class="bignums"><div><div class="lab">badcase 条数</div><div class="val" id="bBad">—</div></div><div><div class="lab">badcase 率</div><div class="val" id="bRate">—</div></div></div>
-    <div class="subrow"><span>簇<b id="bClusters">—</b></span><span>噪声<b id="bNoise">—</b></span><span>当事人仲裁成立<b id="bContested">—</b></span><span>被预检提示<b id="bAdv">—</b></span></div>
+    <div class="subrow"><span>簇<b id="bClusters">—</b></span><span>噪声<b id="bNoise">—</b></span><span>经当事人仲裁成立<b id="bContested">—</b></span><span>预检提示<b id="bAdv">—</b></span></div>
   </div>
   <div class="card flush">
-    <div class="chead"><p class="ct">失败归因</p><p class="cs">按失败类型聚簇，用于定位共性问题；点一行进簇明细</p></div>
-    <div class="bars" id="clusterBars"><div class="empty" style="padding:10px 0">还没有聚类结果</div></div>
+    <div class="chead"><p class="ct">失败归因</p><p class="cs">按失败类型聚簇，用于定位共性问题；点击可查看簇明细</p></div>
+    <div class="bars" id="clusterBars"><div class="empty" style="padding:10px 0">暂无聚类结果</div></div>
   </div>
 </div>
 </section>
 
 <section id="s4">
-  <div class="sec-h">三、证据卡片 <small>最终产物：先修哪一类，由 PM 拍板；决策写进账本</small></div>
-  <div class="card"><div id="card"><div class="empty">还没有卡片</div></div></div>
+  <div class="sec-h">三、证据卡片 <small>最终产物：由 PM 确认优先修复的失败类型，决策记入账本</small></div>
+  <div class="card"><div id="card"><div class="empty">暂无卡片</div></div></div>
 </section>
 
-<div class="sec-h">四、运行 <small>七个阶段依次亮起；点带 trace 编号的行可查看三位裁判的理由</small></div>
+<div class="sec-h">四、运行 <small>七个阶段按顺序点亮；点击带 trace 编号的事件可查看三位裁判的理由</small></div>
 <div class="row-run">
 <section id="s2" class="card">
   <p class="ct">Agent 时间线</p>
@@ -363,7 +363,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
 </div>
 
 <section id="s5">
-  <div class="sec-h">五、检查台 <small>以前要切终端才能看的三样，都搬到了这里</small></div>
+  <div class="sec-h">五、检查台 <small>裁判理由并排、簇明细下钻、回归对比</small></div>
   <div class="card flush" id="inspector">
     <div class="tabs">
       <button class="tab on" data-tab="verdicts">裁判理由并排<em>Verdicts</em></button>
@@ -376,10 +376,10 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
         <button id="trPrev" class="btn sm" title="上一条">‹</button><button id="trNext" class="btn sm" title="下一条">›</button>
         <span id="trMeta" class="empty"></span>
       </div>
-      <div id="verdicts"><div class="empty">选一条 trace，或者点时间线里带 trace 编号的行</div></div>
+      <div id="verdicts"><div class="empty">请选择一条 trace，或点击时间线中带 trace 编号的事件</div></div>
     </div>
     <div id="pane-clusters" class="pane" style="display:none">
-      <div id="clusters"><div class="empty">还没有聚类结果</div></div>
+      <div id="clusters"><div class="empty">暂无聚类结果</div></div>
     </div>
     <div id="pane-regress" class="pane" style="display:none">
       <div class="bar-row">
@@ -387,7 +387,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
         <span class="lab">改后</span><b id="rgAfter" style="font-weight:500">—</b>
         <button id="rgGo" class="btn pri sm">对比</button>
       </div>
-      <div id="regress"><div class="empty">选一个更早的运行，和当前运行对比</div></div>
+      <div id="regress"><div class="empty">请选择一次更早的运行，与当前运行对比</div></div>
     </div>
   </div>
 </section>
@@ -406,16 +406,16 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
   const KIND_ZH={run_start:"开始",run_end:"结束",stage_start:"阶段",stage_end:"完成",progress:"进度",degraded:"降级",warning:"警告",error:"错误"};
   const DIMS=["outcome","tool_use","efficiency","safety"];
   const DIM_ZH={outcome:"结果",tool_use:"工具使用",efficiency:"效率",safety:"安全"};
-  const DIM_DESC={outcome:"任务目标有没有达成",tool_use:"该调的工具有没有调对",efficiency:"步数与重复调用",safety:"未验证身份就写、越权"};
-  const SRC_ZH={panel:"合议一致",jev:"云端 Jev 仲裁",local:"本地仲裁",panel_fallback:"本地兜底"};
+  const DIM_DESC={outcome:"任务目标达成情况",tool_use:"工具选择与调用的正确性",efficiency:"步数与重复调用开销",safety:"未验证身份的写操作与越权行为"};
+  const SRC_ZH={panel:"合议一致",jev:"云端 Jev 仲裁",local:"本地仲裁",panel_fallback:"本地回退"};
   const SRC_COLOR={panel:"var(--ink)",jev:"var(--cloud)",local:"var(--faint)",panel_fallback:"var(--bad)"};
-  const VERDICT_ZH={improved:"改善",regressed:"退步",mixed:"有好有坏",unchanged:"无变化"};
+  const VERDICT_ZH={improved:"改善",regressed:"退步",mixed:"互有升降",unchanged:"无变化"};
   const LABEL_ZH={pass:"通过",fail:"失败"};
   let current=null, es=null, pollTimer=null, stageState={}, runsCache=[];
   // 主题：跟随系统，按钮手动切换后记在浏览器里
   try{const th=localStorage.getItem("sparkjury_theme");if(th)document.documentElement.setAttribute("data-theme",th);}catch(e){}
   $("themeBtn").onclick=()=>{const cur=document.documentElement.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");const next=cur==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",next);try{localStorage.setItem("sparkjury_theme",next);}catch(e){}};
-  // 拍板人：账本里的每一条决策都要能追溯到人，空着后端直接 400。存在 localStorage 里，不用每次填。
+  // 决策人：账本里的每一条决策都要能追溯到人，空着后端直接 400。存在 localStorage 里，免得每次填。
   try{$("actor").value=localStorage.getItem("sj_actor")||"";}catch(e){}
   $("actor").onchange=()=>{try{localStorage.setItem("sj_actor",$("actor").value.trim());}catch(e){}};
   // API token: ?token=... in the URL once, then remembered in this browser; fetches send it as a Bearer header, only EventSource uses the query param
@@ -424,7 +424,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
   const withTok=u=>TOKEN?u+(u.includes("?")?"&":"?")+"token="+enc(TOKEN):u;
   // Requests go through one queue (the public gateway serves few concurrent connections) and retry once on 502/503/504.
   let chain=Promise.resolve();
-  const j=(u,o)=>{const run=async()=>{for(let attempt=0;attempt<2;attempt++){const opts=Object.assign({},o||{});opts.headers=Object.assign({},(o&&o.headers)||{},TOKEN?{Authorization:"Bearer "+TOKEN}:{});const r=await fetch(u,opts);if(r.status===401){$("status").textContent="401：在地址后面加 ?token=<SPARKJURY_API_TOKEN>";throw new Error("unauthorized");}if(r.ok)return r.json();if(![502,503,504].includes(r.status)||attempt)throw new Error(u+" "+r.status);await new Promise(res=>setTimeout(res,600));}};const p=chain.then(run,run);chain=p.catch(()=>{});return p;};
+  const j=(u,o)=>{const run=async()=>{for(let attempt=0;attempt<2;attempt++){const opts=Object.assign({},o||{});opts.headers=Object.assign({},(o&&o.headers)||{},TOKEN?{Authorization:"Bearer "+TOKEN}:{});const r=await fetch(u,opts);if(r.status===401){$("status").textContent="401：请在地址后附加 ?token=<SPARKJURY_API_TOKEN>";throw new Error("unauthorized");}if(r.ok)return r.json();if(![502,503,504].includes(r.status)||attempt)throw new Error(u+" "+r.status);await new Promise(res=>setTimeout(res,600));}};const p=chain.then(run,run);chain=p.catch(()=>{});return p;};
   const pct=v=>v==null?"—":(v*100).toFixed(1)+"%";
   const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const num=(v,d)=>v==null?"—":(+v).toFixed(d==null?2:d);
@@ -456,8 +456,8 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     for(const k of keys){const v=+bs[k]||0;if(!v)continue;const len=C*v/total;paths+=`<circle r="${R}" cx="70" cy="70" fill="none" style="stroke:${SRC_COLOR[k]||"var(--warn)"}" stroke-width="20" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"/>`;off+=len;}
     const share=total?(bs.panel||0)/total:null;
     $("donut").innerHTML=`<svg viewBox="0 0 140 140" width="150" height="150" role="img" aria-label="裁决来源分布">${total?paths:`<circle r="${R}" cx="70" cy="70" fill="none" style="stroke:var(--line)" stroke-width="20"/>`}<text x="70" y="66" text-anchor="middle" class="dn">${share==null?"—":(share*100).toFixed(1)+"%"}</text><text x="70" y="84" text-anchor="middle" class="ds">合议一致</text></svg>`;
-    $("srcLegend").innerHTML=total?keys.map(k=>`<div><i style="background:${SRC_COLOR[k]||"var(--warn)"}"></i><span style="color:var(--ink);font-family:var(--sans)">${esc(SRC_ZH[k]||k)}</span><b>${((+bs[k]||0)/total*100).toFixed(1)}%</b><span>${bs[k]} 个</span></div>`).join(""):`<div class="empty">还没有裁决</div>`;
-    $("srcSub").textContent=total?`按维度计：${total} 个裁决 = ${total/4} 条 trace × 4 维`:"按维度计：每条 trace 四个维度各出一个裁决";
+    $("srcLegend").innerHTML=total?keys.map(k=>`<div><i style="background:${SRC_COLOR[k]||"var(--warn)"}"></i><span style="color:var(--ink);font-family:var(--sans)">${esc(SRC_ZH[k]||k)}</span><b>${((+bs[k]||0)/total*100).toFixed(1)}%</b><span>${bs[k]} 个</span></div>`).join(""):`<div class="empty">暂无裁决</div>`;
+    $("srcSub").textContent=total?`按维度统计：${total} 个裁决 = ${total/4} 条 trace × 4 维`:"按维度统计：每条 trace 的四个维度各产生一个裁决";
   }
   function setDims(counts,nBad,means){
     counts=counts||{};
@@ -467,14 +467,14 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
   function resetOverview(){
     ["cTraces","cEnv","cScorable","cPass","cPassK","cBench","cBad","cClusters","cBadRate","cAgree","cArb","cDeg","bBad","bRate","bClusters","bNoise","bContested","bAdv"].forEach(id=>setText(id,"—"));
     $("cCloudNote").textContent="";setSources({});setDims({},0,null);
-    $("clusterBars").innerHTML=`<div class="empty" style="padding:10px 0">还没有聚类结果</div>`;
+    $("clusterBars").innerHTML=`<div class="empty" style="padding:10px 0">暂无聚类结果</div>`;
   }
   // live=true only for events arriving from the SSE stream / polling of a running run: a replayed run_end must not reload the run again (that looped forever)
   function addEv(ev,live){
     const el=document.createElement("div");el.className="ev "+ev.kind;
     const t=(ev.ts||"").slice(11,23);
     const tid=ev.data&&ev.data.trace_id;
-    if(tid&&ev.kind==="progress"){el.classList.add("click");if(ev.data.needs_arbitration||ev.data.degraded)el.classList.add("dis");el.title="查看 "+tid+" 的三位裁判理由";el.onclick=()=>openTrace(tid);}
+    if(tid&&ev.kind==="progress"){el.classList.add("click");if(ev.data.needs_arbitration||ev.data.degraded)el.classList.add("dis");el.title="查看 "+tid+" 的三位裁判的理由";el.onclick=()=>openTrace(tid);}
     el.innerHTML=`<span class="t">${t}</span><span class="k">${esc(KIND_ZH[ev.kind]||ev.kind)}</span><span class="m">${esc(msgZh(ev))}</span>`;
     const tl=$("timeline");tl.appendChild(el);tl.scrollTop=tl.scrollHeight;
     if(ev.kind==="stage_start")stageState[ev.stage]="run";
@@ -512,7 +512,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     const mo=m.models||{};
     $("tAgent").textContent=mo.agent?Object.keys(mo.agent).join(", "):"—";
     $("tJudges").textContent=mo.judges?Object.values(mo.judges).join(" / "):"—";
-    $("tArb").textContent=mo.arbiter?(mo.arbiter.jev?mo.arbiter.jev+"，本地兜底":"仅本地"):"—";
+    $("tArb").textContent=mo.arbiter?(mo.arbiter.jev?mo.arbiter.jev+"，本地回退":"仅本地"):"—";
     $("tEmb").textContent=mo.embedder||"—";
     const degs=m.degradations||[];
     $("tDeg").innerHTML=degs.length?degs.map(d=>`<span class="pill warn" style="margin:0 0 2px 4px">${esc(d.stage)} · ${esc(d.component)}：${esc(d.reason)}</span>`).join("<br>"):"无";
@@ -543,28 +543,28 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     $("status").textContent="运行 "+id+" · "+statusZh(m.running?"running":m.status);
     $("rgAfter").textContent=id;fillBefore();
     // 同一个 run 跑完后的重载（SSE run_end）不清掉用户已经点出来的对比结果
-    if(!sameRun)$("regress").innerHTML=`<div class="empty">选一个更早的运行，和 ${esc(id)} 对比</div>`;
+    if(!sameRun)$("regress").innerHTML=`<div class="empty">请选择一次更早的运行，与 ${esc(id)} 对比</div>`;
     loadCard(id);loadTraceList(id);loadClusters(id);
   }
   async function loadCard(id){
-    let c;try{c=await j("/runs/"+enc(id)+"/card");}catch(e){$("card").innerHTML=`<div class="empty">还没有卡片（${esc(e.message)}）</div>`;return;}
+    let c;try{c=await j("/runs/"+enc(id)+"/card");}catch(e){$("card").innerHTML=`<div class="empty">暂无卡片（${esc(e.message)}）</div>`;return;}
     const t=c.totals||{},q=c.quality||{};
     // 概览四块与分布：都从卡片取，卡片是 REPORT 阶段的最终口径
     setText("cTraces",t.n_traces);setText("cEnv",t.n_env_failures);setText("cScorable",t.n_scorable);
     setText("cPass",pct(q.pass_rate));const pk=q.pass_k||{};const kmax=Object.keys(pk).map(Number).filter(k=>k>1).sort((a,b)=>b-a)[0];
-    setText("cPassK",kmax?pct(pk[kmax]):"—");$("cPassNote").textContent=kmax?`pass^${kmax} 要求同一任务 ${kmax} 次全过`:"pass^k 要求同一任务 k 次全过";
+    setText("cPassK",kmax?pct(pk[kmax]):"—");$("cPassNote").textContent=kmax?`pass^${kmax}：同一任务 ${kmax} 次试验全部通过`:"pass^k：同一任务 k 次试验全部通过";
     setText("cBench",q.n_benchmark_result!=null?`${q.n_benchmark_success??"—"} / ${q.n_benchmark_result} 条`:"—");
     setText("cBad",t.n_badcases);setText("bBad",t.n_badcases);setText("cClusters",t.n_clusters);setText("bClusters",t.n_clusters);
     const rate=t.n_scorable?t.n_badcases/t.n_scorable:null;setText("cBadRate",pct(rate));setText("bRate",pct(rate));
     setText("bNoise",t.n_unclustered??0);setText("bContested",q.n_badcases_contested??0);setText("bAdv",t.n_precheck_advisories??0);
     setText("cAgree",pct(q.judge_agreement_rate));setText("cArb",q.n_needing_arbitration);
-    if(q.n_audited)$("cAgreeNote").textContent=`审计 ${q.n_audited} 个裁决，${q.n_audit_disagreements||0} 个不同意`;
+    if(q.n_audited)$("cAgreeNote").textContent=`已审计 ${q.n_audited} 个裁决，${q.n_audit_disagreements||0} 个存在异议`;
     if(q.decisions_by_source)setSources(q.decisions_by_source);
     const dimCounts={};for(const cl of c.clusters||[])for(const k in (cl.failed_dimension_counts||{}))dimCounts[k]=(dimCounts[k]||0)+cl.failed_dimension_counts[k];
     setDims(dimCounts,t.n_badcases,q.mean_scores);
     // 失败归因：每个簇一条黑条，宽度是它在 badcase 里的占比
     const cls=(c.clusters||[]).filter(cl=>cl.cluster_id!==-1);
-    $("clusterBars").innerHTML=cls.length?cls.map(cl=>`<div class="brow" data-m="${cl.cluster_id}" title="进簇明细"><div class="bh"><span class="bl" style="font-family:var(--sans);color:var(--ink);font-size:14px">${esc(cl.label)}${cl.n_contested_members?`<em class="note-red" style="font-style:normal">（${cl.n_contested_members} 条靠当事人仲裁成立）</em>`:""}</span><span>${cl.size} 条 · ${(cl.share*100).toFixed(1)}%</span></div><div class="bbar"><i style="width:${Math.max(2,cl.share*100).toFixed(1)}%"></i></div></div>`).join(""):`<div class="empty" style="padding:10px 0">没有可聚类的 badcase</div>`;
+    $("clusterBars").innerHTML=cls.length?cls.map(cl=>`<div class="brow" data-m="${cl.cluster_id}" title="查看簇明细"><div class="bh"><span class="bl" style="font-family:var(--sans);color:var(--ink);font-size:14px">${esc(cl.label)}${cl.n_contested_members?`<em class="note-red" style="font-style:normal">（${cl.n_contested_members} 条经当事人仲裁成立）</em>`:""}</span><span>${cl.size} 条 · ${(cl.share*100).toFixed(1)}%</span></div><div class="bbar"><i style="width:${Math.max(2,cl.share*100).toFixed(1)}%"></i></div></div>`).join(""):`<div class="empty" style="padding:10px 0">无可聚类的 badcase</div>`;
     $("clusterBars").querySelectorAll(".brow[data-m]").forEach(b=>b.onclick=()=>openCluster(+b.dataset.m));
     let confirmed=null;try{confirmed=await j("/runs/"+enc(id)+"/confirm");}catch(e){}
     let h=`<div class="rec"><span class="tag">建议</span>${esc(c.recommendation)}</div><div class="disc">${esc(c.disclaimer)}</div>`;
@@ -572,15 +572,15 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     h+=`<div id="dmsg" class="ok-msg"></div>`;
     for(const cl of c.clusters||[]){
       const name=cl.cluster_id===-1?"未归类":cl.label;const sel=confirmed&&confirmed.cluster_id===cl.cluster_id;
-      h+=`<div class="cl ${sel?"sel":""}"><h3><span class="rk">#${cl.rank}</span>${esc(name)}${cl.taxonomy_id?`<span class="pill mut">${esc(cl.taxonomy_id)}</span>`:""}<span class="pill">${cl.size} 条 · ${(cl.share*100).toFixed(0)}%</span><span class="pill">优先级 ${cl.priority.toFixed(1)}</span><span class="pill mut">标签来源 ${esc(cl.label_source)}</span>${sel?'<span class="pill good">已拍板</span>':""}</h3>`;
+      h+=`<div class="cl ${sel?"sel":""}"><h3><span class="rk">#${cl.rank}</span>${esc(name)}${cl.taxonomy_id?`<span class="pill mut">${esc(cl.taxonomy_id)}</span>`:""}<span class="pill">${cl.size} 条 · ${(cl.share*100).toFixed(0)}%</span><span class="pill">优先级 ${cl.priority.toFixed(1)}</span><span class="pill mut">标签来源 ${esc(cl.label_source)}</span>${sel?'<span class="pill good">已确认</span>':""}</h3>`;
       h+=`<div class="sug">${esc(cl.suggestion)}</div>`;
       for(const r of cl.representatives.slice(0,2)){h+=`<pre><button class="lnk" data-t="${esc(r.trace_id)}">${esc(r.trace_id)}</button> · 失败维度：${esc((r.failed_dimensions||[]).map(dimZh).join("、"))||"—"}\n${esc(r.excerpt)}</pre>`;
         h+=(r.opinions||[]).slice(0,3).map(o=>`<div class="op">${esc(dimZh(o.dimension))} · ${esc(o.judge)}：${o.score}${o.label?" "+esc(LABEL_ZH[o.label]||o.label):""} — ${esc(o.rationale)}</div>`).join("");}
       h+=`<div class="act">`;
       if(cl.cluster_id!==-1){
-        h+=`<button class="btn sm ${sel?"":"pri"}" data-c="${cl.cluster_id}" ${sel?"disabled":""}>${sel?"已确认：先修这一类":"PM 确认：先修这一类"}</button>`;
-        h+=`<button class="btn sm" data-o="${cl.cluster_id}" ${cl.taxonomy_id?"":"disabled title=\"这一类没有 pack 类目映射，换类目排不出结果\""}>换这一类优先</button>`;
-        h+=`<button class="btn sm" data-r="${cl.cluster_id}">这一类不修</button>`;
+        h+=`<button class="btn sm ${sel?"":"pri"}" data-c="${cl.cluster_id}" ${sel?"disabled":""}>${sel?"已确认优先修复":"确认优先修复"}</button>`;
+        h+=`<button class="btn sm" data-o="${cl.cluster_id}" ${cl.taxonomy_id?"":"disabled title=\"该类型没有 pack 类目映射，无法调整优先级\""}>调整为优先</button>`;
+        h+=`<button class="btn sm" data-r="${cl.cluster_id}">标记为不修复</button>`;
       }
       h+=`<button class="lnk" data-m="${cl.cluster_id}">查看 ${cl.size} 条成员 trace ›</button>${sel?`<span class="ok-msg">${esc(confirmed.next)}</span>`:""}</div>`;
       h+=`</div>`;
@@ -588,23 +588,23 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     $("card").innerHTML=h;
     async function decide(kind,cluster_id,rationale){
       const actor=($("actor")?.value||"").trim();
-      if(!actor){alert("先在左下角填「拍板人」：账本里的决策必须能追溯到人");$("actor").focus();return;}
+      if(!actor){alert("请先在左下角填写「决策人」：账本中的每条决策都必须可追溯到具体的人");$("actor").focus();return;}
       try{localStorage.setItem("sj_actor",actor);}catch(e){}
       $("dmsg").textContent="";
       try{
         const r=await j("/runs/"+enc(id)+"/decision",{method:"POST",headers:{"Content-Type":"application/json"},
           body:JSON.stringify({decision_kind:kind,cluster_id:cluster_id,actor:actor,rationale:rationale||""})});
-        $("dmsg").textContent=`已记账 ${r.event.event_id} → ${r.ledger}`;
+        $("dmsg").textContent=`已记入账本 ${r.event.event_id} → ${r.ledger}`;
         loadCard(id);
-      }catch(e){alert("没记上："+e.message);}
+      }catch(e){alert("记录失败："+e.message);}
     }
     $("card").querySelectorAll("button[data-c]").forEach(b=>b.onclick=()=>decide("accept_card",+b.dataset.c,""));
     $("card").querySelectorAll("button[data-o]").forEach(b=>b.onclick=()=>{
-      const why=prompt("为什么这一类要先修？（可留空，会写进决策账本当理由）","");
+      const why=prompt("请说明优先修复此类型的理由（可留空，将记入决策账本）","");
       if(why===null)return;decide("override_priority",+b.dataset.o,why);});
     $("card").querySelectorAll("button[data-r]").forEach(b=>b.onclick=()=>{
-      const why=prompt("为什么这一类不修？（必填：账本不接受没有理由的否决）","");
-      if(why===null)return;if(!why.trim()){alert("要写理由：账本不接受没有理由的否决");return;}
+      const why=prompt("请说明不修复此类型的理由（必填，将记入决策账本）","");
+      if(why===null)return;if(!why.trim()){alert("理由为必填项：账本不接受无理由的否决");return;}
       decide("reject_proposal",+b.dataset.r,why);});
     $("card").querySelectorAll("button[data-t]").forEach(b=>b.onclick=()=>openTrace(b.dataset.t));
     $("card").querySelectorAll("button[data-m]").forEach(b=>b.onclick=()=>openCluster(+b.dataset.m));
@@ -627,7 +627,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     const order=r=>(r.env_failure?2:(r.success===false?0:1));
     traceRows.sort((a,b)=>order(a)-order(b)||String(a.trace_id).localeCompare(String(b.trace_id)));
     $("trSel").innerHTML=traceRows.map(r=>`<option value="${esc(r.trace_id)}">${esc(r.trace_id)} · ${esc(r.task_id)} · ${r.env_failure?"环境失败":(r.success===false?"失败":(r.success===true?"通过":"?"))}${r.degraded?" · 降级":""}</option>`).join("");
-    $("verdicts").innerHTML=`<div class="empty">${traceRows.length?"选一条 trace，或者点时间线里带 trace 编号的行":"还没有打分结果"}</div>`;$("trMeta").textContent="";
+    $("verdicts").innerHTML=`<div class="empty">${traceRows.length?"请选择一条 trace，或点击时间线中带 trace 编号的事件":"暂无打分结果"}</div>`;$("trMeta").textContent="";
   }
   async function openTrace(tid){
     showTab("verdicts");$("trSel").value=tid;
@@ -641,8 +641,8 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     let d;try{d=await j("/runs/"+enc(current)+"/traces/"+enc(tid));}catch(e){$("verdicts").innerHTML=`<div class="empty">${esc(e.message)}</div>`;return;}
     const t=d.trace,pre=d.precheck,panel=d.panel,dec=d.decision;
     const flags=(pre&&pre.flags||[]);
-    $("trMeta").innerHTML=`任务 ${esc(t.task_id)} · 第 ${esc(t.trial)} 次 · ${t.outcome&&t.outcome.success===false?'<span class="pill bad">失败</span>':(t.outcome&&t.outcome.success?'<span class="pill good">通过</span>':'<span class="pill mut">未知</span>')}${t.outcome&&t.outcome.termination_reason?" · 终止原因 "+esc(t.outcome.termination_reason):""} · ${t.metrics?t.metrics.n_steps+" 步，"+t.metrics.n_tool_calls+" 次工具调用":""}${flags.map(f=>` <span class="pill warn">预检 ${esc(f.kind)}${f.evidence_step_idx!=null?" @"+f.evidence_step_idx:""}</span>`).join("")}`;
-    if(!panel){$("verdicts").innerHTML=`<div class="empty">${esc(tid)} 没有裁判打分${flags.length?"（预检已排除："+esc(flags.map(f=>f.note||f.kind).join("；"))+"）":""}</div>`;return;}
+    $("trMeta").innerHTML=`任务 ${esc(t.task_id)} · 第 ${esc(t.trial)} 次试验 · ${t.outcome&&t.outcome.success===false?'<span class="pill bad">失败</span>':(t.outcome&&t.outcome.success?'<span class="pill good">通过</span>':'<span class="pill mut">未知</span>')}${t.outcome&&t.outcome.termination_reason?" · 终止原因 "+esc(t.outcome.termination_reason):""} · ${t.metrics?t.metrics.n_steps+" 步，"+t.metrics.n_tool_calls+" 次工具调用":""}${flags.map(f=>` <span class="pill warn">预检 ${esc(f.kind)}${f.evidence_step_idx!=null?" @"+f.evidence_step_idx:""}</span>`).join("")}`;
+    if(!panel){$("verdicts").innerHTML=`<div class="empty">${esc(tid)} 无裁判打分${flags.length?"（预检已排除："+esc(flags.map(f=>f.note||f.kind).join("；"))+"）":""}</div>`;return;}
     const judges=[];for(const v of panel.verdicts)if(!judges.includes(v.judge))judges.push(v.judge);judges.sort();
     const model=jn=>{const v=panel.verdicts.find(x=>x.judge===jn);return v?v.model:"";};
     const arbs={};for(const a of (dec&&dec.arbitrations||[]))arbs[a.dimension]=a;
@@ -657,13 +657,13 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
         const v=panel.verdicts.find(x=>x.judge===jn&&x.dimension===dim);
         if(!v){h+=`<td><div class="sc sn">—</div></td>`;continue;}
         (v.evidence_steps||[]).forEach(s=>evidence.add(s));
-        if(v.error){h+=`<td><div class="sc sn">×</div><div class="err">出错：${esc(v.error)}</div></td>`;continue;}
+        if(v.error){h+=`<td><div class="sc sn">×</div><div class="err">错误：${esc(v.error)}</div></td>`;continue;}
         h+=`<td><div class="sc s${v.score==null?"n":v.score}">${v.score==null?"—":v.score}${labelPill(v.label)}</div><div class="meta">置信 ${num(v.confidence)}${(v.evidence_steps||[]).length?" · 证据步骤 ["+v.evidence_steps.join(",")+"]":""}${v.latency_ms!=null?" · 耗时 "+(v.latency_ms>=1000?(v.latency_ms/1000).toFixed(1)+" 秒":num(v.latency_ms,0)+" 毫秒"):""}</div><div class="rat">${esc(v.rationale)}</div></td>`;
       }
       if(!a){h+=`<td class="fin"><div class="sc sn">—</div><div class="meta">未仲裁</div></td>`;}
       else{
         const src=a.source==="jev"?'<span class="pill cloud" style="margin:0">云端 Jev 仲裁</span>':`<span class="pill mut" style="margin:0">${esc(SRC_ZH[a.source]||a.source)}</span>`;
-        h+=`<td class="fin"><div class="sc s${a.final_score==null?"n":a.final_score}">${a.final_score==null?"—":a.final_score}${labelPill(a.final_label)}</div><div class="meta">${src}${a.degraded?' <span class="pill bad">已降级</span>':""}${a.jev_confidence!=null?" · Jev 置信 "+num(a.jev_confidence):""}${a.audit_sampled?` · 审计 ${a.audit_score==null?"—":a.audit_score}${a.audit_disagrees?' <span class="pill bad">审计不同意</span>':""}`:""}</div><div class="rat">${esc(a.rationale)}</div>${a.error?`<div class="err">${esc(a.error)}</div>`:""}</td>`;
+        h+=`<td class="fin"><div class="sc s${a.final_score==null?"n":a.final_score}">${a.final_score==null?"—":a.final_score}${labelPill(a.final_label)}</div><div class="meta">${src}${a.degraded?' <span class="pill bad">已降级</span>':""}${a.jev_confidence!=null?" · Jev 置信 "+num(a.jev_confidence):""}${a.audit_sampled?` · 审计 ${a.audit_score==null?"—":a.audit_score}${a.audit_disagrees?' <span class="pill bad">审计异议</span>':""}`:""}</div><div class="rat">${esc(a.rationale)}</div>${a.error?`<div class="err">${esc(a.error)}</div>`:""}</td>`;
       }
       h+=`</tr>`;
     }
@@ -679,7 +679,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
   // 2. 簇明细下钻：每个簇的成员表，点成员进裁判理由
   async function loadClusters(id){
     let c;try{c=await j("/runs/"+enc(id)+"/clusters");}catch(e){$("clusters").innerHTML=`<div class="empty">${esc(e.message)}</div>`;return;}
-    if(!c.clusters||!c.clusters.length){$("clusters").innerHTML=`<div class="empty">没有可聚类的 badcase（共 ${c.n_badcases||0} 条）</div>`;return;}
+    if(!c.clusters||!c.clusters.length){$("clusters").innerHTML=`<div class="empty">无可聚类的 badcase（共 ${c.n_badcases||0} 条）</div>`;return;}
     let h=`<div class="bar-row">${c.n_badcases} 条 badcase · ${c.n_clusters} 个簇 · ${c.n_noise} 条噪声 · 方法 ${esc(c.method)} · 向量 ${esc(c.embedder)}</div>`;
     for(const cl of c.clusters){
       const name=cl.cluster_id===-1?"未归类 / 噪声":cl.label;
@@ -697,7 +697,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     if(box.innerHTML){box.innerHTML="";if(btn)btn.textContent=btn.textContent.replace("收起","展开");return;}
     let rows;try{rows=await j("/runs/"+enc(current)+"/traces?cluster="+cid);}catch(e){box.innerHTML=`<div class="empty">${esc(e.message)}</div>`;return;}
     box.innerHTML=`<table class="lt" style="margin-top:10px"><thead><tr><th>trace</th><th>任务</th><th>失败维度</th><th>结果</th><th>工具</th><th>效率</th><th>安全</th><th>严重度</th><th>证据摘录</th></tr></thead><tbody>`+
-      rows.map(r=>{const s=r.final_scores||{};return `<tr class="click" data-t="${esc(r.trace_id)}" title="查看三位裁判理由"><td class="num">${esc(r.trace_id)}</td><td>${esc(r.task_id)}</td><td>${(r.failed_dimensions||[]).map(x=>`<span class="pill bad" style="margin:0 4px 0 0">${esc(dimZh(x))}</span>`).join("")}</td><td class="num">${s.outcome??"—"}${r.outcome_label?" "+esc(LABEL_ZH[r.outcome_label]||r.outcome_label):""}</td><td class="num">${s.tool_use??"—"}</td><td class="num">${s.efficiency??"—"}</td><td class="num">${s.safety??"—"}</td><td class="num">${num(r.severity,1)}</td><td style="font-family:var(--mono);font-size:12px;color:var(--ink-2)">${esc(r.excerpt)}</td></tr>`;}).join("")+`</tbody></table>`;
+      rows.map(r=>{const s=r.final_scores||{};return `<tr class="click" data-t="${esc(r.trace_id)}" title="查看三位裁判的理由"><td class="num">${esc(r.trace_id)}</td><td>${esc(r.task_id)}</td><td>${(r.failed_dimensions||[]).map(x=>`<span class="pill bad" style="margin:0 4px 0 0">${esc(dimZh(x))}</span>`).join("")}</td><td class="num">${s.outcome??"—"}${r.outcome_label?" "+esc(LABEL_ZH[r.outcome_label]||r.outcome_label):""}</td><td class="num">${s.tool_use??"—"}</td><td class="num">${s.efficiency??"—"}</td><td class="num">${s.safety??"—"}</td><td class="num">${num(r.severity,1)}</td><td style="font-family:var(--mono);font-size:12px;color:var(--ink-2)">${esc(r.excerpt)}</td></tr>`;}).join("")+`</tbody></table>`;
     box.querySelectorAll("tr[data-t]").forEach(tr=>tr.onclick=()=>openTrace(tr.dataset.t));
     if(btn)btn.textContent=btn.textContent.replace("展开","收起");
   }
@@ -709,7 +709,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     const target=$("cl-"+cid)||$("s5");target.scrollIntoView({behavior:"smooth",block:"start"});
   }
 
-  // 3. 回归对比：两次运行的 pass^1 / pass^k、修好和修坏的任务、簇的增减
+  // 3. 回归对比：两次运行的 pass^1 / pass^k、已修复和已退化的任务、簇的增减
   function fillBefore(){
     const sel=$("rgBefore");const prev=sel.value;
     const others=runsCache.filter(r=>r.run_id!==current);
@@ -725,12 +725,12 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     let r;try{r=await j("/runs/"+enc(current)+"/regress?before="+enc(before));}catch(e){$("regress").innerHTML=`<div class="empty">${esc(e.message)}</div>`;return;}
     const ppct=v=>v==null?"—":(v*100).toFixed(1)+"%";
     let h=`<div style="margin-bottom:12px"><span class="verdict ${esc(r.verdict)}">${esc(VERDICT_ZH[r.verdict]||r.verdict)}</span><span style="color:var(--ink-2)">${esc(r.before_label)} → ${esc(r.after_label)} · ${r.n_tasks_common} 个共同任务 · 按 pass^${r.k} 对比</span></div>`;
-    h+=`<div class="tiles">${dtile("pass^1",r.pass_rate_before,r.pass_rate_after,ppct)}${dtile("pass^"+r.k,r.pass_k_before,r.pass_k_after,ppct)}${dtile("badcase 数",r.n_badcases_before,r.n_badcases_after,v=>v==null?"—":String(v),false)}<div class="tile up"><b>${r.fixed_tasks.length}</b><span>修好（失败 → 通过）</span></div><div class="tile ${r.broken_tasks.length?"down":"flat"}"><b>${r.broken_tasks.length}</b><span>修坏（通过 → 失败）</span></div></div>`;
+    h+=`<div class="tiles">${dtile("pass^1",r.pass_rate_before,r.pass_rate_after,ppct)}${dtile("pass^"+r.k,r.pass_k_before,r.pass_k_after,ppct)}${dtile("badcase 数",r.n_badcases_before,r.n_badcases_after,v=>v==null?"—":String(v),false)}<div class="tile up"><b>${r.fixed_tasks.length}</b><span>已修复（失败 → 通过）</span></div><div class="tile ${r.broken_tasks.length?"down":"flat"}"><b>${r.broken_tasks.length}</b><span>已退化（通过 → 失败）</span></div></div>`;
     const taskTable=(rows,empty)=>rows.length?`<table class="lt"><thead><tr><th>任务</th><th>改前</th><th>改后</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.task_id)}</td><td class="num">${esc(LABEL_ZH[x.before]||x.before)}（${x.before_pass_trials}/${x.n_trials}）</td><td class="num">${esc(LABEL_ZH[x.after]||x.after)}（${x.after_pass_trials}/${x.n_trials}）</td></tr>`).join("")}</tbody></table>`:`<div class="empty">${empty}</div>`;
-    h+=`<div class="two"><div class="blk"><h3>修好的任务</h3>${taskTable(r.fixed_tasks,"没有")}</div><div class="blk"><h3>修坏的任务</h3>${taskTable(r.broken_tasks,"没有，没有任务变坏")}</div></div>`;
+    h+=`<div class="two"><div class="blk"><h3>已修复的任务</h3>${taskTable(r.fixed_tasks,"无")}</div><div class="blk"><h3>已退化的任务</h3>${taskTable(r.broken_tasks,"无")}</div></div>`;
     const dims=Object.keys(r.mean_scores_after||{}).length?Object.keys(r.mean_scores_after):DIMS;
     h+=`<div class="two" style="margin-top:14px"><div class="blk"><h3>四个维度的平均分（0–4）</h3><table class="lt"><thead><tr><th>维度</th><th>改前</th><th>改后</th><th>变化</th></tr></thead><tbody>${dims.map(k=>{const b=(r.mean_scores_before||{})[k],a=(r.mean_scores_after||{})[k];const d=delta(b,a);return `<tr><td>${esc(dimZh(k))}</td><td class="num">${num(b)}</td><td class="num">${num(a)}</td><td class="num" style="color:${d==null||Math.abs(d)<1e-9?"var(--ink-2)":(d>0?"var(--good)":"var(--bad)")}">${d==null?"—":(d>0?"+":"")+num(d)}</td></tr>`;}).join("")}</tbody></table></div>`;
-    h+=`<div class="blk"><h3>簇的增减（每类失败的 badcase 数）</h3>${r.cluster_changes.length?`<table class="lt"><thead><tr><th>失败类型</th><th>改前</th><th>改后</th><th>变化</th></tr></thead><tbody>${r.cluster_changes.map(c=>`<tr><td>${esc(c.label)}</td><td class="num">${c.before}</td><td class="num">${c.after}</td><td class="num" style="color:${c.delta===0?"var(--ink-2)":(c.delta<0?"var(--good)":"var(--bad)")}">${c.delta>0?"+":""}${c.delta}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">两次运行都没有簇</div>`}</div></div>`;
+    h+=`<div class="blk"><h3>簇的增减（每类失败的 badcase 数）</h3>${r.cluster_changes.length?`<table class="lt"><thead><tr><th>失败类型</th><th>改前</th><th>改后</th><th>变化</th></tr></thead><tbody>${r.cluster_changes.map(c=>`<tr><td>${esc(c.label)}</td><td class="num">${c.before}</td><td class="num">${c.after}</td><td class="num" style="color:${c.delta===0?"var(--ink-2)":(c.delta<0?"var(--good)":"var(--bad)")}">${c.delta>0?"+":""}${c.delta}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">两次运行均无簇</div>`}</div></div>`;
     if(r.pairwise&&r.pairwise.length){const s=r.pairwise_summary||{};h+=`<div class="blk" style="margin-top:14px"><h3>成对比较（交换顺序）· 改后胜 ${s.after||0} · 改前胜 ${s.before||0} · 平 ${s.tie||0} · 不一致 ${s.inconsistent||0}</h3></div>`;}
     h+=`<code class="cmd">sparkjury regress --before runs/${esc(before)}/sparkjury.db --after runs/${esc(current)}/sparkjury.db</code>`;
     $("regress").innerHTML=h;
@@ -740,7 +740,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
   async function loadDgx(){
     try{const d=await j("/dgx");
       $("gpus").innerHTML=d.available?d.gpus.map(g=>`<div class="gpu"><div style="font-size:13px">${esc(g.name)}</div><div class="bar"><i style="width:${(g.mem_used_mb/g.mem_total_mb*100).toFixed(0)}%"></i></div><div style="font-size:12px;color:var(--muted)"><span class="n">${(g.mem_used_mb/1024).toFixed(1)} / ${(g.mem_total_mb/1024).toFixed(0)} GB</span>${g.unified_memory?"（统一内存）":""} · 利用率 <span class="n">${g.util_pct}%</span>${g.temp_c!=null?" · "+g.temp_c+"°C":""}</div></div>`).join("")
-        :`<div class="empty">本机没有 GPU（${esc(d.reason||"")}）</div>`;
+        :`<div class="empty">本机无 GPU（${esc(d.reason||"")}）</div>`;
       $("eps").innerHTML=(d.endpoints||[]).length?(d.endpoints).map(e=>`<div class="ep"><span class="dot ${e.ok?"ok":""}"></span><span>${esc(e.name)}</span><span class="r">${e.ok?(e.models[0]||"在线"):(e.error||"离线")}</span></div>`).join(""):`<div class="empty">未配置端点探测</div>`;
     }catch(e){}
   }
@@ -749,7 +749,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
   const onScroll=()=>{const y=window.scrollY+window.innerHeight*.3;let cur="overview";for(const id of ["overview","s4","s2","s3","s5"]){const s=$(id);if(s&&s.offsetTop<=y)cur=id;}const tab=(document.querySelector(".tab.on")||{dataset:{}}).dataset.tab;NAV.forEach(a=>{const href=a.getAttribute("href");a.classList.toggle("on",cur==="s5"?(a.dataset.grp==="insp"&&a.dataset.go===tab):(href==="#"+cur&&!a.dataset.go));});};
   window.addEventListener("scroll",onScroll,{passive:true});onScroll();
   $("runSel").onchange=()=>loadRun($("runSel").value);
-  $("btnDemo").onclick=async()=>{$("btnDemo").disabled=true;$("btnDemo").textContent="演示运行中…";try{const r=await j("/runs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({demo:true})});await loadRuns();$("runSel").value=r.run_id;await loadRun(r.run_id);}finally{$("btnDemo").disabled=false;$("btnDemo").textContent="▷ 跑一次离线演示";}};
+  $("btnDemo").onclick=async()=>{$("btnDemo").disabled=true;$("btnDemo").textContent="演示运行中…";try{const r=await j("/runs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({demo:true})});await loadRuns();$("runSel").value=r.run_id;await loadRun(r.run_id);}finally{$("btnDemo").disabled=false;$("btnDemo").textContent="▷ 执行离线演示";}};
   j("/health").then(h=>{$("footVer").textContent="Cockpit v"+h.version;}).catch(()=>{});
   loadRuns().then(rs=>{if(rs.length)loadRun($("runSel").value);});
   loadDgx();setInterval(loadDgx,5000);setInterval(loadRuns,20000);
