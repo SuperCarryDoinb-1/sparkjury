@@ -419,3 +419,35 @@ def test_a_plain_backend_failure_is_not_retried_as_if_it_were_an_overflow(traces
     j = _Down([])
     v = j.score(traces["retail_task_001-t0"], Dimension.SAFETY)
     assert not v.ok and j.calls == 1 and "Connection error" in v.error
+
+
+# 下面两条用的是真批上抓到的原始坏例子（judge-loop-real16 里 judge_b 的两条 error），
+# 不是编出来的形状：一条多写了一个 `]`，一条在结尾又写了个没值的键。
+_STRAY_BRACKET = ('{"score": 4, "label": "pass", "confidence": 0.95, '
+                  '"evidence_steps": [["19", "20", "21", "22"]], '
+                  '"rationale": "The agent exchanged only the desk lamp."], "label": "pass"}')
+_TRAILING_KEY = ('{"score": 3, "label": "pass", "confidence": 0.85, "evidence_steps": [21, 33], '
+                 '"rationale": "The agent wasted one step re-verifying the order.", '
+                 '"two or three sentences"}')
+
+
+def test_a_judge_that_emits_a_stray_bracket_still_yields_its_score():
+    """`[` 两个而 `]` 三个，整条判定被记成 error，分数其实好好地在里面。只删多余的那个。"""
+    assert _STRAY_BRACKET.count("[") == 2 and _STRAY_BRACKET.count("]") == 3
+    d = parse_verdict_json(_STRAY_BRACKET)
+    assert d["score"] == 4 and d["label"] == "pass" and d["_salvaged"] is True
+    assert "desk lamp" in d["rationale"]
+
+
+def test_a_judge_that_appends_a_valueless_key_still_yields_its_score():
+    """`..., "rationale": "...", "two or three sentences"}`：模型把模板里的占位词一起写了出来。
+    这种按逗号从后往前截断并闭合，保住最后一个完整字段之前的内容。"""
+    d = parse_verdict_json(_TRAILING_KEY)
+    assert d["score"] == 3 and d["_salvaged"] is True and "wasted one step" in d["rationale"]
+
+
+def test_salvaged_verdicts_say_they_were_salvaged(traces):
+    """补救来的判定要在 rationale 里说清楚，别让它看起来像原样输出。"""
+    j = _Stub([_STRAY_BRACKET])
+    v = j.score(traces["retail_task_001-t0"], Dimension.OUTCOME)
+    assert v.ok and v.score == 4 and "[salvaged from malformed judge output]" in v.rationale

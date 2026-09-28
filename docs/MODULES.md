@@ -95,7 +95,8 @@ uv run sparkjury precheck --json
 - `store/sqlite.py`：新增 `verdicts`、`panel` 两张表，`put_panel_results / get_panel_result / list_panel_results / verdict_summary`。
 - `cli.py`：`sparkjury score [--judges mock|文件.toml] [--dims ...] [--trace ID] [--limit N] [--json]` 和 `sparkjury verdicts <trace_id>`。
 - 提示词撑爆裁判上下文窗口时（真批实测：16k 的 Nemotron 遇上最长的那条 trace，回 400 「maximum context length is 16384 tokens」），把 transcript 预算减半重问，最多两次；只有这一类错误才缩，连不上端点重问是白等。
-- `tests/test_m3_judges.py`：26 个用例，覆盖 prompt（含"金标默认不进 prompt"、"任务原始要求进 prompt 而参考调用不进"、"预算装不下才丢步且留痕"几条）、按裁判开并发（点名的裁判才拿到高并发，判定顺序不变）、JSON 解析、四类坏例的规则打分、LLM 裁判的解析与追问与容错（用桩后端）、一致性规则、TOML 配置、仲裁人与审计人的挑选规则、存储与 CLI。
+- 裁判输出的 JSON 坏掉时先修再报错，但只修语法、不修语义：多余一个 `]`（真批上抓到的原样例子，`[` 两个 `]` 三个）就把多余的删掉；结尾又多写一个没值的键（`..., "rationale": "...", "two or three sentences"}`）就按逗号从后往前截断再闭合。补救来的判定在 rationale 里写明「salvaged from malformed judge output」。分数越界、label 乱写这类语义问题照旧直接报错。
+- `tests/test_m3_judges.py`：29 个用例，覆盖 prompt（含"金标默认不进 prompt"、"任务原始要求进 prompt 而参考调用不进"、"预算装不下才丢步且留痕"几条）、按裁判开并发（点名的裁判才拿到高并发，判定顺序不变）、JSON 解析、四类坏例的规则打分、LLM 裁判的解析与追问与容错（用桩后端）、一致性规则、TOML 配置、仲裁人与审计人的挑选规则、存储与 CLI。
 
 **自测结果**：`uv run pytest` 32 passed（M1 9 + M2 10 + M3 13）。
 

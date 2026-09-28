@@ -126,6 +126,9 @@ class OpenAICompatJudge:
         if data is None:
             return self._errored(trace, dimension,
                                  f"{type(last_err).__name__}: {last_err}", raw, t0)
+        if data.pop("_salvaged", False):
+            # 补救成功但用的是残缺输出：分数保住了，说明白它是补出来的
+            data["rationale"] = (data["rationale"] + " [salvaged from malformed judge output]").strip()
         if dimension == Dimension.OUTCOME:
             # rubric 规定 label 是分数的函数（3-4 = pass，0-2 = fail），裁判自报的 label
             # 与分数矛盾时以分数为准。真批上出现过一次（judge_b 给了 score=1、label=pass），

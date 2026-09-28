@@ -143,15 +143,84 @@ def parse_verdict_json(text: str) -> dict[str, Any]:
         pass
     last_err: Exception | None = None
     for cand in reversed(_candidate_objects(text)):
-        for attempt in (cand, _repair(cand)):
+        try:
+            return _validate(json.loads(cand))
+        except json.JSONDecodeError as e:
+            last_err = e          # 语法坏了：下面几招都是为这种情况准备的
+        except ValueError as e:
+            last_err = e
+            continue              # 语义不合法（分数越界、label 乱写）：原样报错，不补救
+        for attempt, aggressive in ((_repair(cand), False), (_repair(_drop_stray_closers(cand)), True)):
             try:
-                return _validate(json.loads(attempt))
+                data = _validate(json.loads(attempt))
+                if aggressive:
+                    data["_salvaged"] = True
+                return data
+            except (json.JSONDecodeError, ValueError) as e:
+                last_err = e
+                continue
+        # 最后一招：模型在最后一个完整字段后面又写了个没值的键（真批实测：
+        # `..., "rationale": "...", "two or three sentences"}`），把尾巴截掉再闭合。
+        for attempt in _truncated_candidates(cand):
+            try:
+                data = _validate(json.loads(attempt))
+                data["_salvaged"] = True
+                return data
             except (json.JSONDecodeError, ValueError) as e:
                 last_err = e
                 continue
     if last_err is not None:
         raise ValueError(f"no valid verdict object in judge output ({type(last_err).__name__}: {last_err})")
     raise ValueError("no JSON object in judge output")
+
+
+def _drop_stray_closers(s: str) -> str:
+    """丢掉多余的闭合括号。
+
+    LLM 偶尔多写一个 `]`：真批上一条 trace 的 outcome 判定里 `[` 两个而 `]` 三个
+    （`"evidence_steps": [["19", ...]], "rationale": "..."]`），整条判定就废了，而分数其实
+    好好地在里面。只删多余的那个，不补任何东西。"""
+    out: list[str] = []
+    stack: list[str] = []
+    in_str = False
+    esc = False
+    for ch in s:
+        if in_str:
+            out.append(ch)
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+            out.append(ch)
+        elif ch in "{[":
+            stack.append(ch)
+            out.append(ch)
+        elif ch in "}]":
+            want = "{" if ch == "}" else "["
+            if stack and stack[-1] == want:
+                stack.pop()
+                out.append(ch)
+            # 否则：没有对应的开括号，是模型多写的，丢掉
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def _truncated_candidates(cand: str) -> list[str]:
+    """从后往前在每个逗号处截断并闭合对象，按截得越少越优先。上限 40 个候选，够用且不会跑飞。"""
+    out: list[str] = []
+    for i in range(len(cand) - 1, 0, -1):
+        if cand[i] != ",":
+            continue
+        out.append(cand[:i] + "}")
+        if len(out) >= 40:
+            break
+    return out
 
 
 _TRAILING_COMMA_RE = re.compile(r",\s*([}\]])")
