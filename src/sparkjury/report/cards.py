@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 from pathlib import Path
+from typing import Any
 
 from sparkjury.models.cluster import FailureLabel
 from sparkjury.models.report import (
@@ -16,6 +17,7 @@ from sparkjury.models.report import (
     JudgeOpinion,
 )
 from sparkjury.models.verdict import ALL_DIMENSIONS, Dimension
+from sparkjury.cluster.badcase import is_badcase
 from sparkjury.store import TraceStore
 
 
@@ -31,18 +33,25 @@ def build_card(store: TraceStore, run_id: str = "latest", title: str | None = No
 
     totals = CardTotals(
         n_traces=st.n_traces, n_tasks=st.n_tasks,
-        n_env_failures=pre["n_env_failures"], env_kinds=pre["kinds"], n_scorable=pre["n_scorable"] if pre["n_checked"] else st.n_traces,
+        n_env_failures=pre["n_env_failures"], env_kinds=pre["kinds"], env_causes=pre.get("blocking_causes", {}),
+        n_scorable=pre["n_scorable"] if pre["n_checked"] else st.n_traces,
+        n_precheck_advisories=pre.get("n_traces_with_advisory", 0), precheck_advisory_kinds=pre.get("advisory_kinds", {}),
         n_scored=vs["n_traces_scored"],
         n_badcases=crun.n_badcases if crun else 0, n_clusters=crun.n_clusters if crun else 0,
         n_unclustered=crun.n_noise if crun else 0,
     )
     quality = CardQuality(
         pass_rate=st.pass_rate, pass_k=st.pass_k,
+        n_benchmark_result=st.n_with_gold, n_benchmark_success=st.n_gold_success,
         agent_model=max(st.agent_models, key=st.agent_models.get) if st.agent_models else None,
         judge_agreement_rate=vs["agreement_rate"], n_needing_arbitration=vs["n_needing_arbitration"],
         decisions_by_source=ar["by_source"], n_degraded=ar["n_degraded"],
         n_audited=ar["n_audited_dimensions"], n_audit_disagreements=ar["n_audit_disagreements"],
+        n_audited_degraded=ar.get("n_audited_degraded", 0), n_audit_disagreements_degraded=ar.get("n_audit_disagreements_degraded", 0),
+        n_audited_panel=ar.get("n_audited_panel", 0), n_audit_disagreements_panel=ar.get("n_audit_disagreements_panel", 0),
         n_outcome_fail=ar["n_outcome_fail"], mean_scores=_mean_scores(store), judges=vs["judges"],
+        **_gold_agreement(store),
+        n_badcases_contested=_contested_badcases(store, crun),
     )
     clusters = [_card_cluster(store, c, crun) for c in crun.clusters] if crun else []
     card = EvidenceCard(
@@ -51,6 +60,57 @@ def build_card(store: TraceStore, run_id: str = "latest", title: str | None = No
     )
     card.recommendation = _recommendation(card)
     return card
+
+
+def _is_contested(dec) -> bool:
+    """这条 trace 是「靠当事人仲裁的判定」成为 badcase 的吗。
+
+    面板只有两个真裁判时，吵起来的那一维由当事人之一（judge_a）定，标 degraded。真批
+    实测这类判定 31/38 被另一位真裁判判成相反结果，所以它们只是「暂时这么记着」，不是
+    定论。判据只有一个：让它成为 badcase 的那些维度里，有没有一个是这么定下来的。
+    """
+    if dec is None:
+        return False
+    failed = set(is_badcase(dec))
+    return bool(failed) and any(a.degraded for a in dec.arbitrations if a.dimension in failed)
+
+
+def _contested_badcases(store: TraceStore, crun) -> int:
+    """有多少个 badcase 是靠「没有独立裁决」的判定成立的。
+
+    面板只有两个真裁判时，吵起来的那一维由当事人之一（judge_a）定，标 degraded。真批
+    实测这类判定 31/38 被另一位真裁判判成相反结果，所以它们只是「暂时这么记着」，不是
+    定论。这类判定如果正好是让一条 trace 变成 badcase 的那一维，卡片得说出来：读者拿
+    badcase 去排优先级，有权知道哪几条的地基是虚的。
+    """
+    if crun is None:
+        return 0
+    return sum(1 for bc in crun.badcases if _is_contested(store.get_decision(bc.trace_id)))
+
+
+def _gold_agreement(store: TraceStore) -> dict[str, Any]:
+    """outcome 的最终裁决与基准自带结果逐条对照（判准校准）。
+
+    基准（tau2 的 DB 比对）由环境状态算出，和这套裁判无关，是 outcome 这一维唯一的外部尺子。
+    卡片自己报出来，读者才不会把「裁判说 pass」当成「基准说 pass」。两个通过率之差就是当前的
+    宽松程度：真批 30×3 实测裁判判 pass 约 88%，基准只有 38%。
+    """
+    n = agree = judge_pass = gold_pass = 0
+    for dec in store.list_decisions():
+        a = dec.get(Dimension.OUTCOME)
+        trace = store.get(dec.trace_id)
+        if a is None or a.final_label is None or trace is None or trace.outcome.success is None:
+            continue                     # 没有基准结果的 trace 不进对照（例如 OTel 样本）
+        gold = "pass" if trace.outcome.success else "fail"
+        n += 1
+        agree += int(a.final_label == gold)
+        judge_pass += int(a.final_label == "pass")
+        gold_pass += int(gold == "pass")
+    if not n:
+        return {"n_gold_compared": 0, "gold_agreement_rate": None,
+                "judge_pass_rate": None, "gold_pass_rate": None}
+    return {"n_gold_compared": n, "gold_agreement_rate": agree / n,
+            "judge_pass_rate": judge_pass / n, "gold_pass_rate": gold_pass / n}
 
 
 def _mean_scores(store: TraceStore) -> dict[str, float | None]:
@@ -81,8 +141,10 @@ def _card_cluster(store: TraceStore, c, crun) -> CardCluster:
             final_scores=dec.scores if dec else {}, excerpt=r.excerpt, opinions=opinions,
             decision_sources={a.dimension.value: a.source.value + (" (degraded)" if a.degraded else "") for a in dec.arbitrations} if dec else {},
         ))
+    n_contested = sum(1 for tid in c.member_trace_ids if _is_contested(store.get_decision(tid)))
     return CardCluster(
         rank=c.rank, cluster_id=c.cluster_id, label=c.label, label_source=c.label_source,
+        n_contested_members=n_contested,
         label_confidence=c.label_confidence, size=c.size, share=c.share, severity=c.severity, priority=c.priority,
         failed_dimension_counts=c.failed_dimension_counts, summary=c.summary, suggestion=c.suggestion,
         member_trace_ids=c.member_trace_ids, representatives=reps,
@@ -118,17 +180,26 @@ def render_markdown(card: EvidenceCard) -> str:
     L += ["## Summary", "",
           "| | |", "|---|---|",
           f"| Traces | {t.n_traces} across {t.n_tasks} tasks |",
-          f"| Environment failures (excluded) | {t.n_env_failures}" + (f" ({', '.join(f'{k}={v}' for k, v in t.env_kinds.items())})" if t.env_kinds else "") + " |",
+          f"| Environment failures (excluded) | {t.n_env_failures}"
+          + (f" ({', '.join(f'{k}={v}' for k, v in t.env_kinds.items())})" if t.env_kinds else "")
+          + (f"; the source said: {', '.join(f'{k}={v}' for k, v in sorted(t.env_causes.items()))}" if t.env_causes else "") + " |",
+          f"| Precheck advisories (still judged) | {t.n_precheck_advisories}"
+          + (f" ({', '.join(f'{k}={v}' for k, v in t.precheck_advisory_kinds.items())})" if t.precheck_advisory_kinds else "") + " |",
           f"| Scored by the panel | {t.n_scored} |",
           f"| Badcases | {t.n_badcases} in {t.n_clusters} cluster(s) + {t.n_unclustered} unclustered |",
-          f"| pass^1 | {_pct(q.pass_rate)} |"]
+          f"| pass^1 | {_pct(q.pass_rate)} ({q.n_benchmark_success} of {q.n_benchmark_result} trace(s) with a benchmark result) |"]
     for k, v in sorted(q.pass_k.items()):
         if k > 1:
             L.append(f"| pass^{k} | {_pct(v)} |")
     L += [f"| Judge agreement | {_pct(q.judge_agreement_rate)} ({q.n_needing_arbitration} traces arbitrated) |",
+          f"| Outcome vs benchmark (calibration) | {_pct(q.gold_agreement_rate)} on the {q.n_gold_compared} judged trace(s); "
+          f"panel says pass {_pct(q.judge_pass_rate)}, benchmark says pass {_pct(q.gold_pass_rate)} on those same traces |",
           f"| Decisions by source | {', '.join(f'{k}={v}' for k, v in sorted(q.decisions_by_source.items())) or '-'} |",
-          f"| Degraded decisions | {q.n_degraded} |",
-          f"| Audit | {q.n_audited} dimension(s) audited, {q.n_audit_disagreements} disagreement(s) |",
+          f"| Degraded decisions | {q.n_degraded} (party-arbitrated: a panel judge broke a tie it was part of; "
+          f"no independent tiebreaker available) |",
+          f"| Badcases on a contested decision | {q.n_badcases_contested} of {t.n_badcases} (that dimension had no independent tiebreaker) |",
+          f"| Audit | {q.n_audited} dimension(s) audited, {q.n_audit_disagreements} disagreement(s)"
+          f" (locally-arbitrated {q.n_audit_disagreements_degraded}/{q.n_audited_degraded}, panel {q.n_audit_disagreements_panel}/{q.n_audited_panel}) |",
           f"| Mean final scores | {', '.join(f'{k} {_num(v)}' for k, v in q.mean_scores.items())} |",
           "", "## Recommendation", "", card.recommendation, "", f"> {card.disclaimer}", ""]
     L += ["## Clusters", ""]
@@ -139,6 +210,8 @@ def render_markdown(card: EvidenceCard) -> str:
         L += [f"### #{c.rank} {name}", "",
               f"- Size {c.size} ({c.share:.0%} of badcases), severity {c.severity:.1f}, priority {c.priority:.1f}",
               f"- Failed dimensions: {', '.join(f'{k}x{v}' for k, v in c.failed_dimension_counts.items()) or '-'}",
+              *([f"- Contested evidence: {c.n_contested_members} of {c.size} member(s) rest on a decision with no independent tiebreaker"]
+                if c.n_contested_members else []),
               f"- Label source: {c.label_source}" + (f" (confidence {c.label_confidence:.2f})" if c.label_confidence is not None else ""),
               f"- Suggestion: {c.suggestion}", ""]
         for r in c.representatives:
@@ -179,7 +252,8 @@ def render_html(card: EvidenceCard) -> str:
     for k, v in sorted(q.pass_k.items()):
         if k > 1:
             tiles.append((_pct(v), f"pass^{k}"))
-    tiles += [(_pct(q.judge_agreement_rate), "judge agreement"), (q.n_degraded, "degraded decisions")]
+    tiles += [(_pct(q.judge_agreement_rate), "judge agreement"),
+              (_pct(q.gold_agreement_rate), "outcome vs benchmark"), (q.n_degraded, "degraded decisions")]
     H = [f"<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
          f"<title>{e(card.title)}</title><style>{_HTML_CSS}</style></head><body><div class='wrap'>",
          f"<h1>{e(card.title)}</h1><div class='meta'>run {e(card.run_id)} · {e(card.generated_at)} · agent {e(q.agent_model or '-')}</div>",
@@ -189,8 +263,14 @@ def render_html(card: EvidenceCard) -> str:
          "<h2>Quality</h2><table><tr><th>Mean final score</th>" + "".join(f"<td>{e(k)} {e(_num(v))}</td>" for k, v in q.mean_scores.items()) + "</tr>",
          f"<tr><th>Decisions by source</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in sorted(q.decisions_by_source.items())) or '-')}</td></tr>",
          f"<tr><th>Arbitrated traces</th><td colspan='4'>{q.n_needing_arbitration}</td></tr>",
-         f"<tr><th>Audit</th><td colspan='4'>{q.n_audited} dimension(s), {q.n_audit_disagreements} disagreement(s)</td></tr>",
-         f"<tr><th>Environment failures</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in t.env_kinds.items()) or '-')}</td></tr></table>",
+         f"<tr><th>Outcome vs benchmark</th><td colspan='4'>{e(_pct(q.gold_agreement_rate))} on the {q.n_gold_compared} judged trace(s)"
+         f"; panel says pass {e(_pct(q.judge_pass_rate))}, benchmark says pass {e(_pct(q.gold_pass_rate))} on those same traces</td></tr>",
+         f"<tr><th>Badcases on a contested decision</th><td colspan='4'>{q.n_badcases_contested} of {t.n_badcases} <small>(that dimension had no independent tiebreaker)</small></td></tr>",
+         f"<tr><th>Audit</th><td colspan='4'>{q.n_audited} dimension(s), {q.n_audit_disagreements} disagreement(s)"
+         f" (locally-arbitrated {q.n_audit_disagreements_degraded}/{q.n_audited_degraded}, panel {q.n_audit_disagreements_panel}/{q.n_audited_panel})</td></tr>",
+         f"<tr><th>Environment failures</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in t.env_kinds.items()) or '-')}"
+         + (f" <small>(the source said: {e(', '.join(f'{k}={v}' for k, v in sorted(t.env_causes.items())))})</small>" if t.env_causes else "") + "</td></tr>"
+         f"<tr><th>Precheck advisories</th><td colspan='4'>{e(', '.join(f'{k}={v}' for k, v in t.precheck_advisory_kinds.items()) or '-')} <small>(still judged)</small></td></tr></table>",
          "<h2>Clusters</h2>"]
     if not card.clusters:
         H.append("<p>No badcases.</p>")
@@ -198,6 +278,8 @@ def render_html(card: EvidenceCard) -> str:
         name = "Unclustered" if c.cluster_id == -1 else c.label.value
         H.append(f"<div class='cl'><h3>#{c.rank} {e(name)}<span class='pill'>{c.size} · {c.share:.0%}</span><span class='pill'>priority {c.priority:.1f}</span></h3>")
         H.append(f"<div class='kv'>Failed dimensions: {e(', '.join(f'{k}x{v}' for k, v in c.failed_dimension_counts.items()) or '-')} · severity {c.severity:.1f} · label from {e(c.label_source)}</div>")
+        if c.n_contested_members:
+            H.append(f"<div class='kv'>Contested evidence: {c.n_contested_members} of {c.size} member(s) rest on a decision with no independent tiebreaker</div>")
         H.append(f"<div class='kv'><b>Suggestion:</b> {e(c.suggestion)}</div>")
         for r in c.representatives:
             H.append(f"<div class='rep'><b>{e(r.trace_id)}</b> <span class='kv'>task {e(r.task_id)} · failed {e(', '.join(r.failed_dimensions) or '-')} · scores {e(', '.join(f'{k}={v}' for k, v in r.final_scores.items()))}</span>")

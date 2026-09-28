@@ -55,10 +55,12 @@ uv run pytest
   - `user_sim_broken`：模拟用户消息为空，或同一句话重复 ≥3 次
 - 所有阈值在 `PrecheckConfig` 里可调。
 - `store/sqlite.py`：新增 `precheck` 表，`put_precheck / get_precheck / list_precheck / scorable_traces / precheck_summary`。`scorable_traces()` 就是后面 M3 judge 的输入。
-- `cli.py`：`sparkjury precheck [--step-latency-ms N] [--max-duration-s N] [--json]`。
-- `tests/test_m2_precheck.py`：10 个用例，每条规则一个正例加一个反例，另外对全部 14 条样本跑一遍确认只有 1 条被标。
+- `cli.py`：`sparkjury precheck [--step-latency-ms N] [--max-duration-s N] [--step-latency-blocks] [--json]`。
+- 被排除的 trace 带上源数据自己记的失败原因：`Trace.failure_cause`（tau2 取 `info.error_type`）→ `PrecheckFlag.cause` → `precheck_summary()["blocking_causes"]` → 卡片那行 `the source said: …`。只报规则名的坏处是拿真批数据踩出来的：90 条里丢的 26 条一度被当成环境抖动，因为卡片只说得出「empty_trace=26」。
+- `tests/test_m2_precheck.py`：16 个用例，每条规则一个正例加一个反例，另外对全部 14 条样本跑一遍确认只有 1 条被标。
+- 事后补的分档（真批数据倒逼）：`PrecheckFlag` 加 `blocking` 字段，`is_env_failure` 只看阻断标志，非阻断的进 `advisories`。单步超阈值默认是非阻断，要恢复老口径把 `step_latency_blocks` 打开。原因是 2026-09-26 那批 90 条 τ²-bench 基线：21 条终止正常（`user_stop`）的 trace 仅因单步超 120 秒被排除，可评分只剩 42 条，等于把最慢的样本从体检里剔掉。改完在真批上重跑，可评分从 42 条涨到 63 条。
 
-**自测结果**：`uv run pytest` 19 passed（M1 9 个 + M2 10 个）。
+**自测结果**：`uv run pytest` 292 passed / 3 skipped（M1 9 个 + M2 13 个）。
 
 **人工验证步骤**
 
@@ -81,16 +83,20 @@ uv run sparkjury precheck --json
 
 - `models/verdict.py`：Dimension（outcome / tool_use / efficiency / safety）、Verdict、DimensionAgreement、PanelResult 数据模型。
 - `judges/rubrics/*.md`：四个维度各一份 rubric，0 到 4 分的评分标准写死，要求模型只输出一个 JSON 对象。
-- `judges/prompts.py`：拼 prompt（rubric + 金标摘要 + 带 [n] 步骤序号的对话流水）；`parse_verdict_json` 容忍代码围栏和废话，校验分数范围和标签。
+- `judges/prompts.py`：拼 prompt（rubric + 带 [n] 步骤序号的对话流水 + 任务原始要求）；`parse_verdict_json` 容忍代码围栏和废话，校验分数范围和标签。
 - `judges/client.py`：
   - `OpenAICompatJudge`：任何 OpenAI 兼容接口（DGX 上的 vLLM、StepFun、OpenRouter）。超时、重试可配；输出不是 JSON 时追问一次；后端挂了返回带 error 的 Verdict，绝不抛异常。
   - `MockJudge`：基于规则的裁判，用于离线测试和断网兜底；可加确定性抖动，让 mock 面板也会出现分歧。
 - `judges/heuristics.py`：规则裁判的规则，编码零售客服策略：先认证、先读后写、破坏性操作前要确认、不能编造订单状态、用户反对后不能重复同一写操作。
-- `judges/panel.py`：`PanelConfig`（TOML 或内置 mock 三人组）、`Panel.score(trace)` 并发跑 3 judge × 4 维，`decide_agreement` 判定一致性：outcome 看三票 pass/fail 是否相同，分数维度看极差是否 ≤ 1，任一 judge 出错即视为不一致。
+- `judges/panel.py`：`PanelConfig`（TOML 或内置 mock 三人组，含 prompt 预算 `transcript_width` / `transcript_max_chars` 与 `include_gold`）、`Panel.score(trace)` 并发跑 3 judge × 4 维；并发按裁判定（2026-09-27 改）：`PanelConfig.workers` 是「每个裁判默认几路」（默认 1），`[[panel.judges]] concurrency` 单独覆盖某个裁判，`Panel` 给每个裁判开一个自己的池子、池子之间并行，有效并发写进 manifest 的 `models.judge_concurrency`。改之前是一个全局池子跑所有任务，把两个端点的需求平均掉，最不需要并发的 judge_a 反而被灌最多并发（实测全局 1 路时 3.7/3.0 秒，全局 6 路时 18.9/10.7 秒，墙钟只省 24%），`decide_agreement` 判定一致性：outcome 看三票 pass/fail 是否相同，分数维度看极差是否 ≤ 1，任一 judge 出错即视为不一致。`Panel.arbiter_judges()` 统一挑仲裁人与审计人：审计只用真裁判，面板里没有两个真裁判就跳过审计。
+- `judges/prompts.py` + `models/trace.py`：prompt 预算与金标开关。`build_messages(trace, dim, *, transcript_width=4000, transcript_max_chars=45000, include_gold=False)`；`Trace.transcript(width, max_chars=..., min_width=...)` 超预算时二分收缩每步宽度，保住每条 `[n]` 骨架，连最小宽度都装不下才丢中间步并留 `[... N step(s) omitted ...]` 标记。金标默认不进 prompt——2026-09-27 修复：在此之前三家真裁判都拿到了基准金标，outcome 维度退化成复述。
+- 任务原始要求进 prompt（2026-09-27）：`Trace.task_requirement` 由 tau2 适配器从 `tasks[].user_scenario.instructions.reason_for_call` 填，`build_messages` 与 `Arbiter._state_text` 都带上它。原因：裁判只看对话时拿到的是模拟用户的说法，用户模拟器会把条件说糊、把"如果没有就只换恒温器"说成一句可以被读成同意的话，裁判照对话判就把漂移记在了被测 Agent 头上（实测 retail 30×3 真批里 21 条误判，绝大多数属于这一类）。要求写的是"用户来干什么"，不是答案：`evaluation_criteria.actions`（参考调用清单）与奖励判定都不进任何 prompt，测试里有专门的防泄漏断言。
 - `deploy/judges.example.toml`：三 judge 的真实配置模板（Qwen 本地 8001、Gemma 本地 8002、StepFun API），API key 只从环境变量读。
 - `store/sqlite.py`：新增 `verdicts`、`panel` 两张表，`put_panel_results / get_panel_result / list_panel_results / verdict_summary`。
 - `cli.py`：`sparkjury score [--judges mock|文件.toml] [--dims ...] [--trace ID] [--limit N] [--json]` 和 `sparkjury verdicts <trace_id>`。
-- `tests/test_m3_judges.py`：13 个用例，覆盖 prompt、JSON 解析、四类坏例的规则打分、LLM 裁判的解析与追问与容错（用桩后端）、一致性规则、TOML 配置、存储与 CLI。
+- 提示词撑爆裁判上下文窗口时（真批实测：16k 的 Nemotron 遇上最长的那条 trace，回 400 「maximum context length is 16384 tokens」），把 transcript 预算减半重问，最多两次；只有这一类错误才缩，连不上端点重问是白等。
+- 裁判输出的 JSON 坏掉时先修再报错，但只修语法、不修语义：多余一个 `]`（真批上抓到的原样例子，`[` 两个 `]` 三个）就把多余的删掉；结尾又多写一个没值的键（`..., "rationale": "...", "two or three sentences"}`）就按逗号从后往前截断再闭合。补救来的判定在 rationale 里写明「salvaged from malformed judge output」。分数越界、label 乱写这类语义问题照旧直接报错。
+- `tests/test_m3_judges.py`：29 个用例，覆盖 prompt（含"金标默认不进 prompt"、"任务原始要求进 prompt 而参考调用不进"、"预算装不下才丢步且留痕"几条）、按裁判开并发（点名的裁判才拿到高并发，判定顺序不变）、JSON 解析、四类坏例的规则打分、LLM 裁判的解析与追问与容错（用桩后端）、一致性规则、TOML 配置、仲裁人与审计人的挑选规则、存储与 CLI。
 
 **自测结果**：`uv run pytest` 32 passed（M1 9 + M2 10 + M3 13）。
 
@@ -124,13 +130,15 @@ uv run sparkjury verdicts retail_task_001-t2
   - 三票不一致：把三位裁判的分数、理由、证据步骤和对话流水拼成 state 送 Jev。score 问题的五个等级直接取自 rubric 里的 0 到 4 分定义，outcome 额外问一个 noul。
   - Jev 未配置或调用失败：本地 Judge A 仲裁，标 degraded=true，理由里写明降级原因。
   - 本地也失败：退回面板中位数，标 degraded 并记录错误。
-  - 5% 审计：按 trace_id 哈希确定性抽样，抽中的 trace 全部维度再由审计裁判打一遍，记录是否与最终裁决相差超过 1 分。
+  - 5% 审计：按 trace_id 哈希确定性抽样，抽中的 trace 全部维度再由审计裁判打一遍，记录是否与最终裁决相差超过 1 分。审计人由 `Panel.arbiter_judges()` 挑，只可能是真裁判；面板里没有两个真裁判时 `audit_judge` 为 None，审计直接跳过（2026-09-27 修复：此前取的是面板最后一位，而节点上那一位恰好是健康检查失败后被换成 mock 的 judge_c，等于让 mock 审真裁判）。
+  - 本地仲裁的决策（degraded）全部送审计，不进抽样（`audit_degraded`，默认开）。真批 63 条实测 31/38 被判成另一种结果，面板抽到的 18 条 0 条不一致。注意读法：审计裁判就是面板里另一位真裁判，重问的是当初吵起来的那一票，所以 31/38 说明的是这类维度没有独立裁决（占 252 维的 15%），不是「仲裁判错了」。
+  - 审计只记录不改判，分歧数按决策来源分开报（卡片、manifest 都有 locally-arbitrated / panel 两组）。面板只有两个真裁判时，任何本地仲裁人都是当事人，把缺裁的规模标出来比换个当事人拍板更诚实。
 - `judges/prompts.py`：新增 `rubric_levels()`，从四份 rubric 里解析出 0 到 4 分的描述，供 Jev 的 score 问题使用。
 - `store/sqlite.py`：新增 `arbitration` 表，`put_decisions / get_decision / list_decisions / arbitration_summary`。
 - `cli.py`：`sparkjury arbitrate [--jev auto|off] [--jev-timeout-s 5] [--judges mock|文件.toml] [--audit-rate 0.05] [--trace ID] [--json]`。Jev 的 key 从环境变量 TYPESAFE_API_KEY 读。
-- `tests/test_m4_arbiter.py`：10 个用例。用假的 HTTP 传输层验证 Jev 请求体和响应解析（含 1 起编号的 legend）；四条决策路径各一个用例：一致取中位数、分歧送 Jev、Jev 失败退本地并标降级、本地也失败退面板中位数；审计抽样的确定性和比例；存储与 CLI。
+- `tests/test_m4_arbiter.py`：12 个用例（含「Jev 状态文本带任务原始要求、不带金标」一条）。用假的 HTTP 传输层验证 Jev 请求体和响应解析（含 1 起编号的 legend）；四条决策路径各一个用例：一致取中位数、分歧送 Jev、Jev 失败退本地并标降级、本地也失败退面板中位数；审计抽样的确定性和比例；存储与 CLI。
 
-**自测结果**：`uv run pytest` 42 passed（M1 9 + M2 10 + M3 13 + M4 10）。
+**自测结果**：`uv run pytest` 296 passed / 3 skipped（M1 10 + M2 13 + M3 24 + M4 12 + …）。
 
 **人工验证步骤**
 
@@ -192,7 +200,8 @@ uv run sparkjury cluster --min-cluster-size 2 --json
 - `models/regress.py` 和 `regress/passk.py`：`compare(before_db, after_db)` 对比两次评测。输出 pass^1 与 pass^k 前后差、哪些任务从 fail 变 pass、哪些从 pass 变 fail、各维度均分变化、badcase 数量变化、每个失败标签的簇大小变化，并给一句结论：improved / improved with regressions / unchanged / regressed。
 - `judges/pairwise.py`：成对比较。同一任务同一 trial 的前后两条记录送裁判比，A/B 顺序交换跑两遍，两遍结论一致才算数，不一致记为 inconsistent。这是针对位置偏差的标准做法。`MockPairwiseJudge` 用规则分数比较，`OpenAIPairwiseJudge` 接真实模型。
 - `cli.py`：`sparkjury report [--out runs/card] [--format all|json|md|html] [--title]` 和 `sparkjury regress --before A.db --after B.db [--pairwise mock|文件.toml] [--out 报告.md] [--json]`。
-- `tests/test_m6_report_regress.py`：8 个用例。卡片的总量和簇内容、三种格式渲染、空库；回归：同库对比为 unchanged、修好一条后为 improved 且列出 retail_task_004、反向对比为 regressed；成对比较的交换一致性，包括一个"永远选 A"的偏见裁判被识别为不一致；CLI。
+- 被排除的 trace 那行会补上源数据记的原因（`the source said: …`），源数据没记就不显示这一段。
+- `tests/test_m6_report_regress.py`：22 个用例。卡片的总量和簇内容、三种格式渲染、空库；判准校准（故意把一批裁决写反，卡片要报出与基准 0% 一致、两个通过率互补；库里没有基准时报 0 条）；回归：同库对比为 unchanged、修好一条后为 improved 且列出 retail_task_004、反向对比为 regressed；成对比较的交换一致性，包括一个"永远选 A"的偏见裁判被识别为不一致；CLI。
 
 **自测结果**：`uv run pytest` 59 passed（M1 9 + M2 10 + M3 13 + M4 10 + M5 9 + M6 8）。
 
@@ -353,12 +362,13 @@ cat skills/sparkjury-score/SKILL.md   # Windows PowerShell: type skills\sparkjur
   - `download_models.sh`：在节点上用 ModelScope 下载，已有的跳过，绝不走 scp。
   - `start_judges.sh`：一个 tmux 会话五个窗口：judge_a、judge_b、embedding、被评 Agent、API。等三个裁判的 /models 接口就绪后打印状态。
   - `status.sh` / `stop_all.sh`：查看与停止，只动自己用户的进程。
-  - `run_tau2.sh`：跑 τ²-bench retail，被评 Agent 走本地 8004 端口，模拟用户走 judge_a 的模型（与被评 Agent 权重不同），3 trial，结果落 data/simulations/ 并自动导入。
+  - `run_tau2.sh`：跑 τ²-bench retail，被评 Agent 走本地 8004 端口，模拟用户走 judge_a 的模型（与被评 Agent 权重不同），3 trial，结果落 data/simulations/ 并自动导入；结果路径兼容两种布局（新版把 `results.json` 放在以 run 名字命名的目录里，老版直接是 `名字.json`），开跑前把 tau2 评测环节那个写死的云端裁判指到本地并验证生效。
+  - `patch_tau2_nl_assertions.sh`：tau2 的 NL-assertion 裁判是评测环节里唯一会调外部 LLM 的一步，模型名写死 `gpt-4.1`；节点连不上 api.openai.com，于是带 `nl_assertions` 的任务在对话跑完之后评测抛异常，整条 simulation（含对话）被重跑 4 次后丢弃——9 月 26 日那批 90 条丢了 26 条，全部来自带 nl_assertions 的 9 个任务，另外 21 个任务一条没丢。脚本把模型名与参数改成从环境变量读，`ensure` 模式会 import 一次确认真的生效，没生效就非零退出。
   - `make_demo_bundle.sh`：把一次运行的 db、清单、事件流、卡片打成 tar.gz，笔记本上解压后 `sparkjury serve` 就能离线回放，决赛不依赖节点在线。
 - `deploy/README.md`：节点上的六步操作手册和排障表，含 SSH 端口转发、tmux、9000 到 9030 的映射、token 用法。
 - API 访问令牌：`SPARKJURY_API_TOKEN` 或 `serve --token`。设了之后除 /health 外所有路由都要 `Authorization: Bearer` 或 `?token=`；Cockpit 页第一次带 ?token= 打开后记在浏览器里，之后自动附带。**没设 token 时只服务回环来的请求**：绑公网又不给 token，`sparkjury serve` 直接拒绝启动（exit 2），`deploy/dgx/start_judges.sh` 在起 tmux、碰 vLLM 之前就把它拦掉——以前只打一句警告，日志里滚过去谁也没看见，而节点手册的红线是"8888 和 9000 上对外提供的服务必须有鉴权"。这是节点手册"公网端口必须加访问控制"的要求。
 - 请求里的路径都要归位：`run_id` 只能是单层目录名（`RunManager.run_dir()` 是所有读写的公共出口），`db` 必须落在 `runs_dir` 之内，`config_path` 必须落在服务进程工作目录之内，越界一律 400。`reset_db` 的 `unlink()` 只会作用在 `runs_dir` 之内，越界让这次 run 明确失败而不是删掉宿主机上的任意文件。
-- `tests/test_m10_deploy.py`：18 个用例：token 拒绝与放行、环境变量来源、默认关闭、页面转发 token、绑公网无 token 拒绝启动、部署脚本在动手前拦下空 token；脚本齐全且 bash -n 通过；env.example 覆盖脚本用到的全部变量；三处配置里端口一致、vLLM 只绑回环、显存比例之和留有余量；tau2 脚本的 Agent 与模拟用户用不同模型。
+- `tests/test_m10_deploy.py`：23 个用例：token 拒绝与放行、环境变量来源、默认关闭、页面转发 token、绑公网无 token 拒绝启动、部署脚本在动手前拦下空 token；脚本齐全且 bash -n 通过；env.example 覆盖脚本用到的全部变量；三处配置里端口一致、vLLM 只绑回环、显存比例之和留有余量；tau2 脚本的 Agent 与模拟用户用不同模型；结果文件两种布局都能找到；评测环节的 NL 裁判指向本地端点且开跑前验证生效；补丁脚本幂等、能回滚、补丁没打上时拒绝静默通过；能按任务号补跑指定任务（TAU2_TASK_IDS）。
 
 **自测结果**：`uv run pytest` 96 passed, 3 skipped。
 

@@ -21,6 +21,14 @@ class PrecheckFlag(BaseModel):
     kind: PrecheckKind
     evidence_step_idx: int | None = None
     note: str = ""
+    # Short cause token taken from the source's own error record (Trace.failure_cause). Kept apart
+    # from `note` so the card can group excluded traces by cause: "InternalServerError after 4
+    # attempts" and "agent crashed" are both infra_error-ish but call for opposite reactions.
+    cause: str = ""
+    # blocking=True（默认）＝环境把这条 trace 弄坏了：数据本身不能用来判分，排除出评分集。
+    # blocking=False＝这条 trace 能判，只是有值得看的信号（例如某一步特别慢），照实写进
+    # 报告但照样送裁判。拆开的原因是真批数据逼出来的，见 precheck/rules.py::rule_timeout。
+    blocking: bool = True
 
 
 class PrecheckResult(BaseModel):
@@ -29,8 +37,18 @@ class PrecheckResult(BaseModel):
 
     @property
     def is_env_failure(self) -> bool:
-        return bool(self.flags)
+        """Any *blocking* flag. A trace with only advisory flags still goes to the judges."""
+        return any(f.blocking for f in self.flags)
+
+    @property
+    def advisories(self) -> list[PrecheckFlag]:
+        """Flags worth reporting that must not drop the trace out of the eval."""
+        return [f for f in self.flags if not f.blocking]
 
     @property
     def kinds(self) -> list[PrecheckKind]:
         return [f.kind for f in self.flags]
+
+    @property
+    def blocking_kinds(self) -> list[PrecheckKind]:
+        return [f.kind for f in self.flags if f.blocking]

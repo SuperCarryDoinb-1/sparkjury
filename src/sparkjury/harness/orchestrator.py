@@ -165,11 +165,15 @@ class Orchestrator:
 
     def _precheck(self) -> dict[str, Any]:
         assert self._store
-        cfg = PrecheckConfig(step_latency_ms=self.cfg.precheck.step_latency_ms, max_duration_s=self.cfg.precheck.max_duration_s)
+        cfg = PrecheckConfig(step_latency_ms=self.cfg.precheck.step_latency_ms,
+                             max_duration_s=self.cfg.precheck.max_duration_s,
+                             step_latency_blocks=self.cfg.precheck.step_latency_blocks)
         results = run_many(self._store.list(), cfg)
         self._store.put_precheck(results)
         s = self._store.precheck_summary()
-        return {"n_checked": s["n_checked"], "n_env_failures": s["n_env_failures"], "n_scorable": s["n_scorable"], "kinds": s["kinds"]}
+        return {"n_checked": s["n_checked"], "n_env_failures": s["n_env_failures"], "n_scorable": s["n_scorable"],
+                "kinds": s["kinds"], "advisory_kinds": s["advisory_kinds"],
+                "n_traces_with_advisory": s["n_traces_with_advisory"]}
 
     def _evalset(self) -> dict[str, Any]:
         assert self._store
@@ -185,16 +189,36 @@ class Orchestrator:
 
     def _build_panel(self) -> Panel:
         cfg = self.cfg.panel or PanelConfig.mock()
+        self._panel_cfg = cfg
         judges = build_judges(cfg)
         if self.cfg.judge_healthcheck:
-            for i, j in enumerate(judges):
-                if isinstance(j, OpenAICompatJudge) and not j.healthcheck():
-                    why = getattr(j, "health_error", None) or "unknown"
-                    self._degrade(Stage.SCORE, f"judge {j.name} ({j.model} @ {j.base_url})",
-                                  f"health check failed: {why}", "mock judge")
+            failed = [i for i, j in enumerate(judges)
+                      if isinstance(j, OpenAICompatJudge) and not j.healthcheck()]
+            n_real_left = sum(1 for i, j in enumerate(judges)
+                              if i not in failed and isinstance(j, OpenAICompatJudge))
+            # Swapping an unreachable judge for a mock lets a heuristic vote beside real
+            # models, manufacturing disagreements that then cost an arbitration round.
+            # So drop unreachable judges while two real ones remain; fall back to mocks only
+            # when the panel would otherwise be too small to run (offline demo, or most of
+            # the panel unreachable).
+            drop = bool(failed) and n_real_left >= 2
+            for i in failed:
+                j = judges[i]
+                why = getattr(j, "health_error", None) or "unknown"
+                self._degrade(Stage.SCORE, f"judge {j.name} ({j.model} @ {j.base_url})",
+                              f"health check failed: {why}",
+                              "dropped from panel" if drop else "mock judge")
+                if not drop:
                     judges[i] = MockJudge(j.name, f"mock-fallback-for-{j.model}", jitter=0.1)
+            if drop:
+                judges = [j for i, j in enumerate(judges) if i not in failed]
         self.manifest["models"]["judges"] = {j.name: j.model for j in judges}
-        return Panel(judges, cfg.dimensions, score_tolerance=cfg.score_tolerance, workers=cfg.workers)
+        # 每个裁判同时在飞几个请求是分裁判定的（见 PanelConfig.workers 的实测），
+        # 写进 manifest 才看得出配置有没有生效
+        panel = Panel(judges, cfg.dimensions, score_tolerance=cfg.score_tolerance, workers=cfg.workers,
+                      concurrency={s.name: s.concurrency for s in cfg.judges if s.concurrency > 0})
+        self.manifest["models"]["judge_concurrency"] = dict(panel.concurrency)
+        return panel
 
     def _score(self) -> dict[str, Any]:
         assert self._store
@@ -222,11 +246,17 @@ class Orchestrator:
     def _arbitrate(self) -> dict[str, Any]:
         assert self._store
         panel = self._panel or self._build_panel()
+        pc = getattr(self, "_panel_cfg", None) or self.cfg.panel or PanelConfig.mock()
         jev = None if self.cfg.arbiter.jev == "off" else JevClient(timeout_s=self.cfg.arbiter.jev_timeout_s)
         if jev is not None and not jev.configured:
             self._degrade(Stage.ARBITRATE, "jev", "TYPESAFE_API_KEY not set", "local judge arbitration")
-        arb = Arbiter(jev=jev, local_judge=panel.judges[0], audit_judge=panel.judges[-1] if len(panel.judges) > 1 else None,
-                      audit_rate=self.cfg.arbiter.audit_rate)
+        local, audit = panel.arbiter_judges()
+        arb = Arbiter(jev=jev, local_judge=local, audit_judge=audit,
+                      audit_rate=self.cfg.arbiter.audit_rate,
+                      audit_degraded=self.cfg.arbiter.audit_degraded,
+                      transcript_width=pc.transcript_width,
+                      transcript_max_chars=pc.transcript_max_chars,
+                      include_gold=pc.include_gold)
         panels = [p for p in self._store.list_panel_results() if not self._evalset_ids or p.trace_id in set(self._evalset_ids)]
         pairs = [(self._store.get(p.trace_id), p) for p in panels]
         decisions = arb.decide_many([(t, p) for t, p in pairs if t is not None],
@@ -240,11 +270,19 @@ class Orchestrator:
         n_local = by_source.get("local", 0)
         if jev is not None and jev.configured and n_local:
             self._degrade(Stage.ARBITRATE, "jev", f"{n_local} decision(s) fell back", "local judge arbitration")
-        self.manifest["models"]["arbiter"] = {"jev": jev.model if jev and jev.configured else None, "local": panel.judges[0].model}
+        self.manifest["models"]["arbiter"] = {
+            "jev": jev.model if jev and jev.configured else None,
+            "local": local.model if local else None,
+            "audit": audit.model if audit else None,   # None = no real judge left to audit with
+        }
         return {"n_traces": len(decisions), "n_dimensions": len(arbs), "by_source": by_source,
                 "n_degraded": sum(1 for a in arbs if a.degraded),
                 "n_audited": sum(1 for a in arbs if a.audit_sampled),
-                "n_audit_disagreements": sum(1 for a in arbs if a.audit_disagrees)}
+                "n_audit_disagreements": sum(1 for a in arbs if a.audit_disagrees),
+                "n_audited_degraded": sum(1 for a in arbs if a.audit_sampled and a.degraded),
+                "n_audit_disagreements_degraded": sum(1 for a in arbs if a.audit_sampled and a.degraded and a.audit_disagrees),
+                "n_audited_panel": sum(1 for a in arbs if a.audit_sampled and not a.degraded),
+                "n_audit_disagreements_panel": sum(1 for a in arbs if a.audit_sampled and not a.degraded and a.audit_disagrees)}
 
     def _cluster(self) -> dict[str, Any]:
         assert self._store
@@ -295,8 +333,12 @@ class Orchestrator:
         card = build_card(self._store, run_id=self.cfg.run_id, title=self.cfg.report.title)
         out_dir = Path(self.cfg.report.out_dir) if self.cfg.report.out_dir else self.run_dir / "card"
         files = write_card(card, out_dir, formats=tuple(self.cfg.report.formats))
+        q = card.quality
         return {"files": [str(f) for f in files], "recommendation": card.recommendation,
-                "pass_rate": card.quality.pass_rate, "pass_k": card.quality.pass_k, "n_badcases": card.totals.n_badcases}
+                "pass_rate": q.pass_rate, "pass_k": q.pass_k, "n_badcases": card.totals.n_badcases,
+                # 判准校准也进阶段摘要：跑批的人不看卡片也能一眼看到裁判与基准差多少
+                "n_gold_compared": q.n_gold_compared, "gold_agreement_rate": q.gold_agreement_rate,
+                "judge_pass_rate": q.judge_pass_rate, "gold_pass_rate": q.gold_pass_rate}
 
 
 def run_config(cfg: RunConfig, on_event=None) -> dict[str, Any]:

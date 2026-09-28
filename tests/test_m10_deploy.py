@@ -11,7 +11,7 @@ from sparkjury.api import create_app
 
 ROOT = Path(__file__).resolve().parents[1]
 DGX = ROOT / "deploy" / "dgx"
-SCRIPTS = ["common.sh", "setup_node.sh", "download_models.sh", "start_judges.sh", "status.sh", "stop_all.sh", "run_tau2.sh", "make_demo_bundle.sh", "apply_prompt_fix.sh", "full_loop.sh"]
+SCRIPTS = ["common.sh", "setup_node.sh", "download_models.sh", "start_judges.sh", "status.sh", "stop_all.sh", "run_tau2.sh", "make_demo_bundle.sh", "apply_prompt_fix.sh", "patch_tau2_nl_assertions.sh", "full_loop.sh"]
 
 
 # ---- API token ---------------------------------------------------------------------------
@@ -178,3 +178,97 @@ def test_start_judges_refuses_to_start_the_api_window_without_a_token(tmp_path):
     out = r.stdout + r.stderr
     assert "SPARKJURY_API_TOKEN" not in out, out
     assert "vLLM not found" in out, out  # 走到下一步才停，说明上一条检查确实是条件性的
+
+
+# ---- tau2 评测环节那个写死的 gpt-4.1 裁判：不修就会连对话一起丢掉 ----------------------------------
+
+def test_tau2_script_points_the_eval_judge_at_a_local_endpoint():
+    """9/26 那批 90 条丢了 26 条，全部来自带 nl_assertions 的 9 个任务：tau2 评测环节的 NL 裁判
+    写死 gpt-4.1，节点连不上 api.openai.com，评测抛异常把整条 simulation 连对话一起重跑 4 次丢掉。
+    这条守着修复的接线：脚本必须把模型指到本地端点，并且开跑前验证真的生效。"""
+    s = (DGX / "run_tau2.sh").read_text(encoding="utf-8")
+    assert 'export TAU2_LLM_NL_ASSERTIONS="${TAU2_LLM_NL_ASSERTIONS:-openai/${JUDGE_A_MODEL}}"' in s
+    assert "TAU2_LLM_NL_ASSERTIONS_ARGS" in s and "api_base" in s
+    assert "response_format" in s  # 本地模型的输出要能 json.loads 回来
+    assert "patch_tau2_nl_assertions.sh ensure" in s  # 没打补丁就 die，而不是静默丢数据
+    assert "export TAU2_BIN" in s  # 补丁脚本是子进程：不 export 它看不到，会退回队友主树的 venv
+
+
+@pytest.mark.skipif(BASH is None, reason="没有可用的 bash（Windows 上常见：只有 WSL 启动桩、没装 Git Bash）")
+def test_patch_tau2_nl_assertions_is_idempotent_and_refuses_a_silent_no_op(tmp_path):
+    """补丁脚本的三条性质：重复执行幂等、环境变量真能改变 tau2 的生效值、补丁没打上时 check 必须报错
+    （否则 run_tau2.sh 会以为自己设置成功了，然后继续把 26 条数据丢掉）。"""
+    import sys
+
+    tau2 = tmp_path / "tau2-bench"
+    (tau2 / "src" / "tau2").mkdir(parents=True)
+    (tau2 / "src" / "tau2" / "__init__.py").write_text("", encoding="utf-8")
+    cfg = tau2 / "src" / "tau2" / "config.py"
+    cfg.write_text('DEFAULT_LLM_NL_ASSERTIONS = "gpt-4.1-2025-04-14"\n'
+                   'DEFAULT_LLM_NL_ASSERTIONS_TEMPERATURE = 0.0\n'
+                   'DEFAULT_LLM_NL_ASSERTIONS_ARGS = {"temperature": DEFAULT_LLM_NL_ASSERTIONS_TEMPERATURE}\n',
+                   encoding="utf-8")
+    env = dict(os.environ, TAU2_HOME=str(tau2), TAU2_PY=sys.executable,
+               TAU2_LLM_NL_ASSERTIONS="openai/local-judge", LC_ALL="en_US.UTF-8", LANG="en_US.UTF-8")
+
+    def run(*args, **kw):
+        r = subprocess.run([BASH, str(DGX / "patch_tau2_nl_assertions.sh"), *args],
+                           capture_output=True, encoding="utf-8", errors="replace",
+                           env=kw.get("env", env), timeout=120)
+        return r.returncode, r.stdout + r.stderr
+
+    # 没打补丁就 check：必须非零退出并说清「环境变量没生效」
+    rc, out = run("check")
+    assert rc != 0 and "没生效" in out, out
+
+    rc, out = run("apply")
+    assert rc == 0 and "已给" in out, out
+    assert 'os.environ.get("TAU2_LLM_NL_ASSERTIONS"' in cfg.read_text(encoding="utf-8")
+    assert cfg.read_text(encoding="utf-8").count("DEFAULT_LLM_NL_ASSERTIONS_TEMPERATURE = 0.0") == 1
+
+    rc, out = run("apply")  # 幂等
+    assert rc == 0 and "已在" in out, out
+
+    rc, out = run("check")  # 真 import 一次，确认生效值是环境变量给的那个
+    assert rc == 0 and "openai/local-judge" in out, out
+
+    rc, out = run("check", env={k: v for k, v in env.items() if k != "TAU2_LLM_NL_ASSERTIONS"})
+    assert rc == 0 and "gpt-4.1-2025-04-14" in out, out  # 不设变量时默认值不变
+
+    # TAU2_PY 不设（脚本头写的用法 `patch_tau2_nl_assertions.sh check` 就是这样跑的）：tau2_python()
+    # 曾经无条件展开 ${TAU2_BIN%/tau2}，而 TAU2_BIN 只有 run_tau2.sh 会设，于是 set -u 下直接报
+    # "TAU2_BIN: unbound variable" 崩掉——只有通过 run_tau2.sh 调它才碰不到。给一个 python3 垫片，
+    # 让兜底落到测试自己的解释器上（Windows 的 Git Bash 里没有 python3）。
+    shim = tmp_path / "shim"
+    shim.mkdir()
+    py3 = shim / "python3"
+    py3.write_text(f'#!/usr/bin/env bash\nexec "{Path(sys.executable).as_posix()}" "$@"\n', encoding="utf-8")
+    py3.chmod(0o755)
+    no_py = {k: v for k, v in env.items() if k != "TAU2_PY"}
+    no_py["PATH"] = f"{shim}{os.pathsep}{no_py.get('PATH', '')}"
+    rc, out = run("check", env=no_py)
+    assert "unbound variable" not in out, out
+    if rc == 0:  # 垫片在个别平台上不一定能当解释器用；那时也该是 import 失败，而不是崩变量
+        assert "openai/local-judge" in out, out
+
+    rc, out = run("revert")
+    assert rc == 0 and 'DEFAULT_LLM_NL_ASSERTIONS = "gpt-4.1-2025-04-14"' in cfg.read_text(encoding="utf-8")
+
+
+def test_tau2_script_finds_both_result_layouts():
+    """新版 tau2 把结果写成 <SIM_DIR>/<NAME>/results.json，老版是 <SIM_DIR>/<NAME>.json。
+    只认老路径的话，一批跑完几小时会在拷贝这一步 die，数据其实就在隔壁目录。<NAME>/results.json
+    这个候选必须在，且兜底要能取目录式的 results.json。"""
+    s = (DGX / "run_tau2.sh").read_text(encoding="utf-8")
+    assert '"$TAU2_SIM_DIR/$NAME/results.json"' in s
+    assert '"$TAU2_SIM_DIR/$NAME.json"' in s
+    assert '"$TAU2_SIM_DIR"/*/results.json' in s  # 兜底：目录式布局
+
+
+def test_tau2_script_can_rerun_only_named_tasks():
+    """补跑用得上：丢了的那几个任务不是前缀（id 2、3、4、16、19、21、24、28、29），
+    --num-tasks 选不到，必须能直接点名。"""
+    s = (DGX / "run_tau2.sh").read_text(encoding="utf-8")
+    assert "TAU2_TASK_IDS" in s and "--task-ids" in s
+    assert 'TASK_ARGS=(--num-tasks "$NUM_TASKS")' in s
+    assert '"${TASK_ARGS[@]}"' in s

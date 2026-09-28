@@ -5,6 +5,15 @@ Disagreements go to Jev; if Jev is unconfigured or fails within its timeout,
 a local judge arbitrates and the decision is marked degraded. A deterministic
 5% sample of traces is additionally re-scored by an audit judge so systematic
 blind spots of the small local judges become visible.
+
+一切走本地仲裁的决策（`degraded=True`）默认全部送审计，不参与 5% 抽样。理由是
+真批上量出来的：63 条 trace 里 38 条本地仲裁决策有 31 条被审计裁判判成另一种结果，
+而被抽到的 18 条面板决策一条不一致。
+
+这个 31/38 的读法要知道：审计裁判就是面板里的另一位真裁判，它重问的正是当初吵起来
+的那一票，所以这个数说明的是「这些维度没有独立裁决」——面板只有两个真裁判时，
+本地仲裁人无论选谁都是当事人——而不是「仲裁判错了」。审计在这里的作用是把缺失
+独立裁决的规模变成可数的，不是去纠正它。审计只记录不改判。
 """
 
 from __future__ import annotations
@@ -30,14 +39,20 @@ class Arbiter:
         local_judge: Judge | None = None,
         audit_judge: Judge | None = None,
         audit_rate: float = 0.05,
-        transcript_width: int = 400,
+        audit_degraded: bool = True,
+        transcript_width: int = 4000,
+        transcript_max_chars: int | None = 45000,
+        include_gold: bool = False,
     ):
         self.jev = jev if (jev is not None and jev.configured) else None
         self.jev_unavailable_reason = None if self.jev else ("jev not configured" if jev is None or not jev.configured else None)
         self.local_judge = local_judge
         self.audit_judge = audit_judge
         self.audit_rate = audit_rate
+        self.audit_degraded = audit_degraded
         self.transcript_width = transcript_width
+        self.transcript_max_chars = transcript_max_chars
+        self.include_gold = include_gold
 
     # ---- public --------------------------------------------------------------
 
@@ -50,7 +65,7 @@ class Arbiter:
                 arb = self._from_panel(trace, agreement, verdicts, DecisionSource.PANEL, degraded=False)
             else:
                 arb = self._arbitrate(trace, agreement, verdicts)
-            if audit and self.audit_judge is not None:
+            if self.audit_judge is not None and (audit or (self.audit_degraded and arb.degraded)):
                 self._audit(trace, arb)
             out.append(arb)
         return TraceDecision(trace_id=trace.trace_id, arbitrations=out)
@@ -164,12 +179,18 @@ class Arbiter:
 
     def _state_text(self, trace: Trace, dim: Dimension, verdicts: list[Verdict]) -> str:
         o = trace.outcome
-        gold = "not available" if o.success is None else ("SUCCESS" if o.success else "FAIL")
+        head = f"Task {trace.task_id} trial {trace.trial}, domain {trace.domain}."
+        if self.include_gold:
+            gold = "not available" if o.success is None else ("SUCCESS" if o.success else "FAIL")
+            head += f" Gold final-state outcome: {gold}."
         lines = [
-            f"Task {trace.task_id} trial {trace.trial}, domain {trace.domain}. Gold final-state outcome: {gold}.",
+            head,
             f"Dimension under arbitration: {dim.value}.",
-            "Three independent judges disagreed:",
         ]
+        requirement = (trace.task_requirement or "").strip()
+        if requirement:
+            lines.append(f"Task requirement (what the user came for, as the task defines it): {requirement}")
+        lines.append("Three independent judges disagreed:")
         for v in verdicts:
             if v.ok:
                 lines.append(f"- {v.judge} ({v.model}): score {v.score}" + (f", {v.label}" if v.label else "") +
@@ -177,5 +198,5 @@ class Arbiter:
             else:
                 lines.append(f"- {v.judge} ({v.model}): failed ({v.error})")
         lines.append("Transcript ([n] = step index):")
-        lines.append(trace.transcript(width=self.transcript_width))
+        lines.append(trace.transcript(width=self.transcript_width, max_chars=self.transcript_max_chars))
         return "\n".join(lines)

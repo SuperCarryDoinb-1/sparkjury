@@ -121,6 +121,7 @@ class Stats:
     n_tasks: int = 0
     trials_per_task: dict[int, int] = field(default_factory=dict)  # k -> number of tasks with k trials
     n_with_gold: int = 0
+    n_gold_success: int = 0                       # of those, how many the benchmark passed
     pass_rate: float | None = None  # mean over traces with gold (= pass^1)
     pass_k: dict[int, float] = field(default_factory=dict)  # k -> fraction of tasks passing all k trials
     avg_steps: float | None = None
@@ -268,6 +269,7 @@ class TraceStore:
 
         gold = [r for r in rows if r["success"] is not None]
         st.n_with_gold = len(gold)
+        st.n_gold_success = sum(r["success"] for r in gold)
         if gold:
             st.pass_rate = sum(r["success"] for r in gold) / len(gold)
             # pass^k: task passes iff all of its first k trials succeed
@@ -298,7 +300,7 @@ class TraceStore:
             (
                 r.trace_id,
                 int(r.is_env_failure),
-                ",".join(k.value for k in r.kinds),
+                ",".join(k.value for k in r.blocking_kinds),
                 json.dumps([f.model_dump(mode="json") for f in r.flags], ensure_ascii=False),
                 now,
             )
@@ -340,16 +342,43 @@ class TraceStore:
         return [Trace.model_validate_json(r["json"]) for r in self._conn.execute(sql)]
 
     def precheck_summary(self) -> dict[str, Any]:
-        rows = self._conn.execute("SELECT is_env_failure, kinds FROM precheck").fetchall()
+        """`kinds` counts only blocking flags, so its total matches `n_env_failures`.
+
+        Advisory flags (blocking=False, currently the single slow step rule) are counted
+        separately in `advisory_kinds`; those traces stay in the scoring set. Reading the
+        split out of the stored `flags` JSON keeps old databases working: a flag written
+        before the field existed has no `blocking` key and counts as blocking.
+        """
+        rows = self._conn.execute("SELECT is_env_failure, flags FROM precheck").fetchall()
         kinds: Counter[str] = Counter()
+        adv: Counter[str] = Counter()
+        causes: Counter[str] = Counter()
+        n_with_advisory = 0
         for r in rows:
-            for k in filter(None, r["kinds"].split(",")):
-                kinds[k] += 1
+            flags = json.loads(r["flags"] or "[]")
+            for f in flags:
+                blocking = f.get("blocking", True)
+                (kinds if blocking else adv)[str(f.get("kind", ""))] += 1
+            if r["is_env_failure"]:
+                # One trace usually trips several blocking rules (an empty trace is both
+                # `empty_trace` and `infra_error`) and they all carry the same cause, so count the
+                # cause per *trace*: 26 lost traces must read as 26, not as 52 flag hits.
+                for cause in sorted({str(f.get("cause") or "") for f in flags
+                                     if f.get("blocking", True) and f.get("cause")}):
+                    causes[cause] += 1
+            if flags and not r["is_env_failure"]:
+                n_with_advisory += 1   # scorable, but carrying a signal worth reading
         return {
             "n_checked": len(rows),
             "n_env_failures": sum(r["is_env_failure"] for r in rows),
             "n_scorable": len(rows) - sum(r["is_env_failure"] for r in rows),
             "kinds": dict(kinds),
+            "advisory_kinds": dict(adv),
+            "n_traces_with_advisory": n_with_advisory,
+            # What the *source* said went wrong, as opposed to which precheck rule fired. A batch
+            # that lost traces inside its own harness and one where the agent died look the same in
+            # `kinds`; this is the line that tells them apart.
+            "blocking_causes": dict(causes),
         }
 
     # ---- verdicts / panel -------------------------------------------------
@@ -485,6 +514,10 @@ class TraceStore:
         by_source = Counter(r["source"] for r in rows)
         n_traces = len({r["trace_id"] for r in rows})
         audited = [r for r in rows if r["audit_sampled"]]
+        # 审计分歧落在哪一类决策上，比分歧总数重要：面板决策被抽到 18 条零分歧，
+        # 本地仲裁决策被抽到 4 条分歧 4 条（两次跑批合计）。分开数才看得出问题在哪。
+        audited_degraded = [r for r in audited if r["degraded"]]
+        audited_panel = [r for r in audited if not r["degraded"]]
         return {
             "n_traces": n_traces,
             "n_dimensions": len(rows),
@@ -492,6 +525,10 @@ class TraceStore:
             "n_degraded": sum(r["degraded"] for r in rows),
             "n_audited_dimensions": len(audited),
             "n_audit_disagreements": sum(1 for r in audited if r["audit_disagrees"]),
+            "n_audited_degraded": len(audited_degraded),
+            "n_audit_disagreements_degraded": sum(1 for r in audited_degraded if r["audit_disagrees"]),
+            "n_audited_panel": len(audited_panel),
+            "n_audit_disagreements_panel": sum(1 for r in audited_panel if r["audit_disagrees"]),
             "n_outcome_fail": sum(1 for r in rows if r["dimension"] == "outcome" and r["final_label"] == "fail"),
             "mean_final_score": (statistics.fmean([r["final_score"] for r in rows if r["final_score"] is not None])
                                  if any(r["final_score"] is not None for r in rows) else None),

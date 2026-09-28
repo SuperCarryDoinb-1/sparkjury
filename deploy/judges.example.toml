@@ -4,7 +4,13 @@
 
 [panel]
 score_tolerance = 1   # score dimensions agree when max - min <= this
-workers = 6           # concurrent judge calls per trace
+workers = 1           # 每个裁判默认几路并发（不是面板总数）；[[panel.judges]] concurrency 可单独覆盖
+# Prompt budget: cap each step at 4000 characters and a whole transcript at 45000
+# (~11k tokens, so it fits a 16k-context judge). Over budget the per-step width shrinks
+# and every step keeps its `[n]` line; only then are middle steps dropped, with a marker.
+transcript_width = 4000
+transcript_max_chars = 45000
+include_gold = false  # never hand a judge the benchmark's own verdict
 
 # Judge A: Qwen family, local vLLM on the DGX node
 [[panel.judges]]

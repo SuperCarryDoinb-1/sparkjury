@@ -202,6 +202,8 @@ sparkjury/
 | task_id | str | 任务 ID |
 | trial | int | 第几次跑 |
 | agent_model | str | 被评模型 |
+| task_requirement | str \| null | 任务的原始要求（tau2 取 `tasks[].user_scenario.instructions.reason_for_call`），进裁判与仲裁 prompt；参考调用清单与奖励不进 |
+| failure_cause | str \| null | 源数据自己记的失败原因（tau2 取 `simulations[].info.error_type`，带重试次数），只用于报告里解释这条为什么被排除；不进任何裁判 prompt |
 | steps | list[Step] | 有序步骤 |
 | outcome | Outcome | success / reward / termination_reason / gold |
 | metrics | TraceMetrics | n_steps / n_tool_calls / n_tool_errors / duration_s / tokens / cost |
@@ -232,16 +234,16 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 
 | 模块 | 名称 | 优先级 | 状态 | 对应 Skill |
 |---|---|---|---|---|
-| M1 | 数据契约 + 输入适配 + 存储 | P0 | 已完成，9 个用例 | `sparkjury-clean`（导入那半） |
-| M2 | Precheck 假 badcase 打标 | P0 | 已完成，10 个用例 | `sparkjury-clean`（预检那半） |
-| M3 | 三裁判面板 | P0 | 已完成，15 个用例 | `sparkjury-score` |
-| M4 | 仲裁与审计 | P0 | 已完成，10 个用例 | `sparkjury-score` |
+| M1 | 数据契约 + 输入适配 + 存储 | P0 | 已完成，11 个用例 | `sparkjury-clean`（导入那半） |
+| M2 | Precheck 假 badcase 打标 | P0 | 已完成，16 个用例 | `sparkjury-clean`（预检那半） |
+| M3 | 三裁判面板 | P0 | 已完成，29 个用例 | `sparkjury-score` |
+| M4 | 仲裁与审计 | P0 | 已完成，12 个用例 | `sparkjury-score` |
 | M5 | badcase 聚类与优先级 | P0 | 已完成，11 个用例 | `sparkjury-cluster` |
-| M6 | 证据卡片 + 回归对比 | P0 | 已完成，16 个用例 | `sparkjury-report` + `sparkjury-regress` |
-| M7 | Harness 编排器 | P0 | 已完成，10 个用例 | 六个技能调的都是它的 CLI |
+| M6 | 证据卡片 + 回归对比 | P0 | 已完成，22 个用例 | `sparkjury-report` + `sparkjury-regress` |
+| M7 | Harness 编排器 | P0 | 已完成，11 个用例 | 六个技能调的都是它的 CLI |
 | M8 | API + Agent Cockpit | 后端 P0 / 前端 P1 | 后端与兜底页已完成，13 个用例 | 不对应：读产物、触发 run |
 | M9 | Agent Skills 打包 + NeMo Agent Toolkit | P1 | 已完成，16 个用例（3 个跳过） | 六个技能本体 |
-| M10 | DGX 部署 + τ²-bench 跑数 + 演示数据 | P0 | 脚本与 token 已完成，18 个用例；节点上执行待做 | 不对应：把环境与 trace 跑出来 |
+| M10 | DGX 部署 + τ²-bench 跑数 + 演示数据 | P0 | 脚本与 token 已完成，23 个用例；节点上执行待做 | 不对应：把环境与 trace 跑出来 |
 | M11 | README / 征文 / 视频脚本 | P0 | 初稿已完成，2 个用例；截图、真实数字、录制待补 | 不对应：文档与视频 |
 | M12 | 跨平台与仓库约定守卫 | P1 | 已完成，18 个用例 | 不对应：跨平台与仓库约定 |
 | M13 | Agent harness（模型自己调技能 + 可恢复 + 接口与权限） | P1 | 已完成，132 个用例 | 六个都是它的工具（模型自己挑） |
@@ -254,7 +256,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 做什么：
 
 - Trace 统一模型，对齐 OTel GenAI 语义约定
-- tau2 适配器：读 τ²-bench Results JSON，支持 messages 与 ticks 两种布局，reward ≥ 1 视为成功
+- tau2 适配器：读 τ²-bench Results JSON，支持 messages 与 ticks 两种布局，reward ≥ 1 视为成功；`tasks[].user_scenario.instructions.reason_for_call` 存进 `Trace.task_requirement` 供裁判对照，`evaluation_criteria` 里的参考调用不进 trace
 - otel 适配器：按 invoke_agent / chat / execute_tool 三层 span 重建步骤，识别 error.type
 - SQLite 存储：traces、runs 两张表，幂等写入，统计任务数、trial 分布、pass^1、pass^k、平均步数、终止原因
 - CLI：ingest / stats / show / list / export
@@ -264,27 +266,32 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 
 ### M2 Precheck 假 badcase 打标
 
-规则在 harness 层，不靠模型猜。每条规则输出 PrecheckFlag(kind, evidence_step_idx, note)。
+规则在 harness 层，不靠模型猜。每条规则输出 PrecheckFlag(kind, evidence_step_idx, note, cause)，其中 `cause` 是从源数据抄来的失败原因（`Trace.failure_cause`），卡片按它分组——「评测链路自己死的」和「被测 Agent 崩的」在规则名上长得一样，处置却相反。
 
 | 规则 | 判定 |
 |---|---|
 | empty_trace | trace 里没有任何 step，空跑或采集失败 |
 | infra_error | termination_reason 是 infrastructure_error / unexpected_error / user_error |
-| timeout | termination_reason 是 timeout，或单步延迟超阈值 |
+| timeout | termination_reason 是 timeout（阻断），或单步延迟超阈值（默认只记 advisory） |
 | context_overflow | termination_reason 是 context_window_exceeded |
 | tool_unavailable | 同一工具连续 2 次以上 is_error，且错误文本含 unavailable / 5xx / connection |
 | permission_denied | 工具错误文本含 permission / unauthorized / 403 |
 | user_sim_broken | 模拟用户消息为空或重复 3 次以上 |
 
-被打标的 trace 不进打分，卡片上单列"环境问题 N 条"。
+标志分两档，不是所有标志都踢人出局：
 
-验收：6 条样本各命中一条规则；正常 trace 零误报。
+- `blocking=True`（默认）：环境把这条 trace 弄坏了，数据本身没法判，排除出评分集，卡片上单列"环境问题 N 条"。
+- `blocking=False`（advisory）：这条 trace 照样送裁判，只多一条值得看的信号，卡片单列一行"Precheck advisories（仍在评）"。
+
+单步超阈值走 advisory 这一档，理由是真批数据给的：2026-09-26 那批 90 条 τ²-bench 基线里，21 条 trace 终止原因正常（`user_stop`）、对话已经跑完，仅因为某一步超过 120 秒就被整条排除，可评分的只剩 42 条。慢是 Agent 自己的表现，正是 efficiency 与 safety 两维该抓的东西，把最慢的样本剔出去不是中立而是幸存者偏差。阈值照旧记，只是不再由它决定这条 trace 能不能判；要恢复"慢就不判"的老口径，把 `[precheck] step_latency_blocks = true` 打开。
+
+验收：6 条样本各命中一条规则；正常 trace 零误报；样本里那条环境失败（tool_unavailable）仍然阻断，样本流水线数字不变（14 条 trace、1 条环境失败、13 条进裁判）。
 
 ### M3 三裁判面板
 
 | 维度 | 问题 | 输出 |
 |---|---|---|
-| outcome | 任务目标达成了吗，对照金标与最后状态 | pass / fail + 置信度 |
+| outcome | 任务目标达成了吗，只看 transcript 里系统落到什么状态（金标不进 prompt） | pass / fail + 置信度 |
 | tool_use | 工具选对了吗、参数对了吗、有没有该调没调 | 0 到 4 分 + 出错 step |
 | efficiency | 多绕了多少步 | 冗余步数 + 0 到 4 分 |
 | safety | 有没有未经确认的危险动作 | 0 到 4 分 + 危险 step |
@@ -295,16 +302,59 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 - 一致性：outcome 看三票 pass/fail 是否相同；分数维度看极差是否 ≤ 1
 - JudgeClient(base_url, model, api_key)，超时、重试、并发可配
 - MockJudge 用规则给分，离线测试与 demo 兜底
+- prompt 里不许出现基准算出来的金标（`include_gold` 默认关）。交给裁判等于把答案给被判的人：outcome 维度会退化成复述，三家必然一致，这一维就不再携带信息。金标留在 trace 上，只给报告算"裁判 vs 金标"的一致率用
+- transcript 按预算取：每步上限 4000 字符、整条 45000 字符。真批的 tool 返回中位 990 字符，老口径每步切 400 会把约三分之二的证据丢掉。超预算时二分收缩每步宽度，保住每条 `[n]` 骨架（裁判引用的 evidence_steps 靠它）；连最小宽度都装不下才丢中间步，并在原位留 `[... N step(s) omitted ...]`
+- 健康检查失败的裁判，只要面板里还剩两个真裁判就直接摘掉；只剩不到两个才退回 mock。启发式打分混进真模型的投票会造出假分歧，再白吃一轮仲裁
 
-验收：mock 下 20 条 × 4 维 × 3 judge 全部产出 Verdict；接真实 vLLM 后单条延迟小于 10 秒。
+验收：mock 下 20 条 × 4 维 × 3 judge 全部产出 Verdict；接真实 vLLM 后单条延迟小于 10 秒（默认每裁判 1 路下按中位数达成：全量 63 条中位 8.3 / 8.0 秒，p90 13.1 / 11.5 秒未达标；全局 6 路时中位数也不达标）。
+
+延迟实测（2026-09-27，节点 8001/8002，真实 trace 的完整 prompt，14.7k token 输入）：
+
+| 场景 | judge_a（Qwen3-30B-FP8） | judge_b（Nemotron-30B-NVFP4） |
+|---|---|---|
+| 端点空闲，只有它一个在跑，1 条在飞 | 6.6 秒 | 5.3 秒 |
+| 同上，4 条在飞 | 20.3 秒 | 6.4 秒 |
+| 两个裁判同时在线（真批形态），每端点 1 条在飞 | 11.6 秒 | 12.2 秒 |
+| 两个裁判同时在线，每端点 4 条在飞 | 36.4 秒 | 19.6 秒 |
+| 全 7 段真批（judge-loop-real2，面板 workers=6 摊到两个端点） | 中位 21.2 秒 | 中位 15.3 秒 |
+
+预填不是瓶颈：14.7k token 的 prompt 首字只要 0.1 到 2.5 秒。瓶颈是同一块 GB10 上的解码争用——judge_a 单跑约 24 token/s、judge_b 约 48 token/s，NVFP4 权重只有 FP8 的一半字节，所以同一块卡上 Nemotron 天生比 Qwen3-FP8 快一倍。
+
+并发不是一个数，是每个裁判各一个数，这一条是 2026-09-27 用真批量出来的。改成按裁判开并发之前，面板是一个全局线程池跑 4 维 × 2 裁判共 8 个任务，等于把两个端点的需求平均掉：最不需要并发的 judge_a 反而被灌了最多并发。同一批 8 条 trace、同一份代码，只动并发：
+
+| 并发配置 | judge_a 单条中位 | judge_b 单条中位 | 8 条 SCORE 墙钟 |
+|---|---|---|---|
+| 全局 1 路 | 3.7 秒 | 3.0 秒 | 221.5 秒 |
+| 全局 2 路 | 7.1 秒 | 5.8 秒 | 220.1 秒 |
+| 全局 6 路 | 18.9 秒 | 10.7 秒 | 168.8 秒 |
+| judge_a 1 路、judge_b 4 路 | 4.2 秒 | 10.2 秒 | 198.9 秒 |
+
+换成真批全量 63 条再看一遍（同一批数据、同一份代码）：
+
+| 并发配置 | judge_a 单条中位 | judge_b 单条中位 | SCORE 墙钟 |
+|---|---|---|---|
+| 每裁判 1 路（默认，judge-loop-real14） | 8.3 秒 | 8.0 秒 | 2224 秒 |
+| 全局 6 路（judge-loop-real6） | 22.4 秒 | 16.0 秒 | 1778 秒 |
+
+全量上两个裁判的单条中位都降到 10 秒以内（8.3 / 8.0 秒），代价是 SCORE 慢 25%（37 分钟对 30 分钟）；全局 6 路那 25% 是靠把单条延迟抬高三倍换来的。要注意这条线是「中位」，不是「每一条」：默认配置下 judge_a 有 33.7%、judge_b 有 25.4% 的判定超过 10 秒，p90 是 13.1 / 11.5 秒，最大的 18 秒出头——大 trace 的天花板就在那里，把 p90 也压进 10 秒需要更快的裁判端点，不是调度能解决的。
+
+读法：全局 2 路相对 1 路，墙钟一秒没省、单条延迟翻倍——同一块卡上解码总量是固定的，池子里多一条在飞只是把同一条判定拆得更久。全局 6 路省下 24% 墙钟，代价是 judge_a 单条从 3.7 秒涨到 18.9 秒。把并发按裁判分开之后，judge_a 留在 1 路（4.2 秒，仍在线内）、judge_b 开 4 路，拿到 10% 墙钟而 judge_a 的延迟没有跟着涨。
+
+所以 `[panel] workers` 现在的含义是「每个裁判默认几路」，`[[panel.judges]] concurrency` 单独覆盖某个裁判；默认 1 路，M3 的「单条延迟小于 10 秒」在这套默认下按中位数成立（8 条：3.7 / 3.0 秒；全量 63 条：8.3 / 8.0 秒），p90 仍会超线（13.1 / 11.5 秒）。要拿吞吐就把 judge_b 开高，实测 judge_b 到 4 路时单条 10.2 秒、正好压在线上，再往上就要自己重新量了。有效并发会写进 manifest 的 `models.judge_concurrency`，配置没生效一眼能看见。
 
 ### M4 仲裁与审计
 
 - 三票不一致送 Arbiter。首选 Jev：Score 给分数维度，Bool 给 outcome，Choice 给归类
 - Jev 超时 5 秒或返回 5xx，退回本地 Judge A，结果打 degraded=true
-- 5% 随机抽样送强模型审计，发现小模型系统性漏判
+- 5% 按 trace_id 哈希抽样送强模型审计，发现小模型系统性漏判。审计人必须是真模型：面板里没有两个真裁判时跳过审计，manifest 的 `models.arbiter.audit` 记 null——让 mock 去"审"真裁判只会写出一条看起来通过的审计记录
+- 走本地仲裁的决策（degraded）**全部送审计**，不进 5% 抽样（`[arbiter] audit_degraded`，默认开）。
+  真批 63 条实测：38 条本地仲裁决策里 31 条被审计裁判判成另一种结果（82%），18 条被抽到的面板决策 0 条。
+  这 31/38 的读法要写清：面板只有两个真裁判，本地仲裁人必然是当事人，而审计裁判就是面板里另一位——
+  它重问的正是当初吵起来的那一票。所以这个数说明的不是「仲裁判错了」，而是「这些维度根本没有独立第三方，
+  仲裁人每次都站自己那边」。审计在这里的作用是把「多少结论缺独立裁决」变成可数的，不是去纠正它。
+- 审计只记录不改判，卡片把分歧按决策来源分开报（写成 `locally-arbitrated 4/38, panel 0/18` 这种）。两个裁判吵起来时，本地任何裁判都是当事人，把结果标出来比换一个当事人拍板更诚实
 
-验收：断网时全部走本地且标记降级；有网时 Jev 调用成功率大于 95%。
+验收：断网时全部走本地且标记降级；有网时 Jev 调用成功率大于 95%（节点上没配 TYPESAFE_API_KEY，这条一直没验过）。独立第四方待补：本地仲裁人是面板里的第一个真裁判，属"当事人裁分歧"，这条本身没解决，审计只是把它的规模量出来（63 条里 38 维、占 252 维的 15% 没有独立裁决）。审计串行、单条约 4 秒（没有 GPU 争用），38 条约 1.7 分钟，占整轮不到一成。
 
 ### M5 badcase 聚类与优先级
 
@@ -319,7 +369,11 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 
 ### M6 证据卡片 + 回归对比
 
+- 裁判后端报「上下文长度超了」时把 transcript 预算减半重问（最多两次）：事先算准预算要后端的tokenizer，错误本身却是现成的信号。
+- judge 输出的 JSON 语法坏掉时先补救（多余闭合括号、结尾多一个没值的键），补救来的判定在 rationale 里标出来；语义问题（分数越界、label 乱写）照旧报错。
 - EvidenceCard 支持 JSON、Markdown、HTML 三种渲染
+- 被排除的 trace 不只报规则名，还带源数据自己记的原因：`Environment failures (excluded) | 27 (empty_trace=26, infra_error=26); the source said: InternalServerError after 4 attempts=25, Timeout=1`
+- 卡片自带判准校准一行（`Outcome vs benchmark`）：outcome 维度的最终裁决与基准自带结果逐条对照，同时给裁判通过率与基准通过率。基准是这套裁判唯一的外部尺子，差多少就写在卡片上，别让读者把「裁判说 pass」当成「基准说 pass」；`REPORT` 阶段摘要同步带 `n_gold_compared` / `gold_agreement_rate` / `judge_pass_rate` / `gold_pass_rate`
 - regress --before --after：pass^k 前后对比、每簇数量变化、新增与消失的簇
 - pass^k 按 τ-bench 定义：同一任务 k 次全过才算过
 - 成对比较交换顺序跑两遍
@@ -332,7 +386,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 
 - 状态机：INGEST → PRECHECK → EVALSET → SCORE → ARBITRATE → CLUSTER → REPORT → PM 确认 → REGRESS
 - 每步写 runs 表与 run_manifest.json：时间、耗时、模型版本、降级记录
-- 单条 trace 失败不阻塞整批；judge 后端不可达自动切 mock 并标记
+- 单条 trace 失败不阻塞整批；judge 后端不可达时：还剩两个真裁判就摘掉它，剩不到才切 mock，两条路径都写进 manifest 的 `degradations`
 - 事件总线：每次状态变更发事件，供 Cockpit SSE 消费
 
 验收：sparkjury run --config demo.yaml 一条命令从 τ²-bench 文件跑到卡片，断网也能完成。
@@ -512,7 +566,7 @@ durable 那一段：
 
 ## 17. 当前进度与验证方法
 
-M1 到 M13 已完成（M10 节点执行、M11 录制待做），277 个 pytest 用例通过。一条命令跑通全流程：
+M1 到 M13 已完成（M10 节点执行、M11 录制待做），313 个 pytest 用例通过。一条命令跑通全流程：
 
 ```
 cd sparkjury

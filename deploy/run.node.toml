@@ -8,7 +8,18 @@ source = "tau2"
 path = "data/samples/otel_sample.json"
 source = "otel"
 [panel]
-workers = 6
+# 每个裁判同时在飞的请求数（不是面板总数）。面板里每个裁判是一个独立端点，能扛几路是那个
+# 端点的属性：真批实测 Qwen3-30B-FP8 从 1 路加到 4 路解码只从 24 涨到 29 tok/s，而
+# Nemotron-NVFP4 能到 150 tok/s。同一块 GB10 上全局开 6 路时，judge_a 单条判定中位 18.9s、
+# judge_b 10.7s；全局 1 路时 3.7s / 3.0s，而整段 SCORE 只慢 1.31 倍。默认 1 路保住延迟，
+# 需要吞吐的裁判单独开高。
+workers = 1
+# Prompt budget. The tightest judge context on the node is 16k tokens (Nemotron); 45k
+# characters is roughly 11k tokens, which leaves room for the rubric and the answer.
+# Every step keeps its `[n]` line so evidence_steps stay citable.
+transcript_width = 4000
+transcript_max_chars = 45000
+include_gold = false       # never hand a judge the benchmark's own verdict
 [[panel.judges]]
 name = "judge_a"
 kind = "openai"
@@ -22,6 +33,9 @@ kind = "openai"
 model = "nvidia/Nemotron-3.5-Lightning-30B-A3B-NVFP4"
 base_url = "http://127.0.0.1:8002/v1"
 timeout_s = 120
+# 这个端点解码速度随并发涨得动（NVFP4 权重只有 FP8 的一半），要吞吐可以开：
+# concurrency = 2 没量过，concurrency = 4 实测单条中位 10.2 秒、8 条 SCORE 快 10%。
+# 默认跟 [panel] workers 走（1 路，单条 3.0 秒），先保住 M3 的「单条 10 秒」这条线。
 extra_body = { chat_template_kwargs = { enable_thinking = false } }
 [[panel.judges]]
 name = "judge_c"
@@ -30,6 +44,7 @@ model = "step-3.7-flash"
 base_url = "https://api.stepfun.com/v1"
 api_key_env = "STEPFUN_API_KEY"
 timeout_s = 60
+concurrency = 4            # 云端，不占本地 GPU，瓶颈是网络往返
 [arbiter]
 jev = "auto"
 audit_rate = 0.1

@@ -37,16 +37,47 @@ def rubric_levels(dimension: Dimension) -> list[str]:
     return [f"{i}: {found[i]}" for i in range(5)]
 
 
-def build_messages(trace: Trace, dimension: Dimension, *, transcript_width: int = 400) -> list[dict[str, str]]:
+def build_messages(
+    trace: Trace,
+    dimension: Dimension,
+    *,
+    transcript_width: int = 4000,
+    transcript_max_chars: int | None = 45000,
+    include_gold: bool = False,
+) -> list[dict[str, str]]:
+    """System rubric + user prompt for one (trace, dimension) judgement.
+
+    `include_gold` is off by default and belongs off in scoring runs: handing a judge the
+    benchmark's own outcome turns the outcome dimension into a restatement of ground
+    truth, so all three judges agree by construction and the dimension carries no
+    information. Gold stays on the trace for the report's judge-vs-gold agreement, which
+    is only a real yardstick while the judges cannot see it.
+
+    `trace.task_requirement` is the task's own statement of what the user came for, and it
+    does belong in the prompt. The transcript alone hands the judge the simulated user's
+    wording, which drifts from the task — a condition gets blurred, a fallback turns into an
+    unconditional ask — and the judge then grades the drift instead of the task. The
+    requirement states what was asked, never whether it was achieved, so it does not leak the
+    verdict; the reference call list stays on the trace and out of every prompt.
+    """
     system = load_rubric(dimension) + "\n" + OUTPUT_CONTRACT
-    gold = _gold_summary(trace)
-    visible = trace.transcript(width=transcript_width)
+    requirement = (trace.task_requirement or "").strip()
+    budget = transcript_max_chars
+    if budget and requirement:
+        budget = max(1000, budget - len(requirement) - 200)
+    visible = trace.transcript(width=transcript_width, max_chars=budget)
     n_visible = sum(1 for st in trace.steps if st.role != Role.SYSTEM)
     user = (
         f"Task id: {trace.task_id} (trial {trace.trial}); domain: {trace.domain}; agent model: {trace.agent_model or 'unknown'}\n"
         f"Termination reason: {trace.outcome.termination_reason or 'unknown'}\n"
-        f"{gold}\n"
-        f"Transcript ({n_visible} steps; [n] is the step index):\n"
+        + (f"{_gold_summary(trace)}\n" if include_gold else "")
+        + (
+            "Task requirement (what the user came for, as the task defines it; the wording in the\n"
+            f"conversation below may be narrower or vaguer than this):\n{requirement}\n"
+            if requirement
+            else ""
+        )
+        + f"Transcript ({n_visible} steps; [n] is the step index):\n"
         f"{visible}\n"
     )
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
@@ -112,15 +143,84 @@ def parse_verdict_json(text: str) -> dict[str, Any]:
         pass
     last_err: Exception | None = None
     for cand in reversed(_candidate_objects(text)):
-        for attempt in (cand, _repair(cand)):
+        try:
+            return _validate(json.loads(cand))
+        except json.JSONDecodeError as e:
+            last_err = e          # 语法坏了：下面几招都是为这种情况准备的
+        except ValueError as e:
+            last_err = e
+            continue              # 语义不合法（分数越界、label 乱写）：原样报错，不补救
+        for attempt, aggressive in ((_repair(cand), False), (_repair(_drop_stray_closers(cand)), True)):
             try:
-                return _validate(json.loads(attempt))
+                data = _validate(json.loads(attempt))
+                if aggressive:
+                    data["_salvaged"] = True
+                return data
+            except (json.JSONDecodeError, ValueError) as e:
+                last_err = e
+                continue
+        # 最后一招：模型在最后一个完整字段后面又写了个没值的键（真批实测：
+        # `..., "rationale": "...", "two or three sentences"}`），把尾巴截掉再闭合。
+        for attempt in _truncated_candidates(cand):
+            try:
+                data = _validate(json.loads(attempt))
+                data["_salvaged"] = True
+                return data
             except (json.JSONDecodeError, ValueError) as e:
                 last_err = e
                 continue
     if last_err is not None:
         raise ValueError(f"no valid verdict object in judge output ({type(last_err).__name__}: {last_err})")
     raise ValueError("no JSON object in judge output")
+
+
+def _drop_stray_closers(s: str) -> str:
+    """丢掉多余的闭合括号。
+
+    LLM 偶尔多写一个 `]`：真批上一条 trace 的 outcome 判定里 `[` 两个而 `]` 三个
+    （`"evidence_steps": [["19", ...]], "rationale": "..."]`），整条判定就废了，而分数其实
+    好好地在里面。只删多余的那个，不补任何东西。"""
+    out: list[str] = []
+    stack: list[str] = []
+    in_str = False
+    esc = False
+    for ch in s:
+        if in_str:
+            out.append(ch)
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+            out.append(ch)
+        elif ch in "{[":
+            stack.append(ch)
+            out.append(ch)
+        elif ch in "}]":
+            want = "{" if ch == "}" else "["
+            if stack and stack[-1] == want:
+                stack.pop()
+                out.append(ch)
+            # 否则：没有对应的开括号，是模型多写的，丢掉
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def _truncated_candidates(cand: str) -> list[str]:
+    """从后往前在每个逗号处截断并闭合对象，按截得越少越优先。上限 40 个候选，够用且不会跑飞。"""
+    out: list[str] = []
+    for i in range(len(cand) - 1, 0, -1):
+        if cand[i] != ",":
+            continue
+        out.append(cand[:i] + "}")
+        if len(out) >= 40:
+            break
+    return out
 
 
 _TRAILING_COMMA_RE = re.compile(r",\s*([}\]])")

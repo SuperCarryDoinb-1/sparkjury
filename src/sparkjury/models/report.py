@@ -45,6 +45,9 @@ class CardCluster(BaseModel):
     severity: float
     priority: float
     failed_dimension_counts: dict[str, int] = Field(default_factory=dict)
+    # 这个簇里有多少个 badcase 的失败维度来自「没有独立裁决」的判定：推荐先修哪个簇时，
+    # 得让人看得出这个建议的地基有多硬。
+    n_contested_members: int = 0
     summary: str = ""
     suggestion: str = ""
     member_trace_ids: list[str] = Field(default_factory=list)
@@ -56,6 +59,12 @@ class CardTotals(BaseModel):
     n_tasks: int = 0
     n_env_failures: int = 0
     env_kinds: dict[str, int] = Field(default_factory=dict)
+    # Cause tokens recorded by the source itself for the excluded traces (empty when it kept none).
+    env_causes: dict[str, int] = Field(default_factory=dict)
+    # 非阻断的预检信号（目前只有「单步超阈值」）：这些 trace 照常判了，但卡片要自己说出来，
+    # 否则「判了多少条」和「多少条被排除」都对不上读者的直觉。
+    n_precheck_advisories: int = 0
+    precheck_advisory_kinds: dict[str, int] = Field(default_factory=dict)
     n_scorable: int = 0
     n_scored: int = 0
     n_badcases: int = 0
@@ -66,13 +75,34 @@ class CardTotals(BaseModel):
 class CardQuality(BaseModel):
     pass_rate: float | None = None                 # pass^1 from gold
     pass_k: dict[int, float] = Field(default_factory=dict)
+    # pass^1 的分母不是「判了多少条」：基准给每条跑出结果的 trace 打 success，infra 崩掉、
+    # 没有结果的 trace 是 None，不进分母。两个分母不一样，卡片就得各自写清，否则同一张表里
+    # 会并排出现两个不同的「基准通过率」（实测 40.6% 对 41.3%）。
+    n_benchmark_result: int = 0
+    n_benchmark_success: int = 0
     agent_model: str | None = None
     judge_agreement_rate: float | None = None
+    # 判准校准：outcome 维度的最终裁决与基准自带结果逐条对照。基准由环境状态算出，与这套裁判
+    # 无关，是 outcome 这一维唯一的外部尺子；卡片必须自己报出来，读者才不会把"裁判说 pass"当成
+    # "基准说 pass"。judge_pass_rate 减去 gold_pass_rate 就是当前的宽松程度。
+    n_gold_compared: int = 0
+    gold_agreement_rate: float | None = None
+    judge_pass_rate: float | None = None
+    gold_pass_rate: float | None = None
     n_needing_arbitration: int = 0
     decisions_by_source: dict[str, int] = Field(default_factory=dict)
     n_degraded: int = 0
     n_audited: int = 0
     n_audit_disagreements: int = 0
+    # 审计分歧落在哪一类决策上：面板决策与本地仲裁决策分开数。真实分歧集中在后者，
+    # 只报总数会让读者以为审计过的决策都差不多可信。
+    n_audited_degraded: int = 0
+    n_audit_disagreements_degraded: int = 0
+    n_audited_panel: int = 0
+    n_audit_disagreements_panel: int = 0
+    # 有多少 badcase 是靠当事人仲裁的判定成立的：这类判定没有独立裁决，地基是虚的，
+    # 读者拿 badcase 排优先级时得知道这件事。
+    n_badcases_contested: int = 0
     n_outcome_fail: int = 0
     mean_scores: dict[str, float | None] = Field(default_factory=dict)   # dimension -> mean final score
     judges: dict[str, dict] = Field(default_factory=dict)

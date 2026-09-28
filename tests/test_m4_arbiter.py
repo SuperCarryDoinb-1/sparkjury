@@ -102,6 +102,24 @@ def trace(tau2_path):
     return next(t for t in load_tau2(tau2_path) if t.trace_id == "retail_task_001-t2")
 
 
+def test_jev_state_text_carries_the_task_requirement_but_not_the_gold(trace):
+    seen = {}
+
+    def handler(request):
+        seen["state"] = json.loads(request.content)["state"]
+        return httpx.Response(200, json={"answers": {
+            "score": {"type": "score", "score": 0.0, "legend": {"0": "x"}, "confidence": 0.5},
+            "pass": {"type": "noul", "noul": 0.9},
+        }})
+
+    trace.task_requirement = "Only exchange the thermostat; leave the keyboard alone."
+    Arbiter(jev=_fake_jev(handler), local_judge=MockJudge("local"), audit_rate=0).decide(
+        trace, _panel(Dimension.OUTCOME, [4, 0, 4], ["pass", "fail", "pass"]))
+    # 分歧交给仲裁时也要带上任务的原始要求，否则仲裁只看对话里被用户模拟器改写过的说法
+    assert "Only exchange the thermostat; leave the keyboard alone." in seen["state"]
+    assert "Gold final-state outcome" not in seen["state"]     # 金标默认不进仲裁
+
+
 def test_agreed_dimension_takes_panel_median(trace):
     arb = Arbiter(jev=None, local_judge=MockJudge("local"), audit_rate=0)
     d = arb.decide(trace, _panel(Dimension.SAFETY, [4, 3, 4], agreed=True))
@@ -174,6 +192,29 @@ def test_audit_sampling_is_deterministic_and_rate_bound(trace):
     picked = [i for i in range(1000) if arb5._is_audit_sample(f"trace-{i}")]
     assert 25 <= len(picked) <= 80
     assert picked == [i for i in range(1000) if Arbiter(jev=None, audit_rate=0.05)._is_audit_sample(f"trace-{i}")]
+
+
+def test_degraded_decisions_are_always_audited(trace):
+    """本地仲裁的决策必须全查，不靠 5% 抽样。
+
+    真批上的证据：judge-loop-real2 与 real6 两次跑批，被抽中的本地仲裁决策 4 条、
+    4 条全被审计裁判推翻；同批被抽中的 18 条面板决策 0 条有分歧。只抽 5% 等于
+    明知这条路径可疑还基本不查。
+    """
+    arb = Arbiter(jev=None, local_judge=MockJudge("local"), audit_judge=MockJudge("audit"), audit_rate=0.0)
+    a = arb.decide(trace, _panel(Dimension.SAFETY, [4, 2, 4])).arbitrations[0]
+    assert a.source == DecisionSource.LOCAL and a.degraded
+    assert a.audit_sampled and a.audit_score is not None        # 抽样率为 0 也照查
+    # 面板决策仍然只按抽样率查
+    b = arb.decide(trace, _panel(Dimension.SAFETY, [4, 3, 4], agreed=True)).arbitrations[0]
+    assert not b.degraded and not b.audit_sampled
+    # 关掉这个行为就退回老的纯抽样
+    off = Arbiter(jev=None, local_judge=MockJudge("local"), audit_judge=MockJudge("audit"),
+                  audit_rate=0.0, audit_degraded=False)
+    assert not off.decide(trace, _panel(Dimension.SAFETY, [4, 2, 4])).arbitrations[0].audit_sampled
+    # 没有真裁判可审计时不该硬造一条审计记录
+    none = Arbiter(jev=None, local_judge=MockJudge("local"), audit_judge=None, audit_rate=0.0)
+    assert not none.decide(trace, _panel(Dimension.SAFETY, [4, 2, 4])).arbitrations[0].audit_sampled
 
 
 # ---- store + CLI ----------------------------------------------------------------------

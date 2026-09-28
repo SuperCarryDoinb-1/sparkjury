@@ -118,20 +118,24 @@ def precheck(
     db: Path = typer.Option(Path("runs/sparkjury.db"), "--db"),
     step_latency_ms: float | None = typer.Option(120_000, "--step-latency-ms", help="single step slower than this is a timeout; 0 disables"),
     max_duration_s: float | None = typer.Option(None, "--max-duration-s", help="whole run longer than this is a timeout"),
+    step_latency_blocks: bool = typer.Option(False, "--step-latency-blocks", help="a slow step drops the trace from judging (off: it is recorded as an advisory)"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
-    """Label environment-caused failures (M2). Flagged traces are excluded from judging."""
+    """Label environment-caused failures (M2). Blocking flags are excluded from judging."""
     from sparkjury.precheck import PrecheckConfig, run_many
 
-    cfg = PrecheckConfig(step_latency_ms=step_latency_ms or None, max_duration_s=max_duration_s)
+    cfg = PrecheckConfig(step_latency_ms=step_latency_ms or None, max_duration_s=max_duration_s,
+                         step_latency_blocks=step_latency_blocks)
     with TraceStore(db) as store:
         traces = store.list()
         results = run_many(traces, cfg)
         store.put_precheck(results)
         summary = store.precheck_summary()
     flagged = [r for r in results if r.is_env_failure]
+    advised = [r for r in results if not r.is_env_failure and r.advisories]
     if as_json:
-        console.print_json(json.dumps({"summary": summary, "flagged": [r.model_dump(mode="json") for r in flagged]}, ensure_ascii=False))
+        console.print_json(json.dumps({"summary": summary, "flagged": [r.model_dump(mode="json") for r in flagged],
+                                       "advisories": [r.model_dump(mode="json") for r in advised]}, ensure_ascii=False))
         return
     console.print(
         f"[green]prechecked[/] {summary['n_checked']} traces: "
@@ -139,6 +143,12 @@ def precheck(
     )
     if summary["kinds"]:
         console.print("  by kind: " + ", ".join(f"{k}={v}" for k, v in sorted(summary["kinds"].items())))
+    if summary.get("advisory_kinds"):
+        console.print(
+            "  advisories (kept in the eval): "
+            + ", ".join(f"{k}={v}" for k, v in sorted(summary["advisory_kinds"].items()))
+            + f" on {summary['n_traces_with_advisory']} trace(s)"
+        )
     if flagged:
         t = Table(Column("trace_id", overflow="fold"), "kind", "step", Column("note", overflow="fold"))
         for r in flagged:
@@ -153,7 +163,8 @@ def score(
     judges: str = typer.Option("mock", "--judges", help="'mock' or path to a panel TOML (see deploy/judges.example.toml)"),
     dims: str | None = typer.Option(None, "--dims", help="comma-separated subset of outcome,tool_use,efficiency,safety"),
     limit: int | None = typer.Option(None, "--limit"),
-    workers: int | None = typer.Option(None, "--workers"),
+    workers: int | None = typer.Option(None, "--workers",
+                                          help="concurrent calls per judge (default 1); a judge's own concurrency overrides it"),
     trace_id: str | None = typer.Option(None, "--trace", help="score a single trace"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
@@ -248,10 +259,13 @@ def arbitrate(
 
     cfg = PanelConfig.mock() if judges == "mock" else PanelConfig.from_toml(judges)
     panel = Panel.from_config(cfg)
-    local = panel.judges[0]                       # Judge A doubles as the local arbiter
-    audit = panel.judges[-1] if len(panel.judges) > 1 else None
+    # The audit judge has to be a real model: a mock auditing a mock only writes down a row
+    # that reads like a passing audit.
+    local, audit = panel.arbiter_judges()
     jev_client = None if jev == "off" else JevClient(timeout_s=jev_timeout_s)
-    arbiter = Arbiter(jev=jev_client, local_judge=local, audit_judge=audit, audit_rate=audit_rate)
+    arbiter = Arbiter(jev=jev_client, local_judge=local, audit_judge=audit, audit_rate=audit_rate,
+                      transcript_width=cfg.transcript_width, transcript_max_chars=cfg.transcript_max_chars,
+                      include_gold=cfg.include_gold)
 
     with TraceStore(db) as store:
         panels = [store.get_panel_result(trace_id)] if trace_id else store.list_panel_results()

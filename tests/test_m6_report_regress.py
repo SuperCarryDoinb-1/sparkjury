@@ -14,6 +14,7 @@ from sparkjury.judges import Panel, PanelConfig
 from sparkjury.judges.pairwise import MockPairwiseJudge, compare_with_swap
 from sparkjury.models.cluster import Cluster, ClusterRun, FailureLabel
 from sparkjury.models.report import EvidenceCard
+from sparkjury.models.verdict import Dimension
 from sparkjury.precheck import run_many
 from sparkjury.regress import compare, evaluate_gates, new_severe_clusters, render_markdown
 from sparkjury.report import build_card, render_html, render_json, render_markdown as card_md, write_card
@@ -85,6 +86,9 @@ def test_build_card_totals_and_clusters(before_db):
     assert t.n_traces == 14 and t.n_tasks == 6 and t.n_env_failures == 1 and t.env_kinds == {"tool_unavailable": 1}
     assert t.n_scored == 13 and t.n_badcases == 5 and t.n_clusters >= 1
     assert abs(q.pass_rate - 9 / 14) < 1e-9 and abs(q.pass_k[3] - 0.25) < 1e-9
+    # pass^1 的分母是「基准给了结果的 trace」，不是「判了多少条」；两个数都要随卡片一起写出来，
+    # 否则同一张表里会并排出现两个没有说明分母的基准通过率
+    assert q.n_benchmark_result == 14 and q.n_benchmark_success == 9
     assert q.agent_model == "openai/qwen3-8b" and q.judge_agreement_rate is not None
     assert q.decisions_by_source["panel"] > 0 and q.n_outcome_fail == 4
     assert set(q.mean_scores) == {"outcome", "tool_use", "efficiency", "safety"}
@@ -107,6 +111,38 @@ def test_card_renders_all_formats(before_db, tmp_path):
     assert "<!DOCTYPE html>" in html and "Recommendation" in html and card.clusters[0].label.value in html
     files = write_card(card, tmp_path / "out")
     assert [f.suffix for f in files] == [".json", ".md", ".html"] and all(f.exists() for f in files)
+
+
+def test_card_reports_the_calibration_against_the_benchmark(before_db):
+    """卡片必须自己报出「裁判判的 outcome 和基准差多少」，否则读者会把裁判的 pass 当基准的 pass。"""
+    with TraceStore(before_db) as store:
+        card = build_card(store, run_id="r1")
+        md, html = card_md(card), render_html(card)
+        # 改动前后各跑一次同一批 trace，各自的裁决写进仲裁表
+        from sparkjury.models.arbitration import Arbitration, DecisionSource, TraceDecision
+        decisions = []
+        for trace in store.scorable_traces():
+            if trace.outcome.success is None:
+                continue
+            # 故意和基准反着来，好确认这是真对照而不是照着金标抄
+            label = "fail" if trace.outcome.success else "pass"
+            decisions.append(TraceDecision(trace_id=trace.trace_id, arbitrations=[Arbitration(
+                trace_id=trace.trace_id, dimension=Dimension.OUTCOME,
+                final_score=4 if label == "pass" else 1,
+                final_label=label, source=DecisionSource.PANEL)]))
+        store.put_decisions(decisions)
+        card = build_card(store, run_id="r1")
+    q = card.quality
+    assert q.n_gold_compared == 13 and q.gold_agreement_rate == 0.0
+    assert q.judge_pass_rate == 1 - q.gold_pass_rate     # 反着判，两个通过率必然互补
+    assert "Outcome vs benchmark (calibration)" in md and "panel says pass" in html
+
+
+def test_card_calibration_says_nothing_when_traces_carry_no_benchmark(tmp_path):
+    with TraceStore(tmp_path / "e.db") as store:
+        card = build_card(store)
+    assert card.quality.n_gold_compared == 0 and card.quality.gold_agreement_rate is None
+    assert "0 trace(s)" in card_md(card)
 
 
 def test_card_on_empty_store(tmp_path):
@@ -305,3 +341,91 @@ def test_cli_gate_output_stays_ascii_for_windows_consoles(before_db, tmp_path):
     refused = runner.invoke(app, ["regress", "--before", str(b1), "--after", str(b2)])
     assert refused.exit_code == 2
     refused.output.encode("cp1252")
+
+
+def test_card_says_how_many_badcases_rest_on_a_contested_decision(before_db):
+    """靠当事人仲裁成立的 badcase 要单独数出来。
+
+    真批 63 条里 31 个 badcase 有 15 个的失败维度来自本地仲裁（面板两个裁判吵起来、
+    由当事人之一定），而这类判定被另一位真裁判判成相反结果是 31/38。读者拿 badcase 排
+    优先级，有权知道哪几条地基是虚的。
+    """
+    from sparkjury.models.arbitration import Arbitration, DecisionSource, TraceDecision
+
+    with TraceStore(before_db) as store:
+        badcases = store.get_cluster_run().badcases
+        assert badcases, "样本数据里应该有 badcase"
+        decisions = []
+        for i, bc in enumerate(badcases):
+            # 一半标成当事人仲裁，另一半是面板一致裁决
+            degraded = i % 2 == 0
+            decisions.append(TraceDecision(trace_id=bc.trace_id, arbitrations=[Arbitration(
+                trace_id=bc.trace_id, dimension=Dimension.SAFETY, final_score=1,
+                source=DecisionSource.LOCAL if degraded else DecisionSource.PANEL, degraded=degraded)]))
+        store.put_decisions(decisions)
+        card = build_card(store, run_id="r1")
+        md, html = card_md(card), render_html(card)
+    expected = sum(1 for i in range(len(badcases)) if i % 2 == 0)
+    assert card.quality.n_badcases_contested == expected
+    assert f"{expected} of {card.totals.n_badcases}" in md
+    assert "no independent tiebreaker" in html
+
+
+def test_cluster_says_how_many_of_its_members_rest_on_a_contested_decision(before_db):
+    """顶级推荐（先修哪个簇）要能看出这个簇的地基有多硬。
+
+    真批 run14 的六个簇里，loop 那个簇 9 个成员有 4 个含当事人仲裁的判定，
+    missing_confirmation 那个簇 5 个成员全部含——数字得跟着簇走，不能只有一个总数。
+    """
+    from sparkjury.models.arbitration import Arbitration, DecisionSource, TraceDecision
+
+    with TraceStore(before_db) as store:
+        cluster = store.get_cluster_run().clusters[0]
+        n_members = len(cluster.member_trace_ids)
+        assert n_members >= 2, "样本数据里第一个簇该有一定规模"
+        decisions = []
+        for i, tid in enumerate(cluster.member_trace_ids):
+            # 前半截成员标成当事人仲裁，后半截是面板一致裁决
+            degraded = i < n_members // 2
+            decisions.append(TraceDecision(trace_id=tid, arbitrations=[Arbitration(
+                trace_id=tid, dimension=Dimension.SAFETY, final_score=1,
+                source=DecisionSource.LOCAL if degraded else DecisionSource.PANEL, degraded=degraded)]))
+        store.put_decisions(decisions)
+        card = build_card(store, run_id="r1")
+        md, html = card_md(card), render_html(card)
+    expect = n_members // 2
+    assert card.clusters[0].n_contested_members == expect and expect > 0
+    assert f"Contested evidence: {expect} of {n_members}" in md
+    assert "Contested evidence:" in html
+
+
+def test_card_says_why_the_excluded_traces_were_excluded(before_db):
+    """被排除的 trace 只报规则名不够：读的人要能看出是评测链路自己死的，还是被测 Agent 崩的。"""
+    from sparkjury.models.precheck import PrecheckFlag, PrecheckKind, PrecheckResult
+
+    with TraceStore(before_db) as store:
+        store.put_precheck([
+            PrecheckResult(trace_id="t-lost", flags=[PrecheckFlag(
+                kind=PrecheckKind.INFRA_ERROR, note="termination_reason=infrastructure_error",
+                cause="InternalServerError after 4 attempts")]),
+            PrecheckResult(trace_id="t-quiet", flags=[PrecheckFlag(
+                kind=PrecheckKind.EMPTY_TRACE, note="trace has no steps")]),
+        ])
+        card = build_card(store, run_id="r1")
+        assert card.totals.env_causes == {"InternalServerError after 4 attempts": 1}
+        md, html = card_md(card), render_html(card)
+    assert "the source said: InternalServerError after 4 attempts=1" in md
+    assert "the source said: InternalServerError after 4 attempts=1" in html
+
+
+def test_card_omits_the_cause_clause_when_the_source_kept_no_reason(tmp_path):
+    """源数据没记原因就别在卡片里造一行空话。"""
+    from sparkjury.models.precheck import PrecheckFlag, PrecheckKind, PrecheckResult
+    from sparkjury.store import TraceStore as S
+
+    db = tmp_path / "q.db"
+    with S(db) as store:
+        store.put_precheck([PrecheckResult(trace_id="t", flags=[PrecheckFlag(kind=PrecheckKind.EMPTY_TRACE)])])
+        card = build_card(store, run_id="r")
+        md = card_md(card)
+    assert card.totals.env_causes == {} and "the source said" not in md

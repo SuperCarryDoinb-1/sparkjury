@@ -36,6 +36,8 @@ class InputSpec(BaseModel):
 class PrecheckSettings(BaseModel):
     step_latency_ms: float | None = 120_000.0
     max_duration_s: float | None = None
+    # 单步超阈值的 trace 默认照送裁判（只记一条 advisories），要恢复「慢就不判」就打开它。
+    step_latency_blocks: bool = False
 
 
 class EvalsetSettings(BaseModel):
@@ -47,6 +49,9 @@ class ArbiterSettings(BaseModel):
     jev: str = "auto"                 # auto | off
     jev_timeout_s: float = 5.0
     audit_rate: float = 0.05
+    # 走本地仲裁的决策（degraded）默认全部送审计：真批上被抽到的 4 条全被审计推翻，
+    # 只抽 5% 等于明知可疑还不查。审计只记录不改判。
+    audit_degraded: bool = True
 
 
 class ClusterSettings(BaseModel):

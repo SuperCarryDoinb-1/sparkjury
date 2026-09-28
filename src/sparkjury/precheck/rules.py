@@ -5,7 +5,16 @@ rules. No model is involved: SWE-bench and Anthropic's eval write-ups both do it
 this way so that judges never have to guess whether a failure was the agent's.
 
 Each rule is a function `(trace, cfg) -> list[PrecheckFlag]`. A trace with any
-flag is excluded from scoring and reported separately as an environment issue.
+*blocking* flag is excluded from scoring and reported separately as an environment
+issue; a flag marked `blocking=False` is an advisory — the trace is still judged,
+the signal is just carried into the report. Only `rule_timeout`'s step-latency
+branch issues advisories, and that split is a real-data finding rather than a
+taste call: on the 2026-09-26 τ²-bench baseline, 21 of 90 traces completed
+normally (`termination_reason=user_stop`) but were thrown out of the eval because
+one step ran past 120 s. Dropping those is not neutrality, it is survivorship
+bias — the slowest runs are exactly the ones the efficiency and safety judges
+exist to catch — so the threshold still fires, it just no longer decides whether
+the trace can be judged.
 """
 
 from __future__ import annotations
@@ -30,6 +39,9 @@ class PrecheckConfig:
     context_terminations: set[str] = field(default_factory=lambda: {"context_window_exceeded"})
     step_latency_ms: float | None = 120_000.0     # single step slower than this → timeout
     max_duration_s: float | None = None           # whole run longer than this → timeout (off by default)
+    # 单步超时（以及整轮超时）该不该把 trace 踢出评分集。默认 False：慢是 Agent 自己的表现，
+    # 不是环境坏了，留着才判得出「这轮特别慢」；True 恢复成「慢就不判」的老行为。
+    step_latency_blocks: bool = False
     tool_unavailable_min_consecutive: int = 2
     tool_unavailable_pattern: str = (
         r"(unavailable|service (is )?down|5\d\d\b|internal server error|bad gateway|gateway time-?out|"
@@ -50,16 +62,16 @@ RuleFn = Callable[[Trace, PrecheckConfig], list[PrecheckFlag]]
 
 def rule_empty_trace(trace: Trace, cfg: PrecheckConfig) -> list[PrecheckFlag]:
     if not trace.steps:
-        return [PrecheckFlag(kind=PrecheckKind.EMPTY_TRACE, note="trace has no steps")]
+        return [PrecheckFlag(kind=PrecheckKind.EMPTY_TRACE, note="trace has no steps", cause=trace.failure_cause or "")]
     if not any(s.role == Role.ASSISTANT for s in trace.steps):
-        return [PrecheckFlag(kind=PrecheckKind.EMPTY_TRACE, note="trace has no assistant step")]
+        return [PrecheckFlag(kind=PrecheckKind.EMPTY_TRACE, note="trace has no assistant step", cause=trace.failure_cause or "")]
     return []
 
 
 def rule_infra_error(trace: Trace, cfg: PrecheckConfig) -> list[PrecheckFlag]:
     tr = (trace.outcome.termination_reason or "").lower()
     if tr in cfg.infra_terminations:
-        return [PrecheckFlag(kind=PrecheckKind.INFRA_ERROR, note=f"termination_reason={tr}")]
+        return [PrecheckFlag(kind=PrecheckKind.INFRA_ERROR, note=f"termination_reason={tr}", cause=trace.failure_cause or "")]
     return []
 
 
@@ -76,13 +88,18 @@ def rule_timeout(trace: Trace, cfg: PrecheckConfig) -> list[PrecheckFlag]:
                         kind=PrecheckKind.TIMEOUT,
                         evidence_step_idx=s.idx,
                         note=f"step latency {s.latency_ms:.0f} ms > {cfg.step_latency_ms:.0f} ms",
+                        blocking=cfg.step_latency_blocks,
                     )
                 )
                 break
     if cfg.max_duration_s is not None and trace.metrics.duration_s is not None:
         if trace.metrics.duration_s > cfg.max_duration_s:
             flags.append(
-                PrecheckFlag(kind=PrecheckKind.TIMEOUT, note=f"duration {trace.metrics.duration_s:.0f}s > {cfg.max_duration_s:.0f}s")
+                PrecheckFlag(
+                    kind=PrecheckKind.TIMEOUT,
+                    note=f"duration {trace.metrics.duration_s:.0f}s > {cfg.max_duration_s:.0f}s",
+                    blocking=cfg.step_latency_blocks,
+                )
             )
     return flags
 
