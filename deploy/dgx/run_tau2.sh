@@ -41,7 +41,7 @@ TASK_ARGS=(--num-tasks "$NUM_TASKS")
 if [[ -n "${TAU2_TASK_IDS:-}" ]]; then
   # shellcheck disable=SC2206
   TASK_ARGS=(--task-ids ${TAU2_TASK_IDS})
-  log "只跑指定任务：${TAU2_TASK_IDS}（TAU2_TASK_IDS，忽略 NUM_TASKS=$NUM_TASKS）"
+  log "只跑指定任务：${TAU2_TASK_IDS}（TAU2_TASK_IDS，忽略 NUM_TASKS=${NUM_TASKS}）"
 fi
 
 log "eval NL-assertion judge: $TAU2_LLM_NL_ASSERTIONS (本地端点，见 patch_tau2_nl_assertions.sh)"

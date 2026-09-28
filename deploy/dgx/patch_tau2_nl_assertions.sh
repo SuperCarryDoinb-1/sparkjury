@@ -10,7 +10,7 @@
 #   bash deploy/dgx/patch_tau2_nl_assertions.sh ensure|apply|check|show|revert
 #
 # 注意：下面所有变量展开都写成 ${VAR} 带花括号。bash 把非 ASCII 字节也算作标识符字符，
-# 于是 "$BACKUP）" 会被当成变量名 BACKUP），在 set -u 下直接报 unbound variable。
+# 于是变量名后面紧跟一个中文括号时，那个括号会被吃进变量名里，在 set -u 下直接报 unbound variable。
 cd "$(dirname "$0")/../.." && source deploy/dgx/common.sh
 TAU2_HOME="${TAU2_HOME:-$HOME/tau2-bench}"
 CONFIG="${TAU2_HOME}/src/tau2/config.py"

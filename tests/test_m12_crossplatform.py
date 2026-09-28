@@ -10,11 +10,22 @@ TEXT_EXT = {".py", ".sh", ".md", ".toml", ".yml", ".yaml", ".json", ".html", ".t
 SKIP = {".venv", "runs", "__pycache__", ".pytest_cache", "logs", "data", ".git", ".worktrees"}
 
 
+def _skipped(p: Path) -> bool:
+    """SKIP 按「相对 ROOT 的路径」判断，不能按绝对路径判断。
+
+    按绝对路径判断时，开在 .worktrees/ 下的 worktree 会整棵树被跳过 —— 而「开工先开
+    worktree」正是本仓库规定的工作方式（AGENTS.md）。后果是这些守卫在 worktree 里扫到
+    0 个文件、本地全绿、只有 CI 才报红：deploy/dgx/run_tau2.sh 里 $NUM_TASKS 后面紧跟
+    中文括号，本地 313 passed，CI 三平台全挂。
+    """
+    return any(part in SKIP or part.startswith(".venv") for part in p.relative_to(ROOT).parts)
+
+
 def _text_files():
     for p in ROOT.rglob("*"):
         # .venv* covers the node's extra environments (.venv-tau2, .venv-vllm): third-party files inside them
         # are not ours to lint, and litellm ships a couple of CRLF files that used to fail this test on the node.
-        if p.is_file() and p.suffix in TEXT_EXT and not any(part in SKIP or part.startswith(".venv") for part in p.parts):
+        if p.is_file() and p.suffix in TEXT_EXT and not _skipped(p):
             yield p
 
 
@@ -62,7 +73,7 @@ def test_ops_dependency_group_declared():
 def _shell_files():
     """shell 脚本与 git 钩子。钩子没有 .sh 后缀，_text_files 扫不到，单独走一遍。"""
     for p in ROOT.rglob("*"):
-        if not p.is_file() or any(part in SKIP or part.startswith(".venv") for part in p.parts):
+        if not p.is_file() or _skipped(p):
             continue
         if p.suffix == ".sh" or p.parent.name == ".githooks":
             yield p
