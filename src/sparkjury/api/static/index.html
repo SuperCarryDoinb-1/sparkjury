@@ -4,317 +4,509 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SparkJury 评测驾驶舱</title>
-<meta name="description" content="SparkJury Agent Cockpit：读入 trace，三位裁判打分，分歧仲裁，badcase 聚类，证据卡片让人拍板，改完回归对比。">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%273%27 fill=%27%231e1b17%27/%3E%3Ccircle cx=%278%27 cy=%278%27 r=%274.5%27 fill=%27%23c9ad6a%27/%3E%3C/svg%3E">
+<meta name="description" content="SparkJury Agent Cockpit：读入 trace，三位裁判打分，分歧仲裁，badcase 聚类，证据卡片交由人工确认，修复后回归对比。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%274%27 fill=%27%23111111%27/%3E%3C/svg%3E">
 <style>
-/* 视觉语言沿用 docs/AGENT_VS_WORKFLOW.html：象牙白纸面、炭黑侧栏、哑金点缀、衬线标题。
+/* 视觉语言：白底、细灰线、黑色主按钮、等宽粗体大数字，绿正红负。
    字体全部走本机字体栈，不加任何外链，页面断网也要能跑。 */
 :root{
-  --bg:#f4f1ea; --bg-deep:#ebe6dc; --paper:#fbf9f4;
-  --ink:#1e1b17; --ink-2:#4a453d; --muted:#8a8378;
-  --line:#dcd5c8; --line-soft:#e9e3d7;
-  --gold:#a8873d; --gold-soft:#c9ad6a; --gold-wash:rgba(168,135,61,.10);
-  --good:#5b7f4e; --good-wash:rgba(91,127,78,.12);
-  --bad:#a23b2f; --bad-wash:rgba(162,59,47,.10);
-  --cloud:#3f6a8a; --cloud-wash:rgba(63,106,138,.12);
-  --code-bg:#f7f3ea;
-  --nav-bg:#1e1b17; --nav-fg:#c9c2b4; --nav-fg-strong:#f4f1ea; --nav-line:rgba(244,241,234,.10);
-  --shadow:0 1px 2px rgba(30,27,23,.04),0 12px 32px -18px rgba(30,27,23,.25);
-  --sidebar-w:272px;
-  --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",serif;
-  --sans:"Noto Sans SC",-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
-  --display:"Cormorant Garamond","Garamond","EB Garamond","Georgia",serif;
-  --mono:"JetBrains Mono","Cascadia Mono",Consolas,"Noto Sans SC",monospace;
+  --bg:#f4f6f9; --bg-soft:#eaedf2; --paper:#ffffff;
+  --accent:#2f5bea; --accent-wash:#eaf0ff; --accent-deep:#1e3fb8;
+  --c1:#2f5bea; --c2:#e11d48; --c3:#d97706; --c4:#0d9488; --c5:#7c3aed; --c6:#64748b;
+  --ink:#0f172a; --ink-2:#374151; --muted:#6b7280; --faint:#9ca3af;
+  --line:#e5e7eb; --line-strong:#d1d5db;
+  --good:#16a34a; --good-wash:#ecfdf3;
+  --bad:#dc2626; --bad-wash:#fef2f2;
+  --warn:#d97706; --warn-wash:#fffbeb;
+  --cloud:#2563eb; --cloud-wash:#eff6ff;
+  --pill:#f3f4f6; --code-bg:#f8f8f9; --hover:#f3f4f6;
+  --sidebar-w:236px; --topbar-h:64px;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans SC","Helvetica Neue",Arial,sans-serif;
+  --num:"JetBrains Mono","Cascadia Mono","SF Mono","Roboto Mono",Consolas,"Menlo",monospace;
+  --mono:var(--num);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#15130f; --bg-deep:#100e0b; --paper:#1d1a15;
-    --ink:#ece7dc; --ink-2:#c8c1b3; --muted:#8f877a;
-    --line:#332e26; --line-soft:#2a2620;
-    --gold:#c9ad6a; --gold-soft:#a8873d; --gold-wash:rgba(201,173,106,.12);
-    --good:#8db27e; --good-wash:rgba(141,178,126,.14);
-    --bad:#d3705f; --bad-wash:rgba(211,112,95,.14);
-    --cloud:#7fa6c4; --cloud-wash:rgba(127,166,196,.14);
-    --code-bg:#181510;
-    --nav-bg:#0f0d0a; --nav-fg:#a39b8c; --nav-fg-strong:#f1ece1; --nav-line:rgba(236,231,220,.08);
-    --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px -18px rgba(0,0,0,.6);
+    --bg:#0c0f14; --bg-soft:#131821; --paper:#161b24;
+    --accent:#7c9cff; --accent-wash:#182036; --accent-deep:#5b7cff;
+    --c1:#7c9cff; --c2:#fb7185; --c3:#fbbf24; --c4:#2dd4bf; --c5:#a78bfa; --c6:#94a3b8;
+    --ink:#f3f4f6; --ink-2:#d1d5db; --muted:#9ca3af; --faint:#6b7280;
+    --line:#27272a; --line-strong:#3f3f46;
+    --good:#4ade80; --good-wash:rgba(74,222,128,.10);
+    --bad:#f87171; --bad-wash:rgba(248,113,113,.10);
+    --warn:#fbbf24; --warn-wash:rgba(251,191,36,.10);
+    --cloud:#60a5fa; --cloud-wash:rgba(96,165,250,.12);
+    --pill:#1f1f23; --code-bg:#151517; --hover:#1c1c20;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#15130f; --bg-deep:#100e0b; --paper:#1d1a15;
-  --ink:#ece7dc; --ink-2:#c8c1b3; --muted:#8f877a;
-  --line:#332e26; --line-soft:#2a2620;
-  --gold:#c9ad6a; --gold-soft:#a8873d; --gold-wash:rgba(201,173,106,.12);
-  --good:#8db27e; --good-wash:rgba(141,178,126,.14);
-  --bad:#d3705f; --bad-wash:rgba(211,112,95,.14);
-  --cloud:#7fa6c4; --cloud-wash:rgba(127,166,196,.14);
-  --code-bg:#181510;
-  --nav-bg:#0f0d0a; --nav-fg:#a39b8c; --nav-fg-strong:#f1ece1; --nav-line:rgba(236,231,220,.08);
-  --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px -18px rgba(0,0,0,.6);
+  --bg:#0c0f14; --bg-soft:#131821; --paper:#161b24;
+  --accent:#7c9cff; --accent-wash:#182036; --accent-deep:#5b7cff;
+  --c1:#7c9cff; --c2:#fb7185; --c3:#fbbf24; --c4:#2dd4bf; --c5:#a78bfa; --c6:#94a3b8;
+  --ink:#f3f4f6; --ink-2:#d1d5db; --muted:#9ca3af; --faint:#6b7280;
+  --line:#27272a; --line-strong:#3f3f46;
+  --good:#4ade80; --good-wash:rgba(74,222,128,.10);
+  --bad:#f87171; --bad-wash:rgba(248,113,113,.10);
+  --warn:#fbbf24; --warn-wash:rgba(251,191,36,.10);
+  --cloud:#60a5fa; --cloud-wash:rgba(96,165,250,.12);
+  --pill:#1f1f23; --code-bg:#151517; --hover:#1c1c20;
 }
 
 *{box-sizing:border-box}
-html{scroll-behavior:smooth;scroll-padding-top:24px}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--topbar-h) + 16px)}
 html,body{margin:0}
-body{
-  background:var(--bg);
-  background-image:radial-gradient(1200px 600px at 85% -10%, var(--gold-wash), transparent 60%),linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
-  background-attachment:fixed;
-  color:var(--ink);font:15px/1.75 var(--sans);-webkit-font-smoothing:antialiased;
-}
+body{background:var(--bg);color:var(--ink);font:14px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}
 button,select,input{font:inherit;color:inherit}
-button{cursor:pointer}button:disabled{opacity:.5;cursor:default}
+button{cursor:pointer}button:disabled{opacity:.45;cursor:default}
+.n{font-family:var(--num);font-variant-numeric:tabular-nums}
 
-/* ---------- 布局：炭黑侧栏 + 纸面内容 ---------- */
-.shell{display:flex;min-height:100vh}
-.sidebar{width:var(--sidebar-w);flex:none;position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--nav-bg);color:var(--nav-fg);padding:36px 26px 28px;display:flex;flex-direction:column;gap:24px}
-.brand{border-bottom:1px solid var(--nav-line);padding-bottom:22px}
-.brand .mark{font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold-soft)}
-.brand h1{font-family:var(--serif);font-weight:700;font-size:21px;line-height:1.4;margin:10px 0 0;color:var(--nav-fg-strong)}
-.brand p{margin:8px 0 0;font-size:12px;opacity:.75;letter-spacing:.02em}
-.side-block label{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.6;margin-bottom:8px}
-.side-block select{width:100%;background:rgba(255,255,255,.05);color:var(--nav-fg-strong);border:1px solid var(--nav-line);border-radius:6px;padding:8px 10px;font-size:13px}
-.side-block select option{color:#1e1b17}
-.btn-gold{display:block;width:100%;margin-top:10px;background:var(--gold-soft);color:#1e1b17;border:none;border-radius:6px;padding:9px 12px;font-weight:600;letter-spacing:.04em}
-.btn-gold:hover{background:#d8bd7c}
-.toc{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
-.toc a{display:grid;grid-template-columns:28px 1fr;align-items:baseline;gap:6px;padding:8px 10px;border-radius:6px;font-size:14px;line-height:1.5;color:var(--nav-fg);border-left:2px solid transparent;transition:color .2s,background .2s,border-color .2s}
-.toc a .num{font-family:var(--display);font-weight:600;font-size:15px;color:var(--gold-soft);opacity:.7;letter-spacing:.05em}
-.toc a:hover{color:var(--nav-fg-strong);background:rgba(255,255,255,.04)}
-.toc a.active{color:var(--nav-fg-strong);background:rgba(201,173,106,.10);border-left-color:var(--gold-soft)}
-.side-status{font-size:12px;line-height:1.6;opacity:.8;border-top:1px solid var(--nav-line);padding-top:14px;word-break:break-all}
-.side-status b{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.6;margin-bottom:4px;font-weight:500}
-.theme-btn{background:none;border:1px solid var(--nav-line);color:var(--nav-fg);border-radius:999px;padding:5px 12px;font-size:12px;letter-spacing:.06em}
-.theme-btn:hover{color:var(--nav-fg-strong);border-color:var(--gold-soft)}
-.side-foot{margin-top:auto;font-family:var(--display);font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.5;border-top:1px solid var(--nav-line);padding-top:16px}
+/* ---------- 布局：白色侧栏 + 顶栏 + 内容 ---------- */
+.shell{display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr);min-height:100vh}
+.sidebar{position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--line);background:var(--paper);display:flex;flex-direction:column;padding:0 12px 16px}
+.brand{display:flex;align-items:center;gap:10px;height:var(--topbar-h);padding:0 10px;border-bottom:1px solid var(--line);margin:0 -12px 12px;padding-left:20px;font-weight:700;font-size:16px}
+.brand .mark{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--accent) 0%,var(--c5) 100%);flex:none;position:relative}
+.brand .mark::after{content:"";position:absolute;inset:7px;border-radius:50%;border:2.5px solid #fff;border-right-color:transparent;transform:rotate(-30deg)}
+.brand .bt{display:flex;flex-direction:column;line-height:1.15}.brand .bt small{font-size:11px;font-weight:400;color:var(--muted);margin-top:2px}
+.grp{font-size:12px;color:var(--muted);padding:14px 10px 6px}
+.nav{list-style:none;margin:0;padding:0}
+.nav a{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;font-size:14px;color:var(--ink-2);line-height:1.4}
+.nav a svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;color:var(--muted)}
+.nav a:hover{background:var(--hover);color:var(--ink)}
+.nav a.on{background:var(--hover);color:var(--ink);font-weight:600}.nav a.on svg{color:var(--ink)}
+.nav a .tag{margin-left:auto;font-size:11px;color:var(--bad)}
+.side-bottom{margin-top:auto;padding:14px 10px 0;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.side-bottom label{display:block;margin-bottom:6px}
+.side-bottom input{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font-size:14px;color:var(--ink);background:var(--bg)}
+.side-bottom input::placeholder{color:var(--faint)}
+.side-status{margin-top:12px;line-height:1.5;word-break:break-all}
+.theme-btn{margin-top:10px;background:none;border:1px solid var(--line-strong);color:var(--ink-2);border-radius:999px;padding:4px 12px;font-size:12px}
+.theme-btn:hover{border-color:var(--ink)}
 
-.content{flex:1;min-width:0;padding:44px 48px 88px}
-.page{max-width:1560px;margin:0 auto}
+.main{min-width:0}
+.topbar{position:sticky;top:0;z-index:5;height:var(--topbar-h);display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 28px;border-bottom:1px solid var(--line);background:var(--paper)}
+.tb-left{display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap}
+.runpick{position:relative;display:inline-flex;align-items:center}
+.runpick select{appearance:none;-webkit-appearance:none;border:none;background:none;font-size:16px;font-weight:600;padding:6px 26px 6px 4px;max-width:520px;text-overflow:ellipsis;cursor:pointer;color:var(--ink)}
+.runpick select option{color:#111;background:#fff}
+.runpick::after{content:"";position:absolute;right:8px;top:50%;width:7px;height:7px;border-right:1.6px solid var(--muted);border-bottom:1.6px solid var(--muted);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+.tb-meta{color:var(--muted);font-size:14px;white-space:nowrap}
+.st{display:inline-block;font-size:12px;padding:2px 10px;border:1px solid var(--line-strong);border-radius:6px;color:var(--ink-2);background:var(--bg)}
+.st.running{border-color:var(--ink);color:var(--ink);animation:pulse 1.4s infinite}.st.ok{color:var(--good);border-color:var(--good)}.st.failed{color:var(--bad);border-color:var(--bad)}
 
-/* ---------- 页眉 ---------- */
-.hero{margin-bottom:34px;padding-bottom:26px;border-bottom:1px solid var(--line);display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap}
-.eyebrow{font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.3em;text-transform:uppercase;color:var(--gold);margin:0 0 12px}
-.hero h2{font-family:var(--serif);font-weight:700;font-size:34px;line-height:1.25;margin:0 0 12px;letter-spacing:.01em}
-.hero p{margin:0;color:var(--ink-2);font-size:15px;max-width:720px}
-.hero .rule{width:56px;height:2px;background:var(--gold);margin:20px 0 0}
-.hero .meta{font-family:var(--display);font-size:14px;letter-spacing:.12em;color:var(--muted);text-align:right;line-height:1.9}
-.hero .meta b{display:block;font-family:var(--serif);font-size:18px;letter-spacing:.02em;color:var(--ink);font-weight:600}
+.content{padding:28px 32px 80px}
+.page{max-width:1600px;margin:0 auto}
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:14px;flex-wrap:wrap}
+.page-head h2{margin:0 0 4px;font-size:28px;font-weight:700;line-height:1.3;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.page-head .sub{margin:0;color:var(--ink-2);font-size:14px}
+.eyebrow{font-size:12px;letter-spacing:.08em;color:var(--accent);font-weight:600;margin-bottom:4px}
+.agent-tag{font-size:13px;font-weight:500;background:var(--accent-wash);color:var(--accent-deep);border-radius:999px;padding:3px 12px;font-family:var(--num)}
+/* 引导区：这是什么 + 本轮数据怎么流过七个阶段 + 怎么看 */
+.intro{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px 22px;margin-bottom:14px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.6fr);gap:20px;position:relative;overflow:hidden}
+.intro::before{content:"";position:absolute;inset:0 auto 0 0;width:5px;background:linear-gradient(180deg,var(--accent),var(--c5))}
+.intro .what{margin:0;font-size:14px;line-height:1.75;color:var(--ink-2)}.intro .what b{color:var(--ink);font-weight:600}
+.intro .what .t{display:block;font-size:15px;font-weight:700;color:var(--ink);margin-bottom:4px}
+.howto{margin:12px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12.5px;color:var(--ink-2)}
+.howto li{display:flex;gap:8px;align-items:flex-start}.howto li i{flex:none;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-style:normal;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-top:2px}
+.funnel{display:flex;align-items:flex-start;gap:0;min-width:0;overflow-x:auto;padding-bottom:2px;align-self:center}
+.funnel .fc{flex:1 1 0;min-width:96px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg)}
+.funnel .fc.hi{background:var(--accent-wash);border-color:transparent}.funnel .fc.bad{background:var(--bad-wash);border-color:transparent}
+.funnel .fc .n{font:700 24px/1.1 var(--num)}.funnel .fc.bad .n{color:var(--bad)}.funnel .fc.hi .n{color:var(--accent-deep)}
+.funnel .fc .l{font-size:12.5px;font-weight:600;color:var(--ink);margin-top:2px}.funnel .fc .d{font-size:11px;color:var(--muted);line-height:1.4;margin-top:2px}
+.funnel .ar{flex:none;width:22px;align-self:center;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:14px}
+.funnel .fc .st{display:block;font-size:10px;font-family:var(--num);color:var(--faint);letter-spacing:.06em;margin-bottom:4px}
+.meter{margin-top:10px;height:14px;border-radius:7px;background:var(--line);position:relative;overflow:visible}
+.meter i{display:block;height:100%;border-radius:7px;background:linear-gradient(90deg,var(--good),#4ade80);width:0;transition:width .5s}
+.meter .mk{position:absolute;top:-4px;width:2px;height:22px;background:var(--ink);opacity:.55}
+.meter .mk::after{content:attr(data-l);position:absolute;top:24px;left:50%;transform:translateX(-50%);font-size:10.5px;color:var(--muted);white-space:nowrap;font-family:var(--num)}
+.meter-ax{display:flex;justify-content:space-between;font-size:10.5px;color:var(--faint);font-family:var(--num);margin-top:22px}
+.acts{display:flex;gap:10px;flex-wrap:wrap;padding-top:8px}
+
+/* ---------- 按钮 / 药丸 ---------- */
+.btn{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;padding:7px 14px;font-size:14px;color:var(--ink);line-height:1.4;white-space:nowrap}
+.btn:hover{border-color:var(--ink)}
+.btn.pri{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600}.btn.pri:hover{opacity:.88}
+.btn.sm{padding:4px 10px;font-size:13px}
+.lnk{border:none;background:none;color:var(--ink);padding:0;font:inherit;font-size:13px;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong)}.lnk:hover{text-decoration-color:var(--ink)}
+.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:6px;background:var(--pill);color:var(--ink-2);margin-left:6px;white-space:nowrap;vertical-align:middle;line-height:1.6}
+.pill.good{background:var(--good-wash);color:var(--good)}.pill.bad{background:var(--bad-wash);color:var(--bad)}.pill.cloud{background:var(--cloud-wash);color:var(--cloud)}.pill.warn{background:var(--warn-wash);color:var(--warn)}.pill.mut{background:var(--pill);color:var(--muted)}
+.note-red{color:var(--bad);font-size:12px;margin-left:6px}
+.ok-msg{color:var(--good);font-size:12.5px}
+.empty{color:var(--muted);font-size:13px}
 
 /* ---------- 章节与卡片 ---------- */
-section{margin-bottom:40px;scroll-margin-top:24px;min-width:0}
-.sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:16px}
-.sec-head .num{font-family:var(--display);font-style:italic;font-weight:500;font-size:30px;line-height:1;color:var(--gold);min-width:40px}
-.sec-head h3{font-family:var(--serif);font-weight:700;font-size:21px;margin:0;letter-spacing:.01em}
-.sec-head .sub{font-size:12.5px;color:var(--muted);margin-left:auto}
-h4{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:18px 0 10px;font-weight:600}
-.card{background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;padding:22px 24px 18px;box-shadow:var(--shadow);min-width:0}
-.row3{display:grid;grid-template-columns:300px minmax(0,1fr) 320px;gap:22px;align-items:start}
+section{scroll-margin-top:calc(var(--topbar-h) + 12px);min-width:0}
+.sec-h{display:flex;align-items:flex-start;gap:12px;margin:28px 0 12px}
+.sec-h .num{flex:none;width:28px;height:28px;border-radius:50%;background:var(--ink);color:var(--bg);font:700 13px/28px var(--num);text-align:center}
+.sec-h .tt{font-size:17px;font-weight:700;color:var(--ink);line-height:28px}
+.sec-h small{display:block;font-size:13px;color:var(--muted);line-height:1.5;margin-top:2px}
+.sec-h .q{font-size:12px;color:var(--accent);font-weight:600;margin-left:10px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:20px 22px;min-width:0}
+.card .ct{font-size:15px;font-weight:700;margin:0 0 2px}
+.card .cs{font-size:13px;color:var(--muted);margin:0 0 14px}
+.card.flush{padding:0}.card.flush .chead{padding:18px 22px 14px;border-bottom:1px solid var(--line)}.card.flush .chead .cs{margin-bottom:0}
 
-.kv{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:13.5px}
-.kv b{color:var(--muted);font-weight:500;flex:none}.kv span{text-align:right;word-break:break-all;color:var(--ink)}
-.counter{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
-.tile{background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;padding:14px 14px 10px;box-shadow:var(--shadow);position:relative;overflow:hidden}
-.tile::after{content:"";position:absolute;inset:auto 0 0 0;height:2px;background:linear-gradient(90deg,var(--gold),transparent)}
-.tile b{display:block;font-family:var(--display);font-weight:600;font-size:28px;line-height:1.1;color:var(--gold)}
-.tile span{display:block;font-size:12px;color:var(--muted);margin-top:4px}.tile small{display:block;font-size:12px;color:var(--ink-2);margin-top:2px}
-.tile.up b{color:var(--good)}.tile.down b{color:var(--bad)}.tile.flat b{color:var(--ink-2)}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+/* 结论区：北极星可用率 + 先修什么 + 三个小指标。权重刻意不同：可用率最大，先修其次，其余最小 */
+.hero-band{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr) minmax(0,.9fr);gap:14px;margin-top:6px}
+.hero-band>div{border:1px solid var(--line);border-radius:12px;padding:22px 24px 20px;background:var(--paper);min-width:0}
+.hero-band .lab{font-size:13px;color:var(--ink-2);letter-spacing:.02em}
+.north{border-color:transparent!important;background:linear-gradient(160deg,var(--good-wash) 0%,var(--paper) 70%)!important;box-shadow:inset 0 0 0 1.5px var(--good)}
+.north .val{font:700 64px/1.1 var(--num);color:var(--good);margin:6px 0 6px;letter-spacing:-.02em}
+.north .sub{font-size:15px;color:var(--ink)}.north .sub b,.north .sub2 b{font-family:var(--num);font-weight:700}
+.north .sub2{font-size:14px;color:var(--ink-2);margin-top:2px}
+.north .note{font-size:12px;color:var(--faint);margin-top:12px;line-height:1.5}
+.fix{background:linear-gradient(135deg,#0f172a 0%,#1e2a4a 60%,#243b7a 100%)!important;color:#fff;border-color:transparent!important;position:relative;overflow:hidden}
+.fix::after{content:"";position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(124,156,255,.35),transparent 65%);pointer-events:none}
+.fix .lab{color:#fff;opacity:.75;display:flex;align-items:center;gap:8px}
+.fix .lab .p0{font-size:10px;font-weight:700;background:var(--c2);color:#fff;border-radius:4px;padding:1px 6px;letter-spacing:.06em;opacity:1}
+.fix .fx-title,.fix .fx-meta,.fix .fx-how,.fix .fx-next,.fix .fx-act{position:relative}
+.fix .fx-title{font-size:26px;font-weight:700;line-height:1.3;margin:6px 0 4px;text-wrap:balance}
+.fix .fx-meta{font-size:13px;opacity:.75;font-family:var(--num)}
+.fix .fx-how{margin-top:14px;font-size:15px;line-height:1.6;display:grid;grid-template-columns:auto 1fr;gap:10px}
+.fix .fx-how .k{font-size:12px;border:1px solid rgba(255,255,255,.35);border-radius:4px;padding:0 6px;height:22px;line-height:20px;white-space:nowrap;opacity:.9;margin-top:2px}
+.fix .fx-next{font-size:13px;opacity:.7;margin-top:10px}
+.fix .fx-act{margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.fix .btn.pri{background:#fff;color:#0f172a;border-color:#fff}
+.fix .fx-src{font-size:12px;opacity:.6}
+.minis{display:grid;grid-template-rows:repeat(3,1fr);gap:0;padding:0!important}
+.minis>div{padding:14px 20px;border-bottom:1px solid var(--line)}.minis>div:last-child{border-bottom:none}
+.minis .val{font:700 26px/1.2 var(--num);margin:2px 0}.minis .val.bad{color:var(--bad)}
+.minis .sub{font-size:12.5px;color:var(--muted)}.minis .sub b{font-family:var(--num);font-weight:600;color:var(--ink-2)}
+.tbl-wrap{overflow-x:auto}
+table.sc{font-size:13.5px}.sc th{padding:10px 14px}.sc td{padding:10px 14px}.sc td.num{font-family:var(--num)}
+.sc td .rate{font-family:var(--num);font-weight:700;font-size:16px}.sc td .rate.lo{color:var(--bad)}.sc td .rate.mid{color:var(--warn)}.sc td .rate.hi{color:var(--good)}
+.sc td .rb{height:6px;background:var(--line);border-radius:3px;margin-top:4px;width:120px;overflow:hidden}.sc td .rb i{display:block;height:100%;background:var(--ink)}
+.sc tr.click td:first-child{font-weight:600}
+/* 归因卡片：问题 / 证据 / 裁判怎么说 / 改法 四段 */
+.cl .zh{font-size:19px}
+.cl .en{font-family:var(--num);font-size:12px;color:var(--muted);font-weight:400;margin-left:8px}
+.cl .seg{display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.cl .seg .k{font-size:12px;color:var(--muted);padding-top:3px;letter-spacing:.04em}
+.cl .seg .k.fixk{color:var(--ink);font-weight:700}
+.cl .seg .how{font-size:15px;line-height:1.7;color:var(--ink)}
+.cl .seg .how small{display:block;font-size:12px;color:var(--faint);font-family:var(--num);margin-top:4px}
+.cl .seg .prob{font-size:14px;color:var(--ink-2)}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.kpi{border:1px solid var(--line);border-radius:10px;padding:18px 22px 16px;background:var(--paper)}
+.kpi .lab{font-size:13px;color:var(--ink-2)}
+.kpi .val{font:700 34px/1.25 var(--num);margin:4px 0 4px;letter-spacing:-.01em}
+.kpi.good .val{color:var(--good)}.kpi.bad .val{color:var(--bad)}
+.kpi .sub{font-size:13px;color:var(--ink-2)}.kpi .sub b{font-family:var(--num);font-weight:600}
+.kpi .note{font-size:12px;color:var(--faint);margin-top:2px}
 
-/* 七个阶段的状态灯，沿用参考页的 flow 药丸 */
-.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
-.flow .stage{font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.12em;border:1px solid var(--line);border-radius:999px;padding:4px 13px;color:var(--muted);background:var(--paper)}
-.flow .stage em{font-style:normal;font-family:var(--sans);font-size:12px;letter-spacing:0;margin-left:6px;color:inherit}
-.flow .stage.run{border-color:var(--gold);color:var(--gold);animation:pulse 1.2s infinite}
-.flow .stage.ok{background:var(--gold-wash);color:var(--ink);border-color:var(--gold-soft)}
-.flow .stage.fail{background:var(--bad-wash);color:var(--bad);border-color:var(--bad)}
-.flow i{color:var(--gold);font-style:normal;font-size:12px}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
-#timeline{height:50vh;overflow:auto;background:var(--code-bg);border:1px solid var(--line-soft);border-radius:8px;padding:10px 12px;font:12.5px/1.6 var(--mono)}
-.ev{display:flex;gap:12px;padding:1px 0;color:var(--ink-2)}.ev .t{color:var(--muted);flex:0 0 78px}.ev .k{flex:0 0 68px;color:var(--muted)}
-.ev.stage_start .k,.ev.stage_end .k{color:var(--gold)}.ev.stage_end .m{color:var(--ink)}.ev.degraded .k,.ev.warning .k{color:var(--gold)}.ev.degraded .m,.ev.warning .m{color:var(--gold)}.ev.error .k,.ev.error .m{color:var(--bad)}
-.ev.click{cursor:pointer;border-radius:4px}.ev.click:hover{background:var(--gold-wash)}.ev.click .m{text-decoration:underline dotted}.ev.dis .m{color:var(--bad)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.two.w{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr)}
+.row-run{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px}
+.stack{display:flex;flex-direction:column;gap:14px}
 
-.gpu{margin-bottom:12px}.bar{height:6px;background:var(--line-soft);border-radius:3px;overflow:hidden;margin:6px 0}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-soft))}
-.ep{display:flex;align-items:center;gap:10px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line-soft)}.ep:last-child{border-bottom:none}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--bad);flex:none}.dot.ok{background:var(--good)}
-.ep .r{color:var(--muted);margin-left:auto;font-size:12px;text-align:right;word-break:break-all}
+/* 环图 + 图例 */
+.donut-wrap{display:flex;align-items:center;gap:28px;padding:6px 0 0;flex-wrap:wrap}
+.donut-wrap svg{flex:none}
+.donut-wrap .dn{font:700 21px var(--num);fill:var(--ink)}.donut-wrap .ds{font-size:11px;fill:var(--muted)}
+.legend{display:flex;flex-direction:column;gap:10px;min-width:220px}
+.legend div{display:grid;grid-template-columns:10px 84px 76px 1fr;align-items:baseline;gap:10px;font-size:14px}
+.legend i{width:9px;height:9px;border-radius:50%;display:inline-block;transform:translateY(-1px)}
+.legend b{font:700 20px var(--num)}.legend span{color:var(--muted);font-size:13px;font-family:var(--num)}
 
-.pill{display:inline-block;font-size:11px;padding:1px 9px;border-radius:999px;background:var(--gold-wash);color:var(--gold);margin-left:6px;white-space:nowrap;vertical-align:middle;font-weight:500}
-.pill.good{background:var(--good-wash);color:var(--good)}.pill.bad{background:var(--bad-wash);color:var(--bad)}.pill.cloud{background:var(--cloud-wash);color:var(--cloud)}.pill.mut{background:var(--line-soft);color:var(--ink-2)}
+/* 四栏分布 */
+.cols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+.cols>div{padding:16px 22px 14px;border-right:1px solid var(--line)}.cols>div:last-child{border-right:none}
+.cols .lab{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;font-weight:600}
+.cols .lab span{font-family:var(--num);font-weight:400;color:var(--muted);font-size:13px}
+.cols .val{font:700 30px/1.3 var(--num);margin:4px 0 2px}.cols .val.bad{color:var(--bad)}
+.cols .d{font-size:12px;color:var(--muted)}
+.cfoot{border-top:1px solid var(--line);padding:12px 22px;font-size:13px;color:var(--muted);display:flex;gap:18px;flex-wrap:wrap}
+.cfoot b{color:var(--ink);font-family:var(--num);font-weight:600;margin-left:4px}
+
+/* 大数字两列 */
+.bignums{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px 22px 14px}
+.bignums .lab{font-size:14px;color:var(--ink-2)}.bignums .val{font:700 30px/1.3 var(--num);color:var(--bad)}
+.bignums.neutral .val{color:var(--ink)}
+.subrow{border-top:1px solid var(--line);padding:12px 22px;font-size:13px;color:var(--muted);display:flex;gap:18px;flex-wrap:wrap}
+.subrow b{color:var(--ink);font-family:var(--num);font-weight:600;margin-left:4px}
+
+/* 条形归因 */
+.bars{padding:6px 22px 10px}
+.brow{padding:10px 0 4px;cursor:pointer;border-radius:6px}.brow:hover .bl{text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.brow .bh{display:flex;justify-content:space-between;align-items:baseline;font-size:14px}.brow .bh span{font-family:var(--num);color:var(--muted);font-size:13px}
+.brow .bbar{height:10px;background:var(--line);border-radius:5px;margin-top:8px;overflow:hidden}.brow .bbar i{display:block;height:100%;background:var(--ink);border-radius:5px}
+.brow .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:8px;vertical-align:-1px}
+.cstack{display:flex;height:16px;border-radius:8px;overflow:hidden;margin:4px 22px 12px;background:var(--line)}.cstack i{display:block;height:100%}
+.stack-l{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);padding:0 22px 6px}.stack-l i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.sc td .sb{display:flex;height:8px;border-radius:4px;overflow:hidden;width:130px;margin-top:5px;background:var(--line)}.sc td .sb i{display:block;height:100%}
 
 /* 证据卡片 */
-.rec{position:relative;background:var(--gold-wash);border:1px solid var(--line);border-radius:8px;padding:14px 18px 14px 22px;margin:0 0 12px;color:var(--ink);font-size:15px}
-.rec::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;background:var(--gold);border-radius:2px}
-.rec .tag{font-family:var(--display);font-style:italic;font-weight:500;font-size:15px;color:var(--gold);margin-right:10px;letter-spacing:.05em}
-.disc{color:var(--muted);font-size:12.5px;margin:0 0 16px}
-.cl{background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;padding:16px 20px 14px;margin-top:12px;box-shadow:var(--shadow)}
-.cl.sel{border-color:var(--gold)}
-.cl h3{margin:0 0 6px;font-family:var(--serif);font-size:17px;font-weight:700;display:flex;align-items:center;flex-wrap:wrap;gap:2px}
-.cl h3 .rk{font-family:var(--display);font-style:italic;font-weight:500;color:var(--gold);margin-right:10px;font-size:20px}
+.rec{border:1px solid var(--line);border-left:3px solid var(--ink);border-radius:8px;padding:14px 18px;margin:0 0 8px;font-size:15px;line-height:1.7}
+.rec .tag{display:inline-block;font-size:12px;font-weight:600;background:var(--ink);color:var(--bg);border-radius:4px;padding:0 7px;margin-right:10px;vertical-align:middle;line-height:1.7}
+.disc{color:var(--muted);font-size:12.5px;margin:0 0 14px}
+.cl{border:1px solid var(--line);border-left:5px solid var(--c6);border-radius:10px;padding:16px 20px 14px;margin-top:12px;background:var(--paper)}
+.cl.sel{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.cl h3{margin:0 0 6px;font-size:15px;font-weight:700;display:flex;align-items:center;flex-wrap:wrap;gap:2px}
+.cl h3 .rk{font-family:var(--num);color:var(--muted);margin-right:8px;font-weight:600}
 .cl .sug{font-size:13.5px;color:var(--ink-2)}
-.cl pre,pre.tx{background:var(--code-bg);border:1px solid var(--line-soft);border-radius:6px;padding:8px 10px;font:12.5px/1.5 var(--mono);white-space:pre-wrap;max-height:140px;overflow:auto;margin:8px 0}
+.cl pre,pre.tx{background:var(--code-bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:12.5px/1.55 var(--mono);white-space:pre-wrap;max-height:140px;overflow:auto;margin:8px 0;color:var(--ink-2)}
 .cl .op{font-size:12.5px;color:var(--muted);padding-left:4px}
-.cl .act{display:flex;gap:12px;align-items:center;margin-top:10px;flex-wrap:wrap}
-.maker{display:flex;gap:10px;align-items:center;margin:0 0 14px;font-size:13px;color:var(--muted)}
-.maker input{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:13px;min-width:200px;color:var(--ink)}
-.btn{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:6px 14px;font-size:13px;color:var(--ink)}
-.btn:hover{border-color:var(--gold)}.btn.pri{background:var(--gold);color:#fbf9f4;border-color:transparent;font-weight:600}.btn.pri:hover{background:#96782f}
-.lnk{border:none;background:none;color:var(--gold);padding:0;font:inherit;font-size:13px;text-decoration:underline dotted;text-underline-offset:3px}.lnk:hover{color:var(--ink)}
-.ok-msg{color:var(--good);font-size:12.5px}
+.cl .act{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.cl .members{margin-top:4px}
 
-/* 检查台：三个页签 */
-.tabs{display:flex;gap:8px;margin-bottom:16px;align-items:center;flex-wrap:wrap}
-.tab{font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.12em;border:1px solid var(--line);border-radius:999px;padding:6px 16px;color:var(--ink-2);background:var(--paper)}
-.tab em{font-style:normal;font-family:var(--sans);font-size:13px;letter-spacing:0;margin-left:6px}
-.tab.on{background:var(--gold-wash);color:var(--ink);border-color:var(--gold)}
+/* 时间线与阶段 */
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 12px}
+.flow .stage{font-size:12px;border:1px solid var(--line-strong);border-radius:6px;padding:2px 9px;color:var(--muted);background:var(--bg);font-family:var(--num)}
+.flow .stage em{font-style:normal;font-family:var(--sans);margin-left:5px}
+.flow .stage.run{border-color:var(--ink);color:var(--ink);animation:pulse 1.2s infinite}
+.flow .stage.ok{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.flow .stage.fail{background:var(--bad-wash);color:var(--bad);border-color:var(--bad)}
+.flow i{color:var(--faint);font-style:normal;font-size:12px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+#timeline{height:360px;overflow:auto;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:12.5px/1.6 var(--mono)}
+.ev{display:flex;gap:12px;padding:1px 0;color:var(--ink-2)}.ev .t{color:var(--faint);flex:0 0 78px}.ev .k{flex:0 0 40px;color:var(--muted)}
+.ev.stage_start .k,.ev.stage_end .k{color:var(--ink)}.ev.stage_end .m{color:var(--ink);font-weight:600}.ev.degraded .k,.ev.warning .k,.ev.degraded .m,.ev.warning .m{color:var(--warn)}.ev.error .k,.ev.error .m{color:var(--bad)}
+.ev.click{cursor:pointer;border-radius:4px}.ev.click:hover{background:var(--hover)}.ev.click .m{text-decoration:underline dotted}.ev.dis .m{color:var(--bad)}
+
+.kv{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.kv:last-child{border-bottom:none}
+.kv b{color:var(--muted);font-weight:500;flex:none}.kv span{text-align:right;word-break:break-all;color:var(--ink)}
+.gpu{margin-bottom:12px}.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:6px 0}.bar i{display:block;height:100%;background:var(--ink)}
+.ep{display:flex;align-items:center;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px solid var(--line)}.ep:last-child{border-bottom:none}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--bad);flex:none}.dot.ok{background:var(--good)}
+.ep .r{color:var(--muted);margin-left:auto;font-size:12px;text-align:right;word-break:break-all}
+.mini{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.mini div{border:1px solid var(--line);border-radius:8px;padding:10px 14px}.mini b{display:block;font:700 24px/1.2 var(--num)}.mini span{font-size:12px;color:var(--muted)}
+h4{font-size:12px;color:var(--muted);margin:16px 0 8px;font-weight:600}
+
+/* 检查台 */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin:0 0 16px;padding:0 22px}
+.tab{background:none;border:none;border-bottom:2px solid transparent;padding:12px 4px 10px;margin-right:24px;font-size:14px;color:var(--muted);margin-bottom:-1px}
+.tab em{font-style:normal;color:var(--faint);font-size:12px;margin-left:6px}
+.tab.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:600}.tab.on em{color:var(--muted)}
+.pane{padding:0 22px 20px}
 .bar-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px;font-size:13.5px;color:var(--ink-2)}
-.bar-row select,.bar-row .btn{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:13px;max-width:460px}
-.bar-row .lab{color:var(--muted);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
-table.vt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;overflow:hidden;box-shadow:var(--shadow)}
-.vt th,.vt td{border-bottom:1px solid var(--line-soft);border-right:1px solid var(--line-soft);padding:10px 12px;vertical-align:top;text-align:left}
+.bar-row select,.bar-row .btn{background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;padding:6px 10px;font-size:13px;max-width:460px;color:var(--ink)}
+.bar-row .lab{color:var(--muted);font-size:12px}
+table.vt{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:13px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.vt th,.vt td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:10px 12px;vertical-align:top;text-align:left}
 .vt th:last-child,.vt td:last-child{border-right:none}.vt tr:last-child td{border-bottom:none}
-.vt th{font-size:12px;letter-spacing:.12em;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line);background:transparent}
-.vt th .mdl{display:block;font-family:var(--mono);font-size:11px;letter-spacing:0;color:var(--ink-2);font-weight:400;margin-top:2px}
-.vt th.dim,.vt td.dim{width:160px}.vt th.fin,.vt td.fin{background:var(--gold-wash)}
-.vt td.dim b{font-family:var(--serif);font-size:15px;color:var(--ink)}.vt td.dim .en{font-family:var(--mono);font-size:11px;color:var(--muted)}
-.vt td .sc{font-family:var(--display);font-size:26px;font-weight:600;line-height:1.05}
-.vt td .sc.s0,.vt td .sc.s1{color:var(--bad)}.vt td .sc.s2{color:var(--gold)}.vt td .sc.s3,.vt td .sc.s4{color:var(--good)}.vt td .sc.sn{color:var(--muted)}
+.vt th{font-size:12px;color:var(--muted);font-weight:600;background:var(--bg-soft)}
+.vt th .mdl{display:block;font-family:var(--mono);font-size:11px;color:var(--ink-2);font-weight:400;margin-top:2px}
+.vt th.dim,.vt td.dim{width:160px}.vt th.fin,.vt td.fin{background:var(--bg-soft)}
+.vt td.dim b{font-size:14px;color:var(--ink)}.vt td.dim .en{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.vt td .sc{font:700 26px/1.1 var(--num)}
+.vt td .sc.s0,.vt td .sc.s1{color:var(--bad)}.vt td .sc.s2{color:var(--warn)}.vt td .sc.s3,.vt td .sc.s4{color:var(--good)}.vt td .sc.sn{color:var(--faint)}
 .vt td .meta{font-size:11.5px;color:var(--muted);margin:2px 0 5px}.vt td .rat{color:var(--ink);white-space:pre-wrap;font-size:13px;line-height:1.6}.vt td .err{color:var(--bad)}
-.vt tr.dis td.dim{border-left:3px solid var(--gold)}
-pre.tx{max-height:320px}pre.tx .hl{background:var(--gold-wash);color:var(--ink);display:inline-block;width:100%;border-left:2px solid var(--gold);padding-left:6px;margin-left:-8px}
-table.lt{width:100%;border-collapse:collapse;font-size:13px}.lt th,.lt td{border-bottom:1px solid var(--line-soft);padding:8px 10px;text-align:left;vertical-align:top}
-.lt th{font-size:11.5px;letter-spacing:.12em;color:var(--muted);font-weight:600;white-space:nowrap}.lt tr:last-child td{border-bottom:none}
-.lt tr.click{cursor:pointer}.lt tr.click:hover{background:var(--gold-wash)}.lt td.num{font-family:var(--mono)}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.blk{background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;padding:14px 18px;box-shadow:var(--shadow)}
-.blk h3{margin:0 0 8px;font-family:var(--serif);font-size:15px;font-weight:700;color:var(--ink)}
-.verdict{display:inline-block;font-family:var(--serif);font-size:16px;font-weight:700;padding:5px 16px;border-radius:999px;margin-right:12px;border:1px solid transparent}
+.vt tr.dis td.dim{box-shadow:inset 3px 0 0 var(--bad)}
+pre.tx{max-height:320px}pre.tx .hl{background:var(--warn-wash);color:var(--ink);display:inline-block;width:100%;border-left:2px solid var(--warn);padding-left:6px;margin-left:-8px}
+table.lt{width:100%;border-collapse:collapse;font-size:13px}.lt th,.lt td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+.lt th{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap}.lt tr:last-child td{border-bottom:none}
+.lt tr.click{cursor:pointer}.lt tr.click:hover{background:var(--hover)}.lt td.num{font-family:var(--num);white-space:nowrap}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.tile{border:1px solid var(--line);border-radius:8px;padding:12px 14px 10px}
+.tile b{display:block;font:700 22px/1.2 var(--num);color:var(--ink)}.tile span{display:block;font-size:12px;color:var(--muted);margin-top:4px}.tile small{display:block;font-size:12px;color:var(--ink-2);margin-top:2px}
+.tile.up b{color:var(--good)}.tile.down b{color:var(--bad)}.tile.flat b{color:var(--ink-2)}
+.blk{border:1px solid var(--line);border-radius:10px;padding:14px 18px}
+.blk h3{margin:0 0 8px;font-size:14px;font-weight:700;color:var(--ink)}
+.verdict{display:inline-block;font-size:14px;font-weight:700;padding:3px 12px;border-radius:6px;margin-right:12px;border:1px solid transparent}
 .verdict.improved{background:var(--good-wash);color:var(--good);border-color:var(--good)}.verdict.regressed{background:var(--bad-wash);color:var(--bad);border-color:var(--bad)}
-.verdict.mixed{background:var(--gold-wash);color:var(--gold);border-color:var(--gold)}.verdict.unchanged{background:var(--line-soft);color:var(--ink-2)}
-.empty{color:var(--muted);font-size:13px}
-code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-soft);border-radius:6px;padding:8px 10px;font:12.5px var(--mono);margin-top:12px;white-space:pre-wrap;color:var(--ink-2)}
-.foot{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.verdict.mixed{background:var(--warn-wash);color:var(--warn);border-color:var(--warn)}.verdict.unchanged{background:var(--pill);color:var(--ink-2)}
+code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:12.5px var(--mono);margin-top:12px;white-space:pre-wrap;color:var(--ink-2)}
+.foot{margin-top:48px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--faint);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 
-@media(max-width:1280px){.row3{grid-template-columns:1fr 1fr}.row3 section:nth-child(2){grid-column:1/-1;order:-1}}
-@media(max-width:900px){.shell{display:block}.sidebar{position:static;height:auto;width:auto}.content{padding:28px 16px 56px}.row3{grid-template-columns:1fr}.two{grid-template-columns:1fr}.hero h2{font-size:26px}}
+@media(max-width:1280px){.intro{grid-template-columns:1fr}.hero-band{grid-template-columns:1fr 1fr}.minis{grid-column:1/-1;grid-template-rows:none;grid-template-columns:repeat(3,1fr)}.minis>div{border-bottom:none;border-right:1px solid var(--line)}.minis>div:last-child{border-right:none}.kpis{grid-template-columns:1fr 1fr}.cols{grid-template-columns:1fr 1fr}.cols>div:nth-child(2){border-right:none}.cols>div:nth-child(-n+2){border-bottom:1px solid var(--line)}.row-run{grid-template-columns:1fr}}
+@media(max-width:900px){.shell{display:block}.sidebar{position:static;height:auto}.content{padding:20px 16px 56px}.two,.two.w,.kpis,.hero-band,.minis{grid-template-columns:1fr}.minis>div{border-right:none;border-bottom:1px solid var(--line)}.north .val{font-size:48px}.page-head h2{font-size:24px}.topbar{height:auto;padding:10px 16px;flex-wrap:wrap}.runpick select{max-width:70vw}}
 </style>
 </head>
 <body>
 <div class="shell">
 <aside class="sidebar" id="sidebar">
-  <div class="brand">
-    <div class="mark">SparkJury</div>
-    <h1>评测驾驶舱</h1>
-    <p>Agent Cockpit · DGX Spark 节点</p>
-  </div>
-  <div class="side-block">
-    <label for="runSel">当前运行</label>
-    <select id="runSel" title="选择一次运行"></select>
-    <button id="btnDemo" class="btn-gold">跑一次离线演示</button>
-  </div>
-  <nav aria-label="目录">
-    <ul class="toc" id="toc">
-      <li><a href="#s1"><span class="num">I</span><span>本轮任务</span></a></li>
-      <li><a href="#s2"><span class="num">II</span><span>Agent 时间线</span></a></li>
-      <li><a href="#s3"><span class="num">III</span><span>DGX Spark</span></a></li>
-      <li><a href="#s4"><span class="num">IV</span><span>证据卡片</span></a></li>
-      <li><a href="#s5"><span class="num">V</span><span>检查台</span></a></li>
+  <div class="brand"><span class="mark"></span><span class="bt">SparkJury<small>给 Agent 做体检的评测报告</small></span></div>
+  <nav aria-label="导航">
+    <div class="grp">调优报告</div>
+    <ul class="nav" id="toc">
+      <li><a href="#overview" class="on"><svg viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>可用率与结论</a></li>
+      <li><a href="#scene"><svg viewBox="0 0 16 16"><path d="M2 13h12M4 13V7M8 13V3M12 13V9"/></svg>分场景错误原因</a></li>
+      <li><a href="#s4"><svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M5 7h6M5 10h4"/></svg>典型错误归因卡片</a></li>
+      <li><a href="#judges"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 2v6l4 2"/></svg>裁判与仲裁</a></li>
+    </ul>
+    <div class="grp">检查台</div>
+    <ul class="nav">
+      <li><a href="#s5" data-go="verdicts" data-grp="insp"><svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M6 3v10M10 3v10"/></svg>裁判理由并排</a></li>
+      <li><a href="#s5" data-go="clusters" data-grp="insp"><svg viewBox="0 0 16 16"><circle cx="5" cy="5" r="2"/><circle cx="11" cy="5" r="2"/><circle cx="8" cy="11" r="2"/></svg>簇明细下钻</a></li>
+      <li><a href="#s5" data-go="regress" data-grp="insp"><svg viewBox="0 0 16 16"><path d="M2 12l4-4 3 3 5-6"/><path d="M11 5h3v3"/></svg>回归对比</a></li>
+    </ul>
+    <div class="grp">运行</div>
+    <ul class="nav">
+      <li><a href="#s2"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>Agent 时间线</a></li>
+      <li><a href="#s3"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1.5"/><rect x="6" y="6" width="4" height="4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>DGX Spark</a></li>
     </ul>
   </nav>
-  <div class="side-status"><b>状态</b><span id="status">空闲</span></div>
-  <div><button class="theme-btn" id="themeBtn">切换深色 / 浅色</button></div>
-  <div class="side-foot">DGX Spark Hackathon III</div>
+  <div class="side-bottom">
+    <label for="actor">决策人（记入决策账本）</label>
+    <input id="actor" placeholder="姓名" autocomplete="off">
+    <div class="side-status" id="status">空闲</div>
+    <button class="theme-btn" id="themeBtn">切换深色 / 浅色</button>
+  </div>
 </aside>
+
+<div class="main">
+<header class="topbar">
+  <div class="tb-left">
+    <div class="runpick"><select id="runSel" title="选择一次运行"></select></div>
+    <span class="st" id="tbStatus">—</span>
+    <span class="tb-meta" id="tbMeta"></span>
+  </div>
+  <button id="btnDemo" class="btn pri">▷ 执行离线演示</button>
+</header>
 
 <div class="content">
 <div class="page">
 
-<header class="hero">
+<section id="overview">
+<div class="page-head">
   <div>
-    <p class="eyebrow">Agent Cockpit</p>
-    <h2>SparkJury 评测驾驶舱</h2>
-    <p>读入 trace，本地三家模型打分，分歧交云端 Jev 仲裁，badcase 聚类排优先级，出一张证据卡片让人拍板，改完回归对比 pass^3。</p>
-    <div class="rule"></div>
+    <div class="eyebrow">SPARKJURY · AGENT 评测体检报告</div>
+    <h2>调优报告 <span class="agent-tag" id="hAgent">被评 Agent：—</span></h2>
+    <p class="sub" id="pageSub">尚未选择运行</p>
   </div>
-  <div class="meta"><b id="tRun">尚未选择运行</b><span id="tTitle">—</span></div>
-</header>
-
-<div class="row3">
-<section id="s1">
-  <div class="sec-head"><span class="num">I</span><h3>本轮任务</h3></div>
-  <div class="card">
-    <div class="kv"><b>被评 Agent</b><span id="tAgent">—</span></div>
-    <div class="kv"><b>三位裁判</b><span id="tJudges">—</span></div>
-    <div class="kv"><b>仲裁者</b><span id="tArb">—</span></div>
-    <div class="kv"><b>向量模型</b><span id="tEmb">—</span></div>
-    <div class="kv"><b>降级次数</b><span id="tDeg">—</span></div>
-    <div class="counter">
-      <div class="tile"><b id="cTraces">—</b><span>条 trace</span></div>
-      <div class="tile"><b id="cEnv">—</b><span>环境失败被排除</span></div>
-      <div class="tile"><b id="cArb">—</b><span>进入仲裁</span></div>
-      <div class="tile"><b id="cBad">—</b><span>真 badcase</span></div>
-    </div>
+  <div class="acts">
+    <a class="btn" id="btnCardHtml" href="#s4" target="_blank" rel="noopener">查看卡片报告</a>
+    <button class="btn pri" id="btnToVerdicts">分 trace 明细</button>
   </div>
-</section>
-<section id="s2">
-  <div class="sec-head"><span class="num">II</span><h3>Agent 时间线</h3><span class="sub">七个阶段依次亮起；点带 trace 编号的行可查看三位裁判的理由</span></div>
-  <div class="card">
-    <div class="flow" id="stages"></div>
-    <div id="timeline"></div>
-  </div>
-</section>
-<section id="s3">
-  <div class="sec-head"><span class="num">III</span><h3>DGX Spark</h3></div>
-  <div class="card">
-    <h4 style="margin-top:0">统一内存与 GPU</h4>
-    <div id="gpus"><div class="empty">正在读取 nvidia-smi…</div></div>
-    <h4>模型端点</h4>
-    <div id="eps"><div class="empty">—</div></div>
-    <div class="counter">
-      <div class="tile"><b id="cLocal">—</b><span>本地裁决</span></div>
-      <div class="tile"><b id="cCloud">—</b><span>云端 Jev 裁决</span></div>
-    </div>
-  </div>
-</section>
 </div>
 
-<section id="s4">
-  <div class="sec-head"><span class="num">IV</span><h3>证据卡片</h3><span class="sub">最终产物：先修哪一类，由 PM 确认</span></div>
-  <div class="card"><div id="card"><div class="empty">还没有卡片</div></div></div>
+<div class="intro">
+  <div>
+    <p class="what"><span class="t">这份报告在说什么</span>SparkJury 读入被评 Agent 的运行记录（trace），先排除环境故障，再由三位不同模型家族的裁判按 <b>结果 / 工具使用 / 效率 / 安全</b> 四个维度打分，三票不一致时送仲裁；判定失败的记录聚成几类错误，给出<b>先修哪一类、怎么改</b>，改完重跑做回归对比。</p>
+    <ol class="howto">
+      <li><i>1</i>先看可用率：这个 Agent 现在能用到什么程度</li>
+      <li><i>2</i>再看「先修什么」：最该改的一类错误与改法</li>
+      <li><i>3</i>到分场景表和归因卡片核对证据，决定修不修</li>
+      <li><i>4</i>改完重跑，在检查台「回归对比」看可用率有没有涨</li>
+    </ol>
+  </div>
+  <div class="funnel" id="funnel"></div>
+</div>
+
+<div class="hero-band">
+  <div class="north">
+    <div class="lab">北极星指标 · 可用率</div>
+    <div class="val" id="cPass">—</div>
+    <div class="sub"><b id="cBench">—</b> 条 trace 达成任务目标</div>
+    <div class="meter"><i id="meterFill"></i><span class="mk" id="meterK" data-l="pass^3" style="left:0"></span></div>
+    <div class="meter-ax"><span>0%</span><span>可用率</span><span>100%</span></div>
+    <div class="sub2">pass^3 <b id="cPassK">—</b><span id="cPassNote"> · 同一任务三次全过才算稳定可用</span></div>
+    <div class="note">可用率 = 达成任务目标的 trace ÷ 有基准结果的 trace；环境故障已在预检阶段排除，不计入分母</div>
+  </div>
+  <div class="fix">
+    <div class="lab">先修什么 <span class="p0">P0</span></div>
+    <div class="fx-title" id="fxTitle">—</div>
+    <div class="fx-meta" id="fxMeta">等待本轮聚类结果</div>
+    <div class="fx-how"><span class="k">怎么改</span><span id="fxHow">—</span></div>
+    <div class="fx-next" id="fxNext"></div>
+    <div class="fx-act"><button class="btn pri sm" id="fxGo">查看归因卡片与证据</button><span class="fx-src" id="fxSrc"></span></div>
+  </div>
+  <div class="minis">
+    <div><div class="lab">badcase</div><div class="val bad" id="cBad">—</div><div class="sub">占可评分 <b id="cBadRate">—</b> · <b id="cClusters">—</b> 类</div></div>
+    <div><div class="lab">trace 总数</div><div class="val" id="cTraces">—</div><div class="sub">环境排除 <b id="cEnv">—</b> · 可评分 <b id="cScorable">—</b></div></div>
+    <div><div class="lab">裁判一致率</div><div class="val" id="cAgree">—</div><div class="sub">仲裁 <b id="cArb">—</b> 条 · 降级 <b id="cDeg">—</b> 次</div></div>
+  </div>
+</div>
 </section>
 
+<section id="scene">
+<div class="sec-h"><span class="num">1</span><div><div class="tt">分场景错误原因及占比<span class="q">回答：错在哪一类、哪个场景最差</span></div><small>场景 = 被评 Agent 执行的任务；错误原因 = 判定失败的记录（badcase）聚类后的失败类型。左边看错误类型的构成，右边看每个场景的可用率与它的错误原因。</small></div></div>
+<div class="two w">
+  <div class="card flush">
+    <div class="chead"><p class="ct">错误原因占比</p><p class="cs">全部 badcase 按失败类型聚簇；点击可查看该类的成员 trace</p></div>
+    <div class="bars" id="clusterBars"><div class="empty" style="padding:10px 0">暂无聚类结果</div></div>
+    <div class="subrow"><span>badcase<b id="bBad">—</b></span><span>占可评分<b id="bRate">—</b></span><span>簇<b id="bClusters">—</b></span><span>噪声<b id="bNoise">—</b></span><span>经当事人仲裁成立<b id="bContested">—</b></span><span>预检提示<b id="bAdv">—</b></span></div>
+  </div>
+  <div class="card flush">
+    <div class="chead"><p class="ct">分场景可用率与错误原因</p><p class="cs">按可用率从低到高排列，先看最差的场景；点击一行查看该场景的第一条 badcase</p></div>
+    <div class="tbl-wrap"><table class="lt sc" id="sceneTbl"><thead><tr><th>场景</th><th>试验</th><th>达成</th><th>可用率</th><th>badcase</th><th>错误原因</th></tr></thead><tbody><tr><td colspan="6" class="empty">暂无数据</td></tr></tbody></table></div>
+  </div>
+</div>
+</section>
+
+<section id="s4">
+  <div class="sec-h"><span class="num">2</span><div><div class="tt">典型错误 case 归因卡片<span class="q">回答：证据在哪一步、怎么改</span></div><small>每类错误一张卡：问题是什么、代表性 trace 出错在哪一步、三位裁判怎么说、建议怎么改。由 PM 点「确认优先修复」拍板，决策记入账本；卡片只给方向，不承诺根因。</small></div></div>
+  <div class="card"><div id="card"><div class="empty">暂无卡片</div></div></div>
+</section>
+
+<section id="judges">
+<div class="sec-h"><span class="num">3</span><div><div class="tt">裁判与仲裁<span class="q">回答：这些判断可不可信</span></div><small>三位来自不同模型家族的裁判各自打分，三票一致才直接采信，不一致送仲裁；云端不可达时用本地裁判仲裁并标「降级」。这里看裁决怎么来的，以及 badcase 集中在哪个维度。</small></div></div>
+<div class="two w">
+  <div class="card">
+    <p class="ct">裁决来源分布</p>
+    <p class="cs" id="srcSub">按维度统计：每条 trace 的四个维度各产生一个裁决</p>
+    <div class="donut-wrap"><div id="donut"></div><div class="legend" id="srcLegend"><div class="empty">—</div></div></div>
+  </div>
+  <div class="card flush">
+    <div class="chead"><p class="ct">失败维度分布</p><p class="cs">按 badcase 命中的维度统计；一条 badcase 可命中多个维度，各项占比之和可能超过 100%</p></div>
+    <div class="cols" id="dimCols"></div>
+    <div class="cfoot" id="dimFoot"><span class="empty">四个维度的平均分（0–4）：—</span></div>
+  </div>
+</div>
+</section>
+
+<div class="sec-h"><span class="num">4</span><div><div class="tt">运行<span class="q">这一轮是怎么跑出来的</span></div><small>七个阶段按顺序点亮，右侧是承载裁判模型的 DGX Spark 节点与本轮配置；点击带 trace 编号的事件可查看三位裁判的理由。</small></div></div>
+<div class="row-run">
+<section id="s2" class="card">
+  <p class="ct">Agent 时间线</p>
+  <p class="cs">INGEST → PRECHECK → EVALSET → SCORE → ARBITRATE → CLUSTER → REPORT</p>
+  <div class="flow" id="stages"></div>
+  <div id="timeline"></div>
+</section>
+<div class="stack">
+<section id="s3" class="card">
+  <p class="ct">DGX Spark</p>
+  <p class="cs">统一内存与 GPU · 模型端点</p>
+  <div id="gpus"><div class="empty">正在读取 nvidia-smi…</div></div>
+  <h4>模型端点</h4>
+  <div id="eps"><div class="empty">—</div></div>
+  <div class="mini"><div><b id="cLocal">—</b><span>本地裁决</span></div><div><b id="cCloud">—</b><span>云端 Jev 裁决 <em class="note-red" id="cCloudNote" style="font-style:normal"></em></span></div></div>
+</section>
+<section id="s1" class="card">
+  <p class="ct">本轮配置</p>
+  <div class="kv"><b>被评 Agent</b><span id="tAgent">—</span></div>
+  <div class="kv"><b>三位裁判</b><span id="tJudges">—</span></div>
+  <div class="kv"><b>仲裁者</b><span id="tArb">—</span></div>
+  <div class="kv"><b>向量模型</b><span id="tEmb">—</span></div>
+  <div class="kv"><b>降级</b><span id="tDeg">—</span></div>
+</section>
+</div>
+</div>
+
 <section id="s5">
-  <div class="sec-head"><span class="num">V</span><h3>检查台</h3><span class="sub">以前要切终端才能看的三样，都搬到了这里</span></div>
-  <div class="card" id="inspector">
+  <div class="sec-h"><span class="num">5</span><div><div class="tt">检查台<span class="q">逐条核对，以及改完之后比一比</span></div><small>裁判理由并排：一条 trace 上四个维度 × 三位裁判的打分与理由；簇明细下钻：每类错误的全部成员；回归对比：改前改后两次运行的可用率、修复与退化的任务。</small></div></div>
+  <div class="card flush" id="inspector">
     <div class="tabs">
-      <button class="tab on" data-tab="verdicts">Verdicts<em>裁判理由并排</em></button>
-      <button class="tab" data-tab="clusters">Clusters<em>簇明细下钻</em></button>
-      <button class="tab" data-tab="regress">Regression<em>回归对比</em></button>
+      <button class="tab on" data-tab="verdicts">裁判理由并排<em>Verdicts</em></button>
+      <button class="tab" data-tab="clusters">簇明细下钻<em>Clusters</em></button>
+      <button class="tab" data-tab="regress">回归对比<em>Regression</em></button>
     </div>
-    <div id="pane-verdicts">
+    <div id="pane-verdicts" class="pane">
       <div class="bar-row">
         <span class="lab">trace</span><select id="trSel"></select>
-        <button id="trPrev" class="btn" title="上一条">‹</button><button id="trNext" class="btn" title="下一条">›</button>
+        <button id="trPrev" class="btn sm" title="上一条">‹</button><button id="trNext" class="btn sm" title="下一条">›</button>
         <span id="trMeta" class="empty"></span>
       </div>
-      <div id="verdicts"><div class="empty">选一条 trace，或者点时间线里带 trace 编号的行</div></div>
+      <div id="verdicts"><div class="empty">请选择一条 trace，或点击时间线中带 trace 编号的事件</div></div>
     </div>
-    <div id="pane-clusters" style="display:none">
-      <div id="clusters"><div class="empty">还没有聚类结果</div></div>
+    <div id="pane-clusters" class="pane" style="display:none">
+      <div id="clusters"><div class="empty">暂无聚类结果</div></div>
     </div>
-    <div id="pane-regress" style="display:none">
+    <div id="pane-regress" class="pane" style="display:none">
       <div class="bar-row">
         <span class="lab">改前</span><select id="rgBefore"></select>
         <span class="lab">改后</span><b id="rgAfter" style="font-weight:500">—</b>
-        <button id="rgGo" class="btn pri">对比</button>
+        <button id="rgGo" class="btn pri sm">对比</button>
       </div>
-      <div id="regress"><div class="empty">选一个更早的运行，和当前运行对比</div></div>
+      <div id="regress"><div class="empty">请选择一次更早的运行，与当前运行对比</div></div>
     </div>
   </div>
 </section>
 
-<div class="foot"><span>SparkJury</span><span>NVIDIA DGX Spark Hackathon III</span><span id="footVer">Cockpit</span></div>
+<div class="foot"><span>SparkJury · Agent Cockpit</span><span>NVIDIA DGX Spark Hackathon III</span><span id="footVer">Cockpit</span></div>
+</div>
 </div>
 </div>
 </div>
@@ -327,26 +519,57 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
   const KIND_ZH={run_start:"开始",run_end:"结束",stage_start:"阶段",stage_end:"完成",progress:"进度",degraded:"降级",warning:"警告",error:"错误"};
   const DIMS=["outcome","tool_use","efficiency","safety"];
   const DIM_ZH={outcome:"结果",tool_use:"工具使用",efficiency:"效率",safety:"安全"};
-  const SRC_ZH={panel:"合议一致",jev:"云端 Jev 仲裁",local:"本地仲裁",panel_fallback:"本地兜底"};
-  const VERDICT_ZH={improved:"改善",regressed:"退步",mixed:"有好有坏",unchanged:"无变化"};
+  const DIM_DESC={outcome:"任务目标达成情况",tool_use:"工具选择与调用的正确性",efficiency:"步数与重复调用开销",safety:"未验证身份的写操作与越权行为"};
+  const SRC_ZH={panel:"合议一致",jev:"云端 Jev 仲裁",local:"本地仲裁",panel_fallback:"本地回退"};
+  // 失败类型（cluster/taxonomy.py 的 FailureLabel）与改法的中文；后端字段保持英文，前端只做展示翻译
+  const FAIL_ZH={wrong_tool:"工具选择错误",wrong_args:"工具参数错误",missing_lookup:"未先查询即操作",missing_confirmation:"未获用户确认即执行",unauthenticated_action:"未验证身份即执行写操作",hallucinated_info:"编造工具结果之外的事实",loop:"重复调用与空转",premature_stop:"提前终止未完成任务",policy_violation:"违反业务策略",other:"未归类"};
+  const SUGG_ZH={wrong_tool:"改写工具描述，把订单级与账户级操作的边界写清楚；在 system prompt 里加一个路由示例。",wrong_args:"收紧每个工具的参数 schema，并在工具描述里各加一个带参数的完整示例。",missing_lookup:"任何状态陈述或写操作之前必须先读一次记录；在 prompt 里加「先查后答」的硬规则。",missing_confirmation:"把确认步骤写成显式流程：复述将要执行的操作，等到用户明确回复「是」再执行。",unauthenticated_action:"所有写操作工具都要求已验证的用户 id；在工具层直接拒绝没有验证的调用，而不是靠 prompt 约束。",hallucinated_info:"要求 Agent 只陈述工具结果里出现过的事实；可增加一道事后引用核对。",loop:"加最大重试次数规则；同一操作连续失败或被拒两次后，转为向用户提问而不是再试。",premature_stop:"给 Agent 一份结束前必须满足的完成清单，未满足不得结束对话。",policy_violation:"把被违反的策略条款连同一个具体示例写进 prompt。",other:"人工逐条查看代表 trace，本类没有识别出主导模式。"};
+  const failZh=l=>FAIL_ZH[l]||l;const suggZh=l=>SUGG_ZH[l]||"";
+  // 每类错误一个颜色，按优先级排：#1 红、#2 橙、#3 蓝……卡片左侧色条、占比条、分场景表都用同一套
+  const CL_COLORS=["var(--c2)","var(--c3)","var(--c1)","var(--c5)","var(--c4)","var(--c6)"];
+  const clColor=rank=>CL_COLORS[Math.max(0,(rank||1)-1)%CL_COLORS.length];
+  let clColorByLabel={};
+  function renderFunnel(t,q){
+    const src=q.decisions_by_source||{};const nDec=Object.values(src).reduce((a,b)=>a+(+b||0),0);
+    const chips=[
+      {n:t.n_traces,l:"读入 trace",d:"被评 Agent 的运行记录",st:"INGEST"},
+      {n:t.n_env_failures,l:"预检排除",d:"环境故障，不算 Agent 的错",st:"PRECHECK"},
+      {n:t.n_scorable,l:"可评分",d:"进入三裁判打分",st:"SCORE"},
+      {n:nDec||"—",l:"裁决",d:`4 维 × 3 裁判${q.n_needing_arbitration!=null?"，仲裁 "+q.n_needing_arbitration+" 条":""}`,st:"ARBITRATE"},
+      {n:t.n_badcases,l:"badcase",d:"裁判判定失败的记录",st:"CLUSTER",cls:"bad"},
+      {n:t.n_clusters,l:"错误类型",d:"聚类后的类别，先修第一类",st:"REPORT",cls:"hi"},
+    ];
+    $("funnel").innerHTML=chips.map((c,i)=>`${i?'<span class="ar">›</span>':""}<div class="fc ${c.cls||""}"><span class="st">${c.st}</span><div class="n">${c.n==null?"—":esc(c.n)}</div><div class="l">${esc(c.l)}</div><div class="d">${esc(c.d)}</div></div>`).join("");
+  }
+  function setMeter(rate,k){
+    $("meterFill").style.width=rate==null?"0%":(rate*100).toFixed(1)+"%";
+    const mk=$("meterK");if(k==null){mk.style.display="none";}else{mk.style.display="";mk.style.left=(k*100).toFixed(1)+"%";}
+  }
+  const SRC_COLOR={panel:"var(--ink)",jev:"var(--cloud)",local:"var(--faint)",panel_fallback:"var(--bad)"};
+  const VERDICT_ZH={improved:"改善",regressed:"退步",mixed:"互有升降",unchanged:"无变化"};
   const LABEL_ZH={pass:"通过",fail:"失败"};
   let current=null, es=null, pollTimer=null, stageState={}, runsCache=[];
   // 主题：跟随系统，按钮手动切换后记在浏览器里
   try{const th=localStorage.getItem("sparkjury_theme");if(th)document.documentElement.setAttribute("data-theme",th);}catch(e){}
   $("themeBtn").onclick=()=>{const cur=document.documentElement.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");const next=cur==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",next);try{localStorage.setItem("sparkjury_theme",next);}catch(e){}};
+  // 决策人：账本里的每一条决策都要能追溯到人，空着后端直接 400。存在 localStorage 里，免得每次填。
+  try{$("actor").value=localStorage.getItem("sj_actor")||"";}catch(e){}
+  $("actor").onchange=()=>{try{localStorage.setItem("sj_actor",$("actor").value.trim());}catch(e){}};
   // API token: ?token=... in the URL once, then remembered in this browser; fetches send it as a Bearer header, only EventSource uses the query param
   let TOKEN="";try{const q=new URLSearchParams(location.search).get("token");if(q){localStorage.setItem("sparkjury_token",q);history.replaceState(null,"",location.pathname);}TOKEN=(localStorage.getItem("sparkjury_token")||"");}catch(e){}
   const enc=encodeURIComponent;
   const withTok=u=>TOKEN?u+(u.includes("?")?"&":"?")+"token="+enc(TOKEN):u;
   // Requests go through one queue (the public gateway serves few concurrent connections) and retry once on 502/503/504.
   let chain=Promise.resolve();
-  const j=(u,o)=>{const run=async()=>{for(let attempt=0;attempt<2;attempt++){const opts=Object.assign({},o||{});opts.headers=Object.assign({},(o&&o.headers)||{},TOKEN?{Authorization:"Bearer "+TOKEN}:{});const r=await fetch(u,opts);if(r.status===401){$("status").textContent="401：在地址后面加 ?token=<SPARKJURY_API_TOKEN>";throw new Error("unauthorized");}if(r.ok)return r.json();if(![502,503,504].includes(r.status)||attempt)throw new Error(u+" "+r.status);await new Promise(res=>setTimeout(res,600));}};const p=chain.then(run,run);chain=p.catch(()=>{});return p;};
+  const j=(u,o)=>{const run=async()=>{for(let attempt=0;attempt<2;attempt++){const opts=Object.assign({},o||{});opts.headers=Object.assign({},(o&&o.headers)||{},TOKEN?{Authorization:"Bearer "+TOKEN}:{});const r=await fetch(u,opts);if(r.status===401){$("status").textContent="401：请在地址后附加 ?token=<SPARKJURY_API_TOKEN>";throw new Error("unauthorized");}if(r.ok)return r.json();if(![502,503,504].includes(r.status)||attempt)throw new Error(u+" "+r.status);await new Promise(res=>setTimeout(res,600));}};const p=chain.then(run,run);chain=p.catch(()=>{});return p;};
   const pct=v=>v==null?"—":(v*100).toFixed(1)+"%";
   const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const num=(v,d)=>v==null?"—":(+v).toFixed(d==null?2:d);
   const dimZh=d=>DIM_ZH[d]||d;
   const labelPill=l=>l?` <span class="pill ${l==="fail"?"bad":"good"}">${esc(LABEL_ZH[l]||l)}</span>`:"";
   const statusZh=s=>({ok:"完成",failed:"失败",running:"运行中"})[s]||s;
+  const fmtTs=s=>{if(!s)return "—";const m=/^(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d)/.exec(s);return m?`${m[2]}-${m[3]} ${m[4]}:${m[5]}`:s;};
+  const setText=(id,v)=>{const el=$(id);if(el)el.textContent=v==null?"—":v;};
   // 后端事件文案是英文，常见几种翻成中文，其余原样显示
   function msgZh(ev){
     const m=ev.message||"";let r;
@@ -362,12 +585,61 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
   function renderStages(){
     $("stages").innerHTML=STAGES.map((s,i)=>`${i?"<i>→</i>":""}<span class="stage ${stageState[s]||""}">${s}<em>${STAGE_ZH[s]}</em></span>`).join("");
   }
+  function setSources(bs){
+    bs=bs||{};const total=Object.values(bs).reduce((a,b)=>a+(+b||0),0);
+    setText("cLocal",(bs.panel||0)+(bs.local||0)+(bs.panel_fallback||0));setText("cCloud",bs.jev||0);
+    const keys=["panel","jev","local","panel_fallback"].filter(k=>bs[k]!=null).concat(Object.keys(bs).filter(k=>!SRC_ZH[k]));
+    const R=54,C=2*Math.PI*R;let off=0,paths="";
+    for(const k of keys){const v=+bs[k]||0;if(!v)continue;const len=C*v/total;paths+=`<circle r="${R}" cx="70" cy="70" fill="none" style="stroke:${SRC_COLOR[k]||"var(--warn)"}" stroke-width="20" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"/>`;off+=len;}
+    const share=total?(bs.panel||0)/total:null;
+    $("donut").innerHTML=`<svg viewBox="0 0 140 140" width="150" height="150" role="img" aria-label="裁决来源分布">${total?paths:`<circle r="${R}" cx="70" cy="70" fill="none" style="stroke:var(--line)" stroke-width="20"/>`}<text x="70" y="66" text-anchor="middle" class="dn">${share==null?"—":(share*100).toFixed(1)+"%"}</text><text x="70" y="84" text-anchor="middle" class="ds">合议一致</text></svg>`;
+    $("srcLegend").innerHTML=total?keys.map(k=>`<div><i style="background:${SRC_COLOR[k]||"var(--warn)"}"></i><span style="color:var(--ink);font-family:var(--sans)">${esc(SRC_ZH[k]||k)}</span><b>${((+bs[k]||0)/total*100).toFixed(1)}%</b><span>${bs[k]} 个</span></div>`).join(""):`<div class="empty">暂无裁决</div>`;
+    $("srcSub").textContent=total?`按维度统计：${total} 个裁决 = ${total/4} 条 trace × 4 维`:"按维度统计：每条 trace 的四个维度各产生一个裁决";
+  }
+  function setDims(counts,nBad,means){
+    counts=counts||{};
+    $("dimCols").innerHTML=DIMS.map(d=>{const c=counts[d]||0;const p=nBad?c/nBad:null;return `<div><div class="lab">${esc(dimZh(d))}<span>${c} 条</span></div><div class="val ${c?"bad":""}">${p==null?"—":(p*100).toFixed(1)+"%"}</div><div class="d">${esc(DIM_DESC[d])}</div></div>`;}).join("");
+    $("dimFoot").innerHTML=means?`<span>四个维度的平均分（0–4）</span>${DIMS.map(d=>`<span>${esc(dimZh(d))}<b>${num(means[d],1)}</b></span>`).join("")}`:`<span class="empty">四个维度的平均分（0–4）：—</span>`;
+  }
+  let cardCache=null;
+  function resetOverview(){
+    ["cTraces","cEnv","cScorable","cPass","cPassK","cBench","cBad","cClusters","cBadRate","cAgree","cArb","cDeg","bBad","bRate","bClusters","bNoise","bContested","bAdv"].forEach(id=>setText(id,"—"));
+    $("cCloudNote").textContent="";setSources({});setDims({},0,null);cardCache=null;clColorByLabel={};
+    $("funnel").innerHTML=`<div class="empty">等待本轮结果</div>`;setMeter(null,null);
+    $("clusterBars").innerHTML=`<div class="empty" style="padding:10px 0">暂无聚类结果</div>`;
+    $("fxTitle").textContent="—";$("fxMeta").textContent="等待本轮聚类结果";$("fxHow").textContent="—";$("fxNext").textContent="";$("fxSrc").textContent="";
+    $("sceneTbl").querySelector("tbody").innerHTML=`<tr><td colspan="6" class="empty">暂无数据</td></tr>`;
+  }
+  // 先修什么：卡片 rank #1 的簇翻成中文，配改法；其次的那一类也带一句
+  function renderFix(c){
+    const cls=(c.clusters||[]).filter(cl=>cl.cluster_id!==-1);
+    if(!cls.length){$("fxTitle").textContent="本轮没有可归类的 badcase";$("fxMeta").textContent="";$("fxHow").textContent="不需要修改；换一批 trace 或放宽判据再评";$("fxNext").textContent="";return;}
+    const top=cls[0];
+    $("fxTitle").textContent=failZh(top.label);
+    $("fxMeta").textContent=`#1 · ${top.size} 条 badcase · 占 ${(top.share*100).toFixed(0)}% · 优先级 ${num(top.priority,1)}${top.taxonomy_id?" · "+top.taxonomy_id:""}`;
+    $("fxHow").textContent=suggZh(top.label)||top.suggestion||"—";
+    $("fxNext").textContent=cls.length>1?`其次：${cls.slice(1,3).map(x=>`${failZh(x.label)}（${x.size} 条）`).join("、")}。改完后对同一批任务重跑，用「回归对比」看 pass^3 有没有涨。`:"改完后对同一批任务重跑，用「回归对比」看 pass^3 有没有涨。";
+    $("fxSrc").textContent=`标签来源 ${top.label_source==="jev"?"云端 Jev":"本地启发式"}`;
+  }
+  // 分场景：任务 = 场景。可用率按该任务的试验算，错误原因来自簇成员归属
+  function renderScenes(){
+    const tb=$("sceneTbl").querySelector("tbody");
+    if(!cardCache||!traceRows.length){tb.innerHTML=`<tr><td colspan="6" class="empty">暂无数据</td></tr>`;return;}
+    const label={};for(const cl of cardCache.clusters||[])for(const tid of (cl.member_trace_ids||[]))label[tid]=cl.cluster_id===-1?"other":cl.label;
+    const by={};
+    for(const r of traceRows){const k=r.task_id||"?";const s=by[k]||(by[k]={task:k,n:0,ok:0,env:0,bad:{},badIds:[],first:null});s.n++;if(r.env_failure)s.env++;else if(r.success===true)s.ok++;const l=label[r.trace_id];if(l){s.bad[l]=(s.bad[l]||0)+1;s.badIds.push(r.trace_id);}if(!s.first)s.first=r.trace_id;}
+    const rows=Object.values(by).map(s=>Object.assign(s,{rate:(s.n-s.env)?s.ok/(s.n-s.env):null})).sort((a,b)=>(a.rate??2)-(b.rate??2)||b.n-a.n);
+    tb.innerHTML=rows.map(s=>{const cls=s.rate==null?"":(s.rate<0.5?"lo":(s.rate<0.8?"mid":"hi"));const reasons=Object.entries(s.bad).sort((a,b)=>b[1]-a[1]).map(x=>`<span class="pill" style="margin:0 6px 2px 0;background:${clColorByLabel[x[0]]||"var(--c6)"};color:#fff">${esc(failZh(x[0]))} ${x[1]}</span>`).join("");
+      const fail=s.n-s.env-s.ok;const seg=(v,color)=>v>0?`<i style="width:${(v/s.n*100).toFixed(1)}%;background:${color}"></i>`:"";
+      return `<tr class="click" data-t="${esc(s.badIds[0]||s.first||"")}" title="查看该场景的 trace"><td>${esc(s.task)}${s.env?`<div style="font-size:11.5px;color:var(--faint)">环境排除 ${s.env}</div>`:""}</td><td class="num">${s.n}</td><td class="num">${s.ok}</td><td><span class="rate ${cls}">${s.rate==null?"—":(s.rate*100).toFixed(0)+"%"}</span><div class="sb" title="绿：达成 ${s.ok} · 红：未达成 ${fail} · 灰：环境排除 ${s.env}">${seg(s.ok,"var(--good)")}${seg(fail,"var(--bad)")}${seg(s.env,"var(--faint)")}</div></td><td class="num">${s.badIds.length||"—"}</td><td>${reasons||'<span class="empty">无</span>'}</td></tr>`;}).join("");
+    tb.querySelectorAll("tr[data-t]").forEach(tr=>tr.onclick=()=>{if(tr.dataset.t)openTrace(tr.dataset.t);});
+  }
   // live=true only for events arriving from the SSE stream / polling of a running run: a replayed run_end must not reload the run again (that looped forever)
   function addEv(ev,live){
     const el=document.createElement("div");el.className="ev "+ev.kind;
     const t=(ev.ts||"").slice(11,23);
     const tid=ev.data&&ev.data.trace_id;
-    if(tid&&ev.kind==="progress"){el.classList.add("click");if(ev.data.needs_arbitration||ev.data.degraded)el.classList.add("dis");el.title="查看 "+tid+" 的三位裁判理由";el.onclick=()=>openTrace(tid);}
+    if(tid&&ev.kind==="progress"){el.classList.add("click");if(ev.data.needs_arbitration||ev.data.degraded)el.classList.add("dis");el.title="查看 "+tid+" 的三位裁判的理由";el.onclick=()=>openTrace(tid);}
     el.innerHTML=`<span class="t">${t}</span><span class="k">${esc(KIND_ZH[ev.kind]||ev.kind)}</span><span class="m">${esc(msgZh(ev))}</span>`;
     const tl=$("timeline");tl.appendChild(el);tl.scrollTop=tl.scrollHeight;
     if(ev.kind==="stage_start")stageState[ev.stage]="run";
@@ -375,11 +647,11 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
     if(ev.kind==="stage_end"||ev.kind==="degraded")renderStages();
     if(ev.kind==="stage_end"){
       const d=ev.data||{};
-      if(ev.stage==="INGEST")$("cTraces").textContent=d.n_in_store??d.n_ingested??"—";
-      if(ev.stage==="PRECHECK")$("cEnv").textContent=d.n_env_failures??"—";
-      if(ev.stage==="SCORE")$("cArb").textContent=d.n_needing_arbitration??"—";
-      if(ev.stage==="CLUSTER")$("cBad").textContent=d.n_badcases??"—";
-      if(ev.stage==="ARBITRATE"){const bs=d.by_source||{};$("cLocal").textContent=(bs.panel||0)+(bs.local||0)+(bs.panel_fallback||0);$("cCloud").textContent=bs.jev||0;}
+      if(ev.stage==="INGEST")setText("cTraces",d.n_in_store??d.n_ingested);
+      if(ev.stage==="PRECHECK"){setText("cEnv",d.n_env_failures);setText("cScorable",d.n_scorable);}
+      if(ev.stage==="SCORE"){setText("cArb",d.n_needing_arbitration);if(d.agreement_rate!=null)setText("cAgree",pct(d.agreement_rate));}
+      if(ev.stage==="CLUSTER"){setText("cBad",d.n_badcases);setText("bBad",d.n_badcases);setText("cClusters",d.n_clusters);setText("bClusters",d.n_clusters);setText("bNoise",d.n_noise);}
+      if(ev.stage==="ARBITRATE")setSources(d.by_source);
     }
     if(ev.kind==="run_end"&&live){$("status").textContent="运行 "+ev.run_id+" "+statusZh(ev.data&&ev.data.status);loadRun(ev.run_id);}
   }
@@ -387,25 +659,37 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
   async function loadRuns(){
     const runs=await j("/runs");runsCache=runs;
     const sel=$("runSel");const prev=sel.value;
-    sel.innerHTML=runs.map(r=>`<option value="${esc(r.run_id)}">${esc(r.run_id)} · ${esc(statusZh(r.status))}${r.pass_rate!=null?" · pass^1 "+pct(r.pass_rate):""}</option>`).join("");
+    sel.innerHTML=runs.map(r=>`<option value="${esc(r.run_id)}">${r.title?esc(r.title)+" · ":""}${esc(r.run_id)}${r.pass_rate!=null?" · pass^1 "+pct(r.pass_rate):""}</option>`).join("");
     if(runs.length&&!runs.some(r=>r.run_id===prev)){sel.value=runs[0].run_id;}else sel.value=prev||(runs[0]&&runs[0].run_id)||"";
     fillBefore();
     return runs;
   }
   async function loadRun(id){
-    if(!id)return;current=id;
+    if(!id)return;const sameRun=current===id;current=id;
     const m=await j("/runs/"+enc(id));
-    $("tRun").textContent=id;$("tTitle").textContent=(m.config&&m.config.report&&m.config.report.title)||"—";
+    resetOverview();
+    const st=m.stages||{};
+    const stObj=$("tbStatus");stObj.textContent=m.running?"运行中":statusZh(m.status);stObj.className="st "+(m.running?"running":(m.status||""));
+    const nTr=(st.INGEST&&st.INGEST.n_in_store)??null;
+    $("tbMeta").textContent=`· ${nTr==null?"—":nTr} 条 trace · 降级 ${(m.degradations||[]).length} 次${m.duration_s!=null?" · 耗时 "+num(m.duration_s,1)+" 秒":""}`;
+    $("pageSub").textContent=`数据截止 ${fmtTs(m.finished_at)} · 运行 ${id}${m.pack_id?" · 判据包 "+m.pack_id:""}`;
+    $("btnCardHtml").href=withTok("/runs/"+enc(id)+"/card.html");
     const mo=m.models||{};
     $("tAgent").textContent=mo.agent?Object.keys(mo.agent).join(", "):"—";
+    $("hAgent").textContent="被评 Agent："+(mo.agent?Object.keys(mo.agent).map(s=>s.replace(/^openai\//,"")).filter((v,i,a)=>a.indexOf(v)===i).join(" / "):"—");
     $("tJudges").textContent=mo.judges?Object.values(mo.judges).join(" / "):"—";
-    $("tArb").textContent=mo.arbiter?(mo.arbiter.jev?mo.arbiter.jev+"，本地兜底":"仅本地"):"—";
+    $("tArb").textContent=mo.arbiter?(mo.arbiter.jev?mo.arbiter.jev+"，本地回退":"仅本地"):"—";
     $("tEmb").textContent=mo.embedder||"—";
-    $("tDeg").textContent=(m.degradations||[]).length;
-    const st=m.stages||{};stageState={};for(const s in st)stageState[s]=st[s].status==="ok"?"ok":(st[s].status==="failed"?"fail":"run");renderStages();
-    if(st.INGEST)$("cTraces").textContent=st.INGEST.n_in_store??"—";if(st.PRECHECK)$("cEnv").textContent=st.PRECHECK.n_env_failures??"—";
-    if(st.SCORE)$("cArb").textContent=st.SCORE.n_needing_arbitration??"—";if(st.CLUSTER)$("cBad").textContent=st.CLUSTER.n_badcases??"—";
-    if(st.ARBITRATE){const bs=st.ARBITRATE.by_source||{};$("cLocal").textContent=(bs.panel||0)+(bs.local||0)+(bs.panel_fallback||0);$("cCloud").textContent=bs.jev||0;}
+    const degs=m.degradations||[];
+    $("tDeg").innerHTML=degs.length?degs.map(d=>`<span class="pill warn" style="margin:0 0 2px 4px">${esc(d.stage)} · ${esc(d.component)}：${esc(d.reason)}</span>`).join("<br>"):"无";
+    setText("cDeg",degs.length);
+    if(degs.some(d=>d.component==="jev"&&d.stage==="ARBITRATE"))$("cCloudNote").textContent="（本轮降级）";
+    stageState={};for(const s in st)stageState[s]=st[s].status==="ok"?"ok":(st[s].status==="failed"?"fail":"run");renderStages();
+    if(st.INGEST)setText("cTraces",st.INGEST.n_in_store);
+    if(st.PRECHECK){setText("cEnv",st.PRECHECK.n_env_failures);setText("cScorable",st.PRECHECK.n_scorable);setText("bAdv",st.PRECHECK.n_traces_with_advisory??0);}
+    if(st.SCORE){setText("cArb",st.SCORE.n_needing_arbitration);if(st.SCORE.agreement_rate!=null)setText("cAgree",pct(st.SCORE.agreement_rate));}
+    if(st.CLUSTER){setText("cBad",st.CLUSTER.n_badcases);setText("bBad",st.CLUSTER.n_badcases);setText("cClusters",st.CLUSTER.n_clusters);setText("bClusters",st.CLUSTER.n_clusters);setText("bNoise",st.CLUSTER.n_noise);}
+    if(st.ARBITRATE)setSources(st.ARBITRATE.by_source);
     $("timeline").innerHTML="";
     if(es){es.close();es=null;}
     if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
@@ -417,38 +701,62 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
       const startPolling=()=>{if(pollTimer)return;pollTimer=setInterval(async()=>{try{const evs=await j("/runs/"+enc(id)+"/events.json?since="+lastSeq);evs.forEach(seen);if(evs.some(e=>e.kind==="run_end")){clearInterval(pollTimer);pollTimer=null;}}catch(e){}},2000);};
       try{
         es=new EventSource(withTok("/runs/"+enc(id)+"/events"));
-        ["run_start","run_end","stage_start","stage_end","progress","degraded","warning","error"].forEach(k=>es.addEventListener(k,e=>seen(JSON.parse(e.data))));
+        ["run_start","run_end","stage_start","stage_end","progress","degraded","warning","error"].forEach(k=>es.addEventListener(k,e=>{let ev;try{ev=JSON.parse(e.data);}catch(_){return;}seen(ev);}));
         es.addEventListener("end",()=>{if(es){es.close();es=null;}});
         es.onerror=()=>{if(es){es.close();es=null;}startPolling();};
       }catch(e){startPolling();}
     }
-    $("status").textContent="运行 "+id+" · "+statusZh(m.status);
+    $("status").textContent="运行 "+id+" · "+statusZh(m.running?"running":m.status);
     $("rgAfter").textContent=id;fillBefore();
-    $("regress").innerHTML=`<div class="empty">选一个更早的运行，和 ${esc(id)} 对比</div>`;
+    // 同一个 run 跑完后的重载（SSE run_end）不清掉用户已经点出来的对比结果
+    if(!sameRun)$("regress").innerHTML=`<div class="empty">请选择一次更早的运行，与 ${esc(id)} 对比</div>`;
     loadCard(id);loadTraceList(id);loadClusters(id);
   }
   async function loadCard(id){
-    let c;try{c=await j("/runs/"+enc(id)+"/card");}catch(e){$("card").innerHTML=`<div class="empty">还没有卡片（${esc(e.message)}）</div>`;return;}
-    const t=c.totals,q=c.quality;
-    const tiles=[[t.n_traces,"条 trace"],[t.n_env_failures,"环境失败"],[t.n_badcases,"badcase"],[t.n_clusters,"个簇"],[pct(q.pass_rate),"pass^1"]];
-    for(const k in (q.pass_k||{}))if(+k>1)tiles.push([pct(q.pass_k[k]),"pass^"+k]);
-    tiles.push([pct(q.judge_agreement_rate),"裁判一致率"],[q.n_degraded,"降级"]);
+    let c;try{c=await j("/runs/"+enc(id)+"/card");}catch(e){$("card").innerHTML=`<div class="empty">暂无卡片（${esc(e.message)}）</div>`;return;}
+    const t=c.totals||{},q=c.quality||{};
+    // 概览四块与分布：都从卡片取，卡片是 REPORT 阶段的最终口径
+    setText("cTraces",t.n_traces);setText("cEnv",t.n_env_failures);setText("cScorable",t.n_scorable);
+    cardCache=c;
+    setText("cPass",pct(q.pass_rate));const pk=q.pass_k||{};const kmax=Object.keys(pk).map(Number).filter(k=>k>1).sort((a,b)=>b-a)[0];
+    setText("cPassK",kmax?pct(pk[kmax]):"—");$("cPassNote").textContent=kmax?` · 同一任务 ${kmax} 次全过才算稳定可用`:" · 同一任务 k 次全过才算稳定可用";
+    setText("cBench",q.n_benchmark_result!=null?`${q.n_benchmark_success??"—"} / ${q.n_benchmark_result}`:"—");
+    renderFunnel(t,q);setMeter(q.pass_rate,kmax?pk[kmax]:null);
+    clColorByLabel={};for(const cl of c.clusters||[])if(cl.cluster_id!==-1)clColorByLabel[cl.label]=clColor(cl.rank);
+    renderFix(c);renderScenes();
+    setText("cBad",t.n_badcases);setText("bBad",t.n_badcases);setText("cClusters",t.n_clusters);setText("bClusters",t.n_clusters);
+    const rate=t.n_scorable?t.n_badcases/t.n_scorable:null;setText("cBadRate",pct(rate));setText("bRate",pct(rate));
+    setText("bNoise",t.n_unclustered??0);setText("bContested",q.n_badcases_contested??0);setText("bAdv",t.n_precheck_advisories??0);
+    setText("cAgree",pct(q.judge_agreement_rate));setText("cArb",q.n_needing_arbitration);
+    if(q.n_audited)$("cAgreeNote").textContent=`已审计 ${q.n_audited} 个裁决，${q.n_audit_disagreements||0} 个存在异议`;
+    if(q.decisions_by_source)setSources(q.decisions_by_source);
+    const dimCounts={};for(const cl of c.clusters||[])for(const k in (cl.failed_dimension_counts||{}))dimCounts[k]=(dimCounts[k]||0)+cl.failed_dimension_counts[k];
+    setDims(dimCounts,t.n_badcases,q.mean_scores);
+    // 失败归因：每个簇一条黑条，宽度是它在 badcase 里的占比
+    const cls=(c.clusters||[]).filter(cl=>cl.cluster_id!==-1);
+    const stackBar=cls.length?`<div class="cstack">${cls.map(cl=>`<i style="width:${(cl.share*100).toFixed(1)}%;background:${clColor(cl.rank)}" title="${esc(failZh(cl.label))} ${(cl.share*100).toFixed(0)}%"></i>`).join("")}</div><div class="stack-l">${cls.map(cl=>`<span><i style="background:${clColor(cl.rank)}"></i>${esc(failZh(cl.label))}</span>`).join("")}</div>`:"";
+    $("clusterBars").innerHTML=cls.length?stackBar+cls.map(cl=>`<div class="brow" data-m="${cl.cluster_id}" title="查看簇明细"><div class="bh"><span class="bl" style="font-family:var(--sans);color:var(--ink);font-size:15px;font-weight:600"><i class="sw" style="background:${clColor(cl.rank)}"></i>${esc(failZh(cl.label))}<span style="font-family:var(--num);font-weight:400;font-size:12px;color:var(--faint);margin-left:8px">${esc(cl.label)}</span></span><span><b style="font-weight:700;color:var(--ink)">${(cl.share*100).toFixed(0)}%</b> · ${cl.size} 条</span></div><div class="bbar"><i style="width:${Math.max(2,cl.share*100).toFixed(1)}%;background:${clColor(cl.rank)}"></i></div>${cl.n_contested_members?`<div class="note-red" style="margin:4px 0 0">其中 ${cl.n_contested_members} 条经当事人仲裁成立</div>`:""}</div>`).join(""):`<div class="empty" style="padding:10px 0">无可聚类的 badcase</div>`;
+    $("clusterBars").querySelectorAll(".brow[data-m]").forEach(b=>b.onclick=()=>openCluster(+b.dataset.m));
     let confirmed=null;try{confirmed=await j("/runs/"+enc(id)+"/confirm");}catch(e){}
-    let h=`<div class="tiles">${tiles.map(x=>`<div class="tile"><b>${esc(x[0])}</b><span>${esc(x[1])}</span></div>`).join("")}</div>`;
-    h+=`<div class="rec"><span class="tag">建议</span>${esc(c.recommendation)}</div><div class="disc">${esc(c.disclaimer)}</div>`;
-    // 拍板人：账本里的每一条决策都要能追溯到人，空着后端直接 400。存在 localStorage 里，不用每次填。
-    h+=`<div class="maker"><label for="actor">拍板人</label><input id="actor" placeholder="你的名字（必填）" value="${esc(localStorage.getItem("sj_actor")||"")}"><span id="dmsg" class="ok-msg"></span></div>`;
-    for(const cl of c.clusters){
-      const name=cl.cluster_id===-1?"未归类":cl.label;const sel=confirmed&&confirmed.cluster_id===cl.cluster_id;
-      h+=`<div class="cl ${sel?"sel":""}"><h3><span class="rk">#${cl.rank}</span>${esc(name)}${cl.taxonomy_id?`<span class="pill mut">${esc(cl.taxonomy_id)}</span>`:""}<span class="pill">${cl.size} 条 · ${(cl.share*100).toFixed(0)}%</span><span class="pill">优先级 ${cl.priority.toFixed(1)}</span><span class="pill mut">标签来源 ${esc(cl.label_source)}</span></h3>`;
-      h+=`<div class="sug">${esc(cl.suggestion)}</div>`;
-      for(const r of cl.representatives.slice(0,2)){h+=`<pre><button class="lnk" data-t="${esc(r.trace_id)}">${esc(r.trace_id)}</button> · 失败维度：${esc((r.failed_dimensions||[]).map(dimZh).join("、"))||"—"}\n${esc(r.excerpt)}</pre>`;
+    const recZh=cls.length?`先修「${failZh(cls[0].label)}」：${cls[0].size} 条，占 badcase ${(cls[0].share*100).toFixed(0)}%，优先级 ${num(cls[0].priority,1)}。${suggZh(cls[0].label)}${cls.length>1?` 其次：${failZh(cls[1].label)}（${cls[1].size} 条）。`:""}改完后对同一批任务重跑，用「回归对比」查看 pass^3 的变化。`:"本轮没有可归类的 badcase。";
+    let h=`<div class="rec"><span class="tag">建议</span>${esc(recZh)}<div style="font-size:12px;color:var(--faint);margin-top:6px;font-family:var(--num)">${esc(c.recommendation)}</div></div><div class="disc">${esc(c.disclaimer)}</div>`;
+    h+=`<div class="tiles">${[[t.n_traces,"条 trace"],[t.n_env_failures,"环境失败"],[t.n_badcases,"badcase"],[t.n_clusters,"个簇"],[pct(q.pass_rate),"可用率 pass^1"]].concat(Object.keys(pk).filter(k=>+k>1).map(k=>[pct(pk[k]),"pass^"+k])).concat([[pct(q.judge_agreement_rate),"裁判一致率"],[q.n_degraded,"降级"]]).map(x=>`<div class="tile"><b>${esc(x[0])}</b><span>${esc(x[1])}</span></div>`).join("")}</div>`;
+    h+=`<div id="dmsg" class="ok-msg"></div>`;
+    for(const cl of c.clusters||[]){
+      const name=cl.cluster_id===-1?"未归类":failZh(cl.label);const sel=confirmed&&confirmed.cluster_id===cl.cluster_id;
+      const dims=Object.entries(cl.failed_dimension_counts||{}).sort((a,b)=>b[1]-a[1]).map(x=>`${dimZh(x[0])}×${x[1]}`).join("、");
+      h+=`<div class="cl ${sel?"sel":""}" id="card-cl-${cl.cluster_id}" style="border-left-color:${cl.cluster_id===-1?"var(--c6)":clColor(cl.rank)}"><h3><span class="rk">#${cl.rank}</span><span class="zh">${esc(name)}</span><span class="en">${esc(cl.label)}</span>${cl.taxonomy_id?`<span class="pill mut">${esc(cl.taxonomy_id)}</span>`:""}<span class="pill">${cl.size} 条 · ${(cl.share*100).toFixed(0)}%</span><span class="pill">优先级 ${cl.priority.toFixed(1)}</span><span class="pill mut">标签来源 ${cl.label_source==="jev"?"云端 Jev":(cl.label_source==="heuristic"?"本地启发式":esc(cl.label_source))}</span>${sel?'<span class="pill good">已确认</span>':""}</h3>`;
+      h+=`<div class="seg"><span class="k">问题</span><div class="prob">${cl.size} 条 trace 归入此类，占全部 badcase 的 ${(cl.share*100).toFixed(0)}%；失败维度：${esc(dims)||"—"}${cl.n_contested_members?`；其中 ${cl.n_contested_members} 条经当事人仲裁成立`:""}。</div></div>`;
+      h+=`<div class="seg"><span class="k">证据</span><div>`;
+      for(const r of cl.representatives.slice(0,2)){h+=`<pre style="margin-top:0"><button class="lnk" data-t="${esc(r.trace_id)}">${esc(r.trace_id)}</button> · 失败维度：${esc((r.failed_dimensions||[]).map(dimZh).join("、"))||"—"}\n${esc(r.excerpt)}</pre>`;
         h+=(r.opinions||[]).slice(0,3).map(o=>`<div class="op">${esc(dimZh(o.dimension))} · ${esc(o.judge)}：${o.score}${o.label?" "+esc(LABEL_ZH[o.label]||o.label):""} — ${esc(o.rationale)}</div>`).join("");}
+      h+=`</div></div>`;
+      h+=`<div class="seg"><span class="k fixk">改法</span><div class="how">${esc(suggZh(cl.label)||cl.suggestion)}${suggZh(cl.label)?`<small>${esc(cl.suggestion)}</small>`:""}</div></div>`;
       h+=`<div class="act">`;
       if(cl.cluster_id!==-1){
-        h+=`<button class="btn ${sel?"":"pri"}" data-c="${cl.cluster_id}" ${sel?"disabled":""}>${sel?"已确认：先修这一类":"PM 确认：先修这一类"}</button>`;
-        h+=`<button class="btn" data-o="${cl.cluster_id}" ${cl.taxonomy_id?"":"disabled title=\"这一类没有 pack 类目映射，换类目排不出结果\""}>换这一类优先</button>`;
-        h+=`<button class="btn" data-r="${cl.cluster_id}">这一类不修</button>`;
+        h+=`<button class="btn sm ${sel?"":"pri"}" data-c="${cl.cluster_id}" ${sel?"disabled":""}>${sel?"已确认优先修复":"确认优先修复"}</button>`;
+        h+=`<button class="btn sm" data-o="${cl.cluster_id}" ${cl.taxonomy_id?"":"disabled title=\"该类型没有 pack 类目映射，无法调整优先级\""}>调整为优先</button>`;
+        h+=`<button class="btn sm" data-r="${cl.cluster_id}">标记为不修复</button>`;
       }
       h+=`<button class="lnk" data-m="${cl.cluster_id}">查看 ${cl.size} 条成员 trace ›</button>${sel?`<span class="ok-msg">${esc(confirmed.next)}</span>`:""}</div>`;
       h+=`</div>`;
@@ -456,23 +764,23 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
     $("card").innerHTML=h;
     async function decide(kind,cluster_id,rationale){
       const actor=($("actor")?.value||"").trim();
-      if(!actor){alert("先填「拍板人」：账本里的决策必须能追溯到人");return;}
-      localStorage.setItem("sj_actor",actor);
+      if(!actor){alert("请先在左下角填写「决策人」：账本中的每条决策都必须可追溯到具体的人");$("actor").focus();return;}
+      try{localStorage.setItem("sj_actor",actor);}catch(e){}
       $("dmsg").textContent="";
       try{
         const r=await j("/runs/"+enc(id)+"/decision",{method:"POST",headers:{"Content-Type":"application/json"},
           body:JSON.stringify({decision_kind:kind,cluster_id:cluster_id,actor:actor,rationale:rationale||""})});
-        $("dmsg").textContent=`已记账 ${r.event.event_id} → ${r.ledger}`;
+        $("dmsg").textContent=`已记入账本 ${r.event.event_id} → ${r.ledger}`;
         loadCard(id);
-      }catch(e){alert("没记上："+e.message);}
+      }catch(e){alert("记录失败："+e.message);}
     }
     $("card").querySelectorAll("button[data-c]").forEach(b=>b.onclick=()=>decide("accept_card",+b.dataset.c,""));
     $("card").querySelectorAll("button[data-o]").forEach(b=>b.onclick=()=>{
-      const why=prompt("为什么这一类要先修？（可留空，会写进决策账本当理由）","");
+      const why=prompt("请说明优先修复此类型的理由（可留空，将记入决策账本）","");
       if(why===null)return;decide("override_priority",+b.dataset.o,why);});
     $("card").querySelectorAll("button[data-r]").forEach(b=>b.onclick=()=>{
-      const why=prompt("为什么这一类不修？（必填：账本不接受没有理由的否决）","");
-      if(why===null)return;if(!why.trim()){alert("要写理由：账本不接受没有理由的否决");return;}
+      const why=prompt("请说明不修复此类型的理由（必填，将记入决策账本）","");
+      if(why===null)return;if(!why.trim()){alert("理由为必填项：账本不接受无理由的否决");return;}
       decide("reject_proposal",+b.dataset.r,why);});
     $("card").querySelectorAll("button[data-t]").forEach(b=>b.onclick=()=>openTrace(b.dataset.t));
     $("card").querySelectorAll("button[data-m]").forEach(b=>b.onclick=()=>openCluster(+b.dataset.m));
@@ -482,8 +790,12 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
   function showTab(name){
     document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.tab===name));
     ["verdicts","clusters","regress"].forEach(p=>$("pane-"+p).style.display=p===name?"":"none");
+    onScroll();
   }
   document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>showTab(t.dataset.tab));
+  document.querySelectorAll("a[data-go]").forEach(a=>a.addEventListener("click",()=>showTab(a.dataset.go)));
+  $("btnToVerdicts").onclick=()=>{showTab("verdicts");$("s5").scrollIntoView({behavior:"smooth",block:"start"});};
+  $("fxGo").onclick=()=>{const first=$("card").querySelector(".cl");(first||$("s4")).scrollIntoView({behavior:"smooth",block:"start"});};
 
   // 1. 裁判理由并排：四维 x 三裁判 + 最终裁决，下面是对话记录，证据步骤高亮
   let traceRows=[];
@@ -492,12 +804,14 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
     const order=r=>(r.env_failure?2:(r.success===false?0:1));
     traceRows.sort((a,b)=>order(a)-order(b)||String(a.trace_id).localeCompare(String(b.trace_id)));
     $("trSel").innerHTML=traceRows.map(r=>`<option value="${esc(r.trace_id)}">${esc(r.trace_id)} · ${esc(r.task_id)} · ${r.env_failure?"环境失败":(r.success===false?"失败":(r.success===true?"通过":"?"))}${r.degraded?" · 降级":""}</option>`).join("");
-    $("verdicts").innerHTML=`<div class="empty">${traceRows.length?"选一条 trace，或者点时间线里带 trace 编号的行":"还没有打分结果"}</div>`;$("trMeta").textContent="";
+    $("verdicts").innerHTML=`<div class="empty">${traceRows.length?"请选择一条 trace，或点击时间线中带 trace 编号的事件":"暂无打分结果"}</div>`;$("trMeta").textContent="";
+    renderScenes();
   }
   async function openTrace(tid){
     showTab("verdicts");$("trSel").value=tid;
-    $("s5").scrollIntoView({behavior:"smooth",block:"start"});
     await renderVerdicts(tid);
+    // 先渲染再滚动：表格没出来时页面还不够长，滚不到位
+    $("s5").scrollIntoView({behavior:"smooth",block:"start"});
   }
   function stepRe(line){const m=/^\[(\d+)\]/.exec(line);return m?+m[1]:null;}
   async function renderVerdicts(tid){
@@ -505,8 +819,8 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
     let d;try{d=await j("/runs/"+enc(current)+"/traces/"+enc(tid));}catch(e){$("verdicts").innerHTML=`<div class="empty">${esc(e.message)}</div>`;return;}
     const t=d.trace,pre=d.precheck,panel=d.panel,dec=d.decision;
     const flags=(pre&&pre.flags||[]);
-    $("trMeta").innerHTML=`任务 ${esc(t.task_id)} · 第 ${esc(t.trial)} 次 · ${t.outcome&&t.outcome.success===false?'<span class="pill bad">失败</span>':(t.outcome&&t.outcome.success?'<span class="pill good">通过</span>':'<span class="pill mut">未知</span>')}${t.outcome&&t.outcome.termination_reason?" · 终止原因 "+esc(t.outcome.termination_reason):""} · ${t.metrics?t.metrics.n_steps+" 步，"+t.metrics.n_tool_calls+" 次工具调用":""}${flags.map(f=>` <span class="pill">预检 ${esc(f.kind)}${f.evidence_step_idx!=null?" @"+f.evidence_step_idx:""}</span>`).join("")}`;
-    if(!panel){$("verdicts").innerHTML=`<div class="empty">${esc(tid)} 没有裁判打分${flags.length?"（预检已排除："+esc(flags.map(f=>f.note||f.kind).join("；"))+"）":""}</div>`;return;}
+    $("trMeta").innerHTML=`任务 ${esc(t.task_id)} · 第 ${esc(t.trial)} 次试验 · ${t.outcome&&t.outcome.success===false?'<span class="pill bad">失败</span>':(t.outcome&&t.outcome.success?'<span class="pill good">通过</span>':'<span class="pill mut">未知</span>')}${t.outcome&&t.outcome.termination_reason?" · 终止原因 "+esc(t.outcome.termination_reason):""} · ${t.metrics?t.metrics.n_steps+" 步，"+t.metrics.n_tool_calls+" 次工具调用":""}${flags.map(f=>` <span class="pill warn">预检 ${esc(f.kind)}${f.evidence_step_idx!=null?" @"+f.evidence_step_idx:""}</span>`).join("")}`;
+    if(!panel){$("verdicts").innerHTML=`<div class="empty">${esc(tid)} 无裁判打分${flags.length?"（预检已排除："+esc(flags.map(f=>f.note||f.kind).join("；"))+"）":""}</div>`;return;}
     const judges=[];for(const v of panel.verdicts)if(!judges.includes(v.judge))judges.push(v.judge);judges.sort();
     const model=jn=>{const v=panel.verdicts.find(x=>x.judge===jn);return v?v.model:"";};
     const arbs={};for(const a of (dec&&dec.arbitrations||[]))arbs[a.dimension]=a;
@@ -521,13 +835,13 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
         const v=panel.verdicts.find(x=>x.judge===jn&&x.dimension===dim);
         if(!v){h+=`<td><div class="sc sn">—</div></td>`;continue;}
         (v.evidence_steps||[]).forEach(s=>evidence.add(s));
-        if(v.error){h+=`<td><div class="sc sn">×</div><div class="err">出错：${esc(v.error)}</div></td>`;continue;}
+        if(v.error){h+=`<td><div class="sc sn">×</div><div class="err">错误：${esc(v.error)}</div></td>`;continue;}
         h+=`<td><div class="sc s${v.score==null?"n":v.score}">${v.score==null?"—":v.score}${labelPill(v.label)}</div><div class="meta">置信 ${num(v.confidence)}${(v.evidence_steps||[]).length?" · 证据步骤 ["+v.evidence_steps.join(",")+"]":""}${v.latency_ms!=null?" · 耗时 "+(v.latency_ms>=1000?(v.latency_ms/1000).toFixed(1)+" 秒":num(v.latency_ms,0)+" 毫秒"):""}</div><div class="rat">${esc(v.rationale)}</div></td>`;
       }
       if(!a){h+=`<td class="fin"><div class="sc sn">—</div><div class="meta">未仲裁</div></td>`;}
       else{
         const src=a.source==="jev"?'<span class="pill cloud" style="margin:0">云端 Jev 仲裁</span>':`<span class="pill mut" style="margin:0">${esc(SRC_ZH[a.source]||a.source)}</span>`;
-        h+=`<td class="fin"><div class="sc s${a.final_score==null?"n":a.final_score}">${a.final_score==null?"—":a.final_score}${labelPill(a.final_label)}</div><div class="meta">${src}${a.degraded?' <span class="pill bad">已降级</span>':""}${a.jev_confidence!=null?" · Jev 置信 "+num(a.jev_confidence):""}${a.audit_sampled?` · 审计 ${a.audit_score==null?"—":a.audit_score}${a.audit_disagrees?' <span class="pill bad">审计不同意</span>':""}`:""}</div><div class="rat">${esc(a.rationale)}</div>${a.error?`<div class="err">${esc(a.error)}</div>`:""}</td>`;
+        h+=`<td class="fin"><div class="sc s${a.final_score==null?"n":a.final_score}">${a.final_score==null?"—":a.final_score}${labelPill(a.final_label)}</div><div class="meta">${src}${a.degraded?' <span class="pill bad">已降级</span>':""}${a.jev_confidence!=null?" · Jev 置信 "+num(a.jev_confidence):""}${a.audit_sampled?` · 审计 ${a.audit_score==null?"—":a.audit_score}${a.audit_disagrees?' <span class="pill bad">审计异议</span>':""}`:""}</div><div class="rat">${esc(a.rationale)}</div>${a.error?`<div class="err">${esc(a.error)}</div>`:""}</td>`;
       }
       h+=`</tr>`;
     }
@@ -543,7 +857,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
   // 2. 簇明细下钻：每个簇的成员表，点成员进裁判理由
   async function loadClusters(id){
     let c;try{c=await j("/runs/"+enc(id)+"/clusters");}catch(e){$("clusters").innerHTML=`<div class="empty">${esc(e.message)}</div>`;return;}
-    if(!c.clusters||!c.clusters.length){$("clusters").innerHTML=`<div class="empty">没有可聚类的 badcase（共 ${c.n_badcases||0} 条）</div>`;return;}
+    if(!c.clusters||!c.clusters.length){$("clusters").innerHTML=`<div class="empty">无可聚类的 badcase（共 ${c.n_badcases||0} 条）</div>`;return;}
     let h=`<div class="bar-row">${c.n_badcases} 条 badcase · ${c.n_clusters} 个簇 · ${c.n_noise} 条噪声 · 方法 ${esc(c.method)} · 向量 ${esc(c.embedder)}</div>`;
     for(const cl of c.clusters){
       const name=cl.cluster_id===-1?"未归类 / 噪声":cl.label;
@@ -561,18 +875,19 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
     if(box.innerHTML){box.innerHTML="";if(btn)btn.textContent=btn.textContent.replace("收起","展开");return;}
     let rows;try{rows=await j("/runs/"+enc(current)+"/traces?cluster="+cid);}catch(e){box.innerHTML=`<div class="empty">${esc(e.message)}</div>`;return;}
     box.innerHTML=`<table class="lt" style="margin-top:10px"><thead><tr><th>trace</th><th>任务</th><th>失败维度</th><th>结果</th><th>工具</th><th>效率</th><th>安全</th><th>严重度</th><th>证据摘录</th></tr></thead><tbody>`+
-      rows.map(r=>{const s=r.final_scores||{};return `<tr class="click" data-t="${esc(r.trace_id)}" title="查看三位裁判理由"><td class="num">${esc(r.trace_id)}</td><td>${esc(r.task_id)}</td><td>${(r.failed_dimensions||[]).map(x=>`<span class="pill bad" style="margin:0 4px 0 0">${esc(dimZh(x))}</span>`).join("")}</td><td class="num">${s.outcome??"—"}${r.outcome_label?" "+esc(LABEL_ZH[r.outcome_label]||r.outcome_label):""}</td><td class="num">${s.tool_use??"—"}</td><td class="num">${s.efficiency??"—"}</td><td class="num">${s.safety??"—"}</td><td class="num">${num(r.severity,1)}</td><td style="font-family:var(--mono);font-size:12px;color:var(--ink-2)">${esc(r.excerpt)}</td></tr>`;}).join("")+`</tbody></table>`;
+      rows.map(r=>{const s=r.final_scores||{};return `<tr class="click" data-t="${esc(r.trace_id)}" title="查看三位裁判的理由"><td class="num">${esc(r.trace_id)}</td><td>${esc(r.task_id)}</td><td>${(r.failed_dimensions||[]).map(x=>`<span class="pill bad" style="margin:0 4px 0 0">${esc(dimZh(x))}</span>`).join("")}</td><td class="num">${s.outcome??"—"}${r.outcome_label?" "+esc(LABEL_ZH[r.outcome_label]||r.outcome_label):""}</td><td class="num">${s.tool_use??"—"}</td><td class="num">${s.efficiency??"—"}</td><td class="num">${s.safety??"—"}</td><td class="num">${num(r.severity,1)}</td><td style="font-family:var(--mono);font-size:12px;color:var(--ink-2)">${esc(r.excerpt)}</td></tr>`;}).join("")+`</tbody></table>`;
     box.querySelectorAll("tr[data-t]").forEach(tr=>tr.onclick=()=>openTrace(tr.dataset.t));
     if(btn)btn.textContent=btn.textContent.replace("展开","收起");
   }
   async function openCluster(cid){
-    showTab("clusters");$("s5").scrollIntoView({behavior:"smooth",block:"start"});
+    showTab("clusters");
     const btn=$("clusters").querySelector(`button[data-x="${cid}"]`);
     const box=$("clusters").querySelector(`.members[data-for="${cid}"]`);
     if(box&&!box.innerHTML)await toggleMembers(cid,btn);
+    const target=$("cl-"+cid)||$("s5");target.scrollIntoView({behavior:"smooth",block:"start"});
   }
 
-  // 3. 回归对比：两次运行的 pass^1 / pass^k、修好和修坏的任务、簇的增减
+  // 3. 回归对比：两次运行的 pass^1 / pass^k、已修复和已退化的任务、簇的增减
   function fillBefore(){
     const sel=$("rgBefore");const prev=sel.value;
     const others=runsCache.filter(r=>r.run_id!==current);
@@ -588,13 +903,13 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
     let r;try{r=await j("/runs/"+enc(current)+"/regress?before="+enc(before));}catch(e){$("regress").innerHTML=`<div class="empty">${esc(e.message)}</div>`;return;}
     const ppct=v=>v==null?"—":(v*100).toFixed(1)+"%";
     let h=`<div style="margin-bottom:12px"><span class="verdict ${esc(r.verdict)}">${esc(VERDICT_ZH[r.verdict]||r.verdict)}</span><span style="color:var(--ink-2)">${esc(r.before_label)} → ${esc(r.after_label)} · ${r.n_tasks_common} 个共同任务 · 按 pass^${r.k} 对比</span></div>`;
-    h+=`<div class="tiles">${dtile("pass^1",r.pass_rate_before,r.pass_rate_after,ppct)}${dtile("pass^"+r.k,r.pass_k_before,r.pass_k_after,ppct)}${dtile("badcase 数",r.n_badcases_before,r.n_badcases_after,v=>v==null?"—":String(v),false)}<div class="tile up"><b>${r.fixed_tasks.length}</b><span>修好（失败 → 通过）</span></div><div class="tile ${r.broken_tasks.length?"down":"flat"}"><b>${r.broken_tasks.length}</b><span>修坏（通过 → 失败）</span></div></div>`;
+    h+=`<div class="tiles">${dtile("pass^1",r.pass_rate_before,r.pass_rate_after,ppct)}${dtile("pass^"+r.k,r.pass_k_before,r.pass_k_after,ppct)}${dtile("badcase 数",r.n_badcases_before,r.n_badcases_after,v=>v==null?"—":String(v),false)}<div class="tile up"><b>${r.fixed_tasks.length}</b><span>已修复（失败 → 通过）</span></div><div class="tile ${r.broken_tasks.length?"down":"flat"}"><b>${r.broken_tasks.length}</b><span>已退化（通过 → 失败）</span></div></div>`;
     const taskTable=(rows,empty)=>rows.length?`<table class="lt"><thead><tr><th>任务</th><th>改前</th><th>改后</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.task_id)}</td><td class="num">${esc(LABEL_ZH[x.before]||x.before)}（${x.before_pass_trials}/${x.n_trials}）</td><td class="num">${esc(LABEL_ZH[x.after]||x.after)}（${x.after_pass_trials}/${x.n_trials}）</td></tr>`).join("")}</tbody></table>`:`<div class="empty">${empty}</div>`;
-    h+=`<div class="two"><div class="blk"><h3>修好的任务</h3>${taskTable(r.fixed_tasks,"没有")}</div><div class="blk"><h3>修坏的任务</h3>${taskTable(r.broken_tasks,"没有，没有任务变坏")}</div></div>`;
+    h+=`<div class="two"><div class="blk"><h3>已修复的任务</h3>${taskTable(r.fixed_tasks,"无")}</div><div class="blk"><h3>已退化的任务</h3>${taskTable(r.broken_tasks,"无")}</div></div>`;
     const dims=Object.keys(r.mean_scores_after||{}).length?Object.keys(r.mean_scores_after):DIMS;
-    h+=`<div class="two" style="margin-top:16px"><div class="blk"><h3>四个维度的平均分（0–4）</h3><table class="lt"><thead><tr><th>维度</th><th>改前</th><th>改后</th><th>变化</th></tr></thead><tbody>${dims.map(k=>{const b=(r.mean_scores_before||{})[k],a=(r.mean_scores_after||{})[k];const d=delta(b,a);return `<tr><td>${esc(dimZh(k))}</td><td class="num">${num(b)}</td><td class="num">${num(a)}</td><td class="num" style="color:${d==null||Math.abs(d)<1e-9?"var(--ink-2)":(d>0?"var(--good)":"var(--bad)")}">${d==null?"—":(d>0?"+":"")+num(d)}</td></tr>`;}).join("")}</tbody></table></div>`;
-    h+=`<div class="blk"><h3>簇的增减（每类失败的 badcase 数）</h3>${r.cluster_changes.length?`<table class="lt"><thead><tr><th>失败类型</th><th>改前</th><th>改后</th><th>变化</th></tr></thead><tbody>${r.cluster_changes.map(c=>`<tr><td>${esc(c.label)}</td><td class="num">${c.before}</td><td class="num">${c.after}</td><td class="num" style="color:${c.delta===0?"var(--ink-2)":(c.delta<0?"var(--good)":"var(--bad)")}">${c.delta>0?"+":""}${c.delta}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">两次运行都没有簇</div>`}</div></div>`;
-    if(r.pairwise&&r.pairwise.length){const s=r.pairwise_summary||{};h+=`<div class="blk" style="margin-top:16px"><h3>成对比较（交换顺序）· 改后胜 ${s.after||0} · 改前胜 ${s.before||0} · 平 ${s.tie||0} · 不一致 ${s.inconsistent||0}</h3></div>`;}
+    h+=`<div class="two" style="margin-top:14px"><div class="blk"><h3>四个维度的平均分（0–4）</h3><table class="lt"><thead><tr><th>维度</th><th>改前</th><th>改后</th><th>变化</th></tr></thead><tbody>${dims.map(k=>{const b=(r.mean_scores_before||{})[k],a=(r.mean_scores_after||{})[k];const d=delta(b,a);return `<tr><td>${esc(dimZh(k))}</td><td class="num">${num(b)}</td><td class="num">${num(a)}</td><td class="num" style="color:${d==null||Math.abs(d)<1e-9?"var(--ink-2)":(d>0?"var(--good)":"var(--bad)")}">${d==null?"—":(d>0?"+":"")+num(d)}</td></tr>`;}).join("")}</tbody></table></div>`;
+    h+=`<div class="blk"><h3>簇的增减（每类失败的 badcase 数）</h3>${r.cluster_changes.length?`<table class="lt"><thead><tr><th>失败类型</th><th>改前</th><th>改后</th><th>变化</th></tr></thead><tbody>${r.cluster_changes.map(c=>`<tr><td>${esc(c.label)}</td><td class="num">${c.before}</td><td class="num">${c.after}</td><td class="num" style="color:${c.delta===0?"var(--ink-2)":(c.delta<0?"var(--good)":"var(--bad)")}">${c.delta>0?"+":""}${c.delta}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">两次运行均无簇</div>`}</div></div>`;
+    if(r.pairwise&&r.pairwise.length){const s=r.pairwise_summary||{};h+=`<div class="blk" style="margin-top:14px"><h3>成对比较（交换顺序）· 改后胜 ${s.after||0} · 改前胜 ${s.before||0} · 平 ${s.tie||0} · 不一致 ${s.inconsistent||0}</h3></div>`;}
     h+=`<code class="cmd">sparkjury regress --before runs/${esc(before)}/sparkjury.db --after runs/${esc(current)}/sparkjury.db</code>`;
     $("regress").innerHTML=h;
   }
@@ -602,15 +917,17 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
 
   async function loadDgx(){
     try{const d=await j("/dgx");
-      $("gpus").innerHTML=d.available?d.gpus.map(g=>`<div class="gpu"><div style="font-size:13px">${esc(g.name)}</div><div class="bar"><i style="width:${(g.mem_used_mb/g.mem_total_mb*100).toFixed(0)}%"></i></div><div style="font-size:12px;color:var(--muted)">${(g.mem_used_mb/1024).toFixed(1)} / ${(g.mem_total_mb/1024).toFixed(0)} GB${g.unified_memory?"（统一内存）":""} · 利用率 ${g.util_pct}%${g.temp_c!=null?" · "+g.temp_c+"°C":""}</div></div>`).join("")
-        :`<div class="empty">本机没有 GPU（${esc(d.reason||"")}）</div>`;
+      $("gpus").innerHTML=d.available?d.gpus.map(g=>`<div class="gpu"><div style="font-size:13px">${esc(g.name)}</div><div class="bar"><i style="width:${(g.mem_used_mb/g.mem_total_mb*100).toFixed(0)}%"></i></div><div style="font-size:12px;color:var(--muted)"><span class="n">${(g.mem_used_mb/1024).toFixed(1)} / ${(g.mem_total_mb/1024).toFixed(0)} GB</span>${g.unified_memory?"（统一内存）":""} · 利用率 <span class="n">${g.util_pct}%</span>${g.temp_c!=null?" · "+g.temp_c+"°C":""}</div></div>`).join("")
+        :`<div class="empty">本机无 GPU（${esc(d.reason||"")}）</div>`;
       $("eps").innerHTML=(d.endpoints||[]).length?(d.endpoints).map(e=>`<div class="ep"><span class="dot ${e.ok?"ok":""}"></span><span>${esc(e.name)}</span><span class="r">${e.ok?(e.models[0]||"在线"):(e.error||"离线")}</span></div>`).join(""):`<div class="empty">未配置端点探测</div>`;
     }catch(e){}
   }
-  const onScroll=()=>{const links=[...document.querySelectorAll("#toc a")];const y=window.scrollY+window.innerHeight*.3;let cur="s1";for(const a of links){const s=document.querySelector(a.getAttribute("href"));if(s&&s.offsetTop<=y)cur=s.id;}links.forEach(a=>a.classList.toggle("active",a.getAttribute("href")==="#"+cur));};
+  // 侧栏高亮跟着滚动走
+  const NAV=[...document.querySelectorAll(".nav a")];
+  const onScroll=()=>{const y=window.scrollY+window.innerHeight*.3;let cur="overview";for(const id of ["overview","scene","s4","judges","s2","s3","s5"]){const s=$(id);if(s&&s.offsetTop<=y)cur=id;}const tab=(document.querySelector(".tab.on")||{dataset:{}}).dataset.tab;NAV.forEach(a=>{const href=a.getAttribute("href");a.classList.toggle("on",cur==="s5"?(a.dataset.grp==="insp"&&a.dataset.go===tab):(href==="#"+cur&&!a.dataset.go));});};
   window.addEventListener("scroll",onScroll,{passive:true});onScroll();
   $("runSel").onchange=()=>loadRun($("runSel").value);
-  $("btnDemo").onclick=async()=>{$("btnDemo").disabled=true;$("btnDemo").textContent="演示运行中…";try{const r=await j("/runs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({demo:true})});await loadRuns();$("runSel").value=r.run_id;await loadRun(r.run_id);}finally{$("btnDemo").disabled=false;$("btnDemo").textContent="跑一次离线演示";}};
+  $("btnDemo").onclick=async()=>{$("btnDemo").disabled=true;$("btnDemo").textContent="演示运行中…";try{const r=await j("/runs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({demo:true})});await loadRuns();$("runSel").value=r.run_id;await loadRun(r.run_id);}finally{$("btnDemo").disabled=false;$("btnDemo").textContent="▷ 执行离线演示";}};
   j("/health").then(h=>{$("footVer").textContent="Cockpit v"+h.version;}).catch(()=>{});
   loadRuns().then(rs=>{if(rs.length)loadRun($("runSel").value);});
   loadDgx();setInterval(loadDgx,5000);setInterval(loadRuns,20000);
