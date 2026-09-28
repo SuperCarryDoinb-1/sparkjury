@@ -1,0 +1,294 @@
+{
+  "run_id": "judge-loop-real17",
+  "status": "ok",
+  "sparkjury_version": "0.1.0",
+  "python": "3.12.3",
+  "host": "gx10-95fc",
+  "config": {
+    "run_id": "judge-loop-real17",
+    "db": "runs/judge-loop-real17/sparkjury.db",
+    "runs_dir": "runs",
+    "inputs": [
+      {
+        "path": "data/simulations/retail_Qwen3-8B_trials3_repaired.json",
+        "source": "tau2"
+      }
+    ],
+    "stages": [
+      "INGEST",
+      "PRECHECK",
+      "EVALSET",
+      "SCORE",
+      "ARBITRATE",
+      "CLUSTER",
+      "REPORT"
+    ],
+    "reset_db": true,
+    "precheck": {
+      "step_latency_ms": 120000.0,
+      "max_duration_s": null,
+      "step_latency_blocks": false
+    },
+    "evalset": {
+      "limit": null,
+      "task_ids": null
+    },
+    "panel": {
+      "judges": [
+        {
+          "name": "judge_a",
+          "kind": "openai",
+          "model": "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8",
+          "base_url": "http://127.0.0.1:8001/v1",
+          "api_key_env": null,
+          "timeout_s": 120.0,
+          "max_retries": 2,
+          "jitter": 0.0,
+          "max_tokens": 1200,
+          "temperature": 0.0,
+          "extra_body": {
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "concurrency": 0
+        },
+        {
+          "name": "judge_b",
+          "kind": "openai",
+          "model": "nvidia/Nemotron-3.5-Lightning-30B-A3B-NVFP4",
+          "base_url": "http://127.0.0.1:8002/v1",
+          "api_key_env": null,
+          "timeout_s": 120.0,
+          "max_retries": 2,
+          "jitter": 0.0,
+          "max_tokens": 1200,
+          "temperature": 0.0,
+          "extra_body": {
+            "chat_template_kwargs": {
+              "enable_thinking": false
+            }
+          },
+          "concurrency": 0
+        },
+        {
+          "name": "judge_c",
+          "kind": "openai",
+          "model": "step-3.7-flash",
+          "base_url": "https://api.stepfun.com/v1",
+          "api_key_env": "STEPFUN_API_KEY",
+          "timeout_s": 60.0,
+          "max_retries": 2,
+          "jitter": 0.0,
+          "max_tokens": 1200,
+          "temperature": 0.0,
+          "extra_body": {},
+          "concurrency": 0
+        }
+      ],
+      "dimensions": [
+        "outcome",
+        "tool_use",
+        "efficiency",
+        "safety"
+      ],
+      "score_tolerance": 1,
+      "workers": 1,
+      "transcript_width": 4000,
+      "transcript_max_chars": 45000,
+      "include_gold": false
+    },
+    "judge_healthcheck": true,
+    "arbiter": {
+      "jev": "auto",
+      "jev_timeout_s": 5.0,
+      "audit_rate": 0.1,
+      "audit_degraded": true
+    },
+    "cluster": {
+      "embedder": "openai",
+      "embed_base_url": "http://127.0.0.1:8003/v1",
+      "embed_model": "Qwen/Qwen3-Embedding-0.6B",
+      "method": "auto",
+      "min_cluster_size": 2,
+      "jev": "auto"
+    },
+    "report": {
+      "out_dir": null,
+      "title": "Retail agent Qwen3-8B baseline 30x3 — Qwen3-30B + Nemotron panel",
+      "formats": [
+        "json",
+        "md",
+        "html"
+      ]
+    }
+  },
+  "stages": {
+    "INGEST": {
+      "status": "ok",
+      "n_ingested": 90,
+      "n_in_store": 90,
+      "n_tasks": 30,
+      "files": [
+        {
+          "path": "data/simulations/retail_Qwen3-8B_trials3_repaired.json",
+          "source": "tau2",
+          "n": 90
+        }
+      ],
+      "duration_s": 0.074
+    },
+    "PRECHECK": {
+      "status": "ok",
+      "n_checked": 90,
+      "n_env_failures": 0,
+      "n_scorable": 90,
+      "kinds": {},
+      "advisory_kinds": {
+        "timeout": 30
+      },
+      "n_traces_with_advisory": 30,
+      "duration_s": 0.019
+    },
+    "EVALSET": {
+      "status": "ok",
+      "n_traces": 90,
+      "n_tasks": 30,
+      "duration_s": 0.013
+    },
+    "SCORE": {
+      "status": "ok",
+      "n_traces": 90,
+      "n_verdicts": 720,
+      "n_needing_arbitration": 37,
+      "agreement_rate": 0.5888888888888889,
+      "judge_errors": 0,
+      "judges": {
+        "judge_a": {
+          "n_verdicts": 360,
+          "n_errors": 0,
+          "mean_score": 3.0833333333333335,
+          "mean_latency_ms": 9349.003091003073
+        },
+        "judge_b": {
+          "n_verdicts": 360,
+          "n_errors": 0,
+          "mean_score": 3.125,
+          "mean_latency_ms": 8901.698378537549
+        }
+      },
+      "duration_s": 3379.632
+    },
+    "ARBITRATE": {
+      "status": "ok",
+      "n_traces": 90,
+      "n_dimensions": 360,
+      "by_source": {
+        "panel": 306,
+        "local": 54
+      },
+      "n_degraded": 54,
+      "n_audited": 84,
+      "n_audit_disagreements": 44,
+      "n_audited_degraded": 54,
+      "n_audit_disagreements_degraded": 44,
+      "n_audited_panel": 30,
+      "n_audit_disagreements_panel": 0,
+      "duration_s": 566.766
+    },
+    "CLUSTER": {
+      "status": "ok",
+      "n_badcases": 44,
+      "n_clusters": 14,
+      "n_noise": 9,
+      "method": "hdbscan",
+      "clusters_file": "runs/judge-loop-real17/clusters.json",
+      "label_sources": {
+        "jev": 0,
+        "heuristic": 14,
+        "n_jev_failed": 0
+      },
+      "labels": {
+        "#1": "loop (4)",
+        "#2": "loop (3)",
+        "#3": "loop (3)",
+        "#4": "loop (2)",
+        "#5": "policy_violation (2)",
+        "#6": "missing_confirmation (2)",
+        "#7": "missing_confirmation (3)",
+        "#8": "missing_confirmation (3)",
+        "#9": "missing_confirmation (2)",
+        "#10": "other (3)",
+        "#11": "missing_confirmation (2)",
+        "#12": "hallucinated_info (2)",
+        "#13": "hallucinated_info (2)",
+        "#14": "other (2)"
+      },
+      "duration_s": 2.113
+    },
+    "REPORT": {
+      "status": "ok",
+      "files": [
+        "runs/judge-loop-real17/card/card.json",
+        "runs/judge-loop-real17/card/card.md",
+        "runs/judge-loop-real17/card/card.html"
+      ],
+      "recommendation": "Fix cluster #1 first: loop, 4 trace(s), 9% of badcases, priority 20.0. Add a max-retries rule and an explicit 'ask the user' fallback when the same action fails or is rejected twice. Then: #2 loop (3), #3 loop (3). After the change, re-run the same tasks and compare pass^3 with `sparkjury regress`.",
+      "pass_rate": 0.34444444444444444,
+      "pass_k": {
+        "1": 0.4,
+        "2": 0.26666666666666666,
+        "3": 0.2
+      },
+      "n_badcases": 44,
+      "n_gold_compared": 90,
+      "gold_agreement_rate": 0.5444444444444444,
+      "judge_pass_rate": 0.6222222222222222,
+      "gold_pass_rate": 0.34444444444444444,
+      "duration_s": 0.024
+    }
+  },
+  "degradations": [
+    {
+      "stage": "SCORE",
+      "component": "judge judge_c (step-3.7-flash @ https://api.stepfun.com/v1)",
+      "reason": "health check failed: AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided', 'type': 'invalid_api_key'}}",
+      "fallback": "dropped from panel"
+    },
+    {
+      "stage": "ARBITRATE",
+      "component": "jev",
+      "reason": "TYPESAFE_API_KEY not set",
+      "fallback": "local judge arbitration"
+    },
+    {
+      "stage": "CLUSTER",
+      "component": "jev",
+      "reason": "TYPESAFE_API_KEY not set",
+      "fallback": "heuristic cluster label"
+    }
+  ],
+  "models": {
+    "agent": {
+      "openai/Qwen/Qwen3-8B": 90
+    },
+    "judges": {
+      "judge_a": "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8",
+      "judge_b": "nvidia/Nemotron-3.5-Lightning-30B-A3B-NVFP4"
+    },
+    "judge_concurrency": {
+      "judge_a": 1,
+      "judge_b": 1
+    },
+    "arbiter": {
+      "jev": null,
+      "local": "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8",
+      "audit": "nvidia/Nemotron-3.5-Lightning-30B-A3B-NVFP4"
+    },
+    "embedder": "openai:Qwen/Qwen3-Embedding-0.6B"
+  },
+  "pack_hash": "6ecbd6676c3bafd1fb62e8768c01504655b88b1ce84ff27966031dfa874194eb",
+  "pack_id": "retail-default",
+  "duration_s": 3948.659,
+  "finished_at": "2026-09-28T01:26:11"
+}
