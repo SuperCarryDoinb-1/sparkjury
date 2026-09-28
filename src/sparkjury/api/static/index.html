@@ -114,6 +114,43 @@ section{scroll-margin-top:calc(var(--topbar-h) + 12px);min-width:0}
 .card .cs{font-size:13px;color:var(--muted);margin:0 0 14px}
 .card.flush{padding:0}.card.flush .chead{padding:18px 22px 14px;border-bottom:1px solid var(--line)}.card.flush .chead .cs{margin-bottom:0}
 
+/* 结论区：北极星可用率 + 先修什么 + 三个小指标。权重刻意不同：可用率最大，先修其次，其余最小 */
+.hero-band{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr) minmax(0,.9fr);gap:14px;margin-top:6px}
+.hero-band>div{border:1px solid var(--line);border-radius:12px;padding:22px 24px 20px;background:var(--paper);min-width:0}
+.hero-band .lab{font-size:13px;color:var(--ink-2);letter-spacing:.02em}
+.north{border-color:var(--good)!important;box-shadow:inset 0 0 0 1px var(--good)}
+.north .val{font:700 64px/1.1 var(--num);color:var(--good);margin:6px 0 6px;letter-spacing:-.02em}
+.north .sub{font-size:15px;color:var(--ink)}.north .sub b,.north .sub2 b{font-family:var(--num);font-weight:700}
+.north .sub2{font-size:14px;color:var(--ink-2);margin-top:2px}
+.north .note{font-size:12px;color:var(--faint);margin-top:12px;line-height:1.5}
+.fix{background:var(--ink)!important;color:var(--bg);border-color:var(--ink)!important}
+.fix .lab{color:var(--bg);opacity:.7}
+.fix .fx-title{font-size:26px;font-weight:700;line-height:1.3;margin:6px 0 4px;text-wrap:balance}
+.fix .fx-meta{font-size:13px;opacity:.75;font-family:var(--num)}
+.fix .fx-how{margin-top:14px;font-size:15px;line-height:1.6;display:grid;grid-template-columns:auto 1fr;gap:10px}
+.fix .fx-how .k{font-size:12px;border:1px solid rgba(255,255,255,.35);border-radius:4px;padding:0 6px;height:22px;line-height:20px;white-space:nowrap;opacity:.9;margin-top:2px}
+.fix .fx-next{font-size:13px;opacity:.7;margin-top:10px}
+.fix .fx-act{margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.fix .btn.pri{background:var(--bg);color:var(--ink);border-color:var(--bg)}
+.fix .fx-src{font-size:12px;opacity:.6}
+.minis{display:grid;grid-template-rows:repeat(3,1fr);gap:0;padding:0!important}
+.minis>div{padding:14px 20px;border-bottom:1px solid var(--line)}.minis>div:last-child{border-bottom:none}
+.minis .val{font:700 26px/1.2 var(--num);margin:2px 0}.minis .val.bad{color:var(--bad)}
+.minis .sub{font-size:12.5px;color:var(--muted)}.minis .sub b{font-family:var(--num);font-weight:600;color:var(--ink-2)}
+.tbl-wrap{overflow-x:auto}
+table.sc{font-size:13.5px}.sc th{padding:10px 14px}.sc td{padding:10px 14px}.sc td.num{font-family:var(--num)}
+.sc td .rate{font-family:var(--num);font-weight:700;font-size:16px}.sc td .rate.lo{color:var(--bad)}.sc td .rate.mid{color:var(--warn)}.sc td .rate.hi{color:var(--good)}
+.sc td .rb{height:6px;background:var(--line);border-radius:3px;margin-top:4px;width:120px;overflow:hidden}.sc td .rb i{display:block;height:100%;background:var(--ink)}
+.sc tr.click td:first-child{font-weight:600}
+/* 归因卡片：问题 / 证据 / 裁判怎么说 / 改法 四段 */
+.cl .zh{font-size:19px}
+.cl .en{font-family:var(--num);font-size:12px;color:var(--muted);font-weight:400;margin-left:8px}
+.cl .seg{display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.cl .seg .k{font-size:12px;color:var(--muted);padding-top:3px;letter-spacing:.04em}
+.cl .seg .k.fixk{color:var(--ink);font-weight:700}
+.cl .seg .how{font-size:15px;line-height:1.7;color:var(--ink)}
+.cl .seg .how small{display:block;font-size:12px;color:var(--faint);font-family:var(--num);margin-top:4px}
+.cl .seg .prob{font-size:14px;color:var(--ink-2)}
 .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .kpi{border:1px solid var(--line);border-radius:10px;padding:18px 22px 16px;background:var(--paper)}
 .kpi .lab{font-size:13px;color:var(--ink-2)}
@@ -234,8 +271,8 @@ table.lt{width:100%;border-collapse:collapse;font-size:13px}.lt th,.lt td{border
 code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:12.5px var(--mono);margin-top:12px;white-space:pre-wrap;color:var(--ink-2)}
 .foot{margin-top:48px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--faint);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 
-@media(max-width:1280px){.kpis{grid-template-columns:1fr 1fr}.cols{grid-template-columns:1fr 1fr}.cols>div:nth-child(2){border-right:none}.cols>div:nth-child(-n+2){border-bottom:1px solid var(--line)}.row-run{grid-template-columns:1fr}}
-@media(max-width:900px){.shell{display:block}.sidebar{position:static;height:auto}.content{padding:20px 16px 56px}.two,.two.w,.kpis{grid-template-columns:1fr}.page-head h2{font-size:24px}.topbar{height:auto;padding:10px 16px;flex-wrap:wrap}.runpick select{max-width:70vw}}
+@media(max-width:1280px){.hero-band{grid-template-columns:1fr 1fr}.minis{grid-column:1/-1;grid-template-rows:none;grid-template-columns:repeat(3,1fr)}.minis>div{border-bottom:none;border-right:1px solid var(--line)}.minis>div:last-child{border-right:none}.kpis{grid-template-columns:1fr 1fr}.cols{grid-template-columns:1fr 1fr}.cols>div:nth-child(2){border-right:none}.cols>div:nth-child(-n+2){border-bottom:1px solid var(--line)}.row-run{grid-template-columns:1fr}}
+@media(max-width:900px){.shell{display:block}.sidebar{position:static;height:auto}.content{padding:20px 16px 56px}.two,.two.w,.kpis,.hero-band,.minis{grid-template-columns:1fr}.minis>div{border-right:none;border-bottom:1px solid var(--line)}.north .val{font-size:48px}.page-head h2{font-size:24px}.topbar{height:auto;padding:10px 16px;flex-wrap:wrap}.runpick select{max-width:70vw}}
 </style>
 </head>
 <body>
@@ -243,11 +280,12 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
 <aside class="sidebar" id="sidebar">
   <div class="brand"><span class="mark"></span><span>SparkJury</span></div>
   <nav aria-label="导航">
-    <div class="grp">评测</div>
+    <div class="grp">调优报告</div>
     <ul class="nav" id="toc">
-      <li><a href="#overview" class="on"><svg viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>项目概览</a></li>
-      <li><a href="#s4"><svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M5 7h6M5 10h4"/></svg>证据卡片</a></li>
-      <li><a href="#s5" data-go="verdicts"><svg viewBox="0 0 16 16"><path d="M3 4h10M3 8h10M3 12h6"/></svg>分 trace 明细</a></li>
+      <li><a href="#overview" class="on"><svg viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>可用率与结论</a></li>
+      <li><a href="#scene"><svg viewBox="0 0 16 16"><path d="M2 13h12M4 13V7M8 13V3M12 13V9"/></svg>分场景错误原因</a></li>
+      <li><a href="#s4"><svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M5 7h6M5 10h4"/></svg>典型错误归因卡片</a></li>
+      <li><a href="#judges"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 2v6l4 2"/></svg>裁判与仲裁</a></li>
     </ul>
     <div class="grp">检查台</div>
     <ul class="nav">
@@ -285,7 +323,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
 <section id="overview">
 <div class="page-head">
   <div>
-    <h2>项目概览</h2>
+    <h2>调优报告</h2>
     <p class="sub" id="pageSub">尚未选择运行</p>
   </div>
   <div class="acts">
@@ -294,15 +332,53 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
   </div>
 </div>
 
-<div class="sec-h">一、评测总览</div>
-<div class="kpis">
-  <div class="kpi"><div class="lab">trace 总数</div><div class="val" id="cTraces">—</div><div class="sub">环境失败排除 <b id="cEnv">—</b> · 可评分 <b id="cScorable">—</b></div><div class="note">环境故障由预检阶段排除，不计入 Agent 评分</div></div>
-  <div class="kpi good"><div class="lab">pass^1 通过率</div><div class="val" id="cPass">—</div><div class="sub">pass^3 <b id="cPassK">—</b> · 基准通过 <b id="cBench">—</b></div><div class="note" id="cPassNote">pass^k：同一任务 k 次试验全部通过</div></div>
-  <div class="kpi bad"><div class="lab">badcase</div><div class="val" id="cBad">—</div><div class="sub">聚成 <b id="cClusters">—</b> 簇 · 占可评分 <b id="cBadRate">—</b></div><div class="note">裁判判定失败且已排除环境原因的 trace</div></div>
-  <div class="kpi"><div class="lab">裁判一致率</div><div class="val" id="cAgree">—</div><div class="sub">进入仲裁 <b id="cArb">—</b> 条 · 降级 <b id="cDeg">—</b> 次</div><div class="note" id="cAgreeNote">三票一致的维度不进入仲裁</div></div>
+<div class="hero-band">
+  <div class="north">
+    <div class="lab">北极星指标 · 可用率</div>
+    <div class="val" id="cPass">—</div>
+    <div class="sub"><b id="cBench">—</b> 条 trace 达成任务目标</div>
+    <div class="sub2">pass^3 <b id="cPassK">—</b><span id="cPassNote"> · 同一任务三次全过才算稳定可用</span></div>
+    <div class="note">可用率 = 达成任务目标的 trace ÷ 有基准结果的 trace；环境故障已在预检阶段排除，不计入分母</div>
+  </div>
+  <div class="fix">
+    <div class="lab">先修什么</div>
+    <div class="fx-title" id="fxTitle">—</div>
+    <div class="fx-meta" id="fxMeta">等待本轮聚类结果</div>
+    <div class="fx-how"><span class="k">怎么改</span><span id="fxHow">—</span></div>
+    <div class="fx-next" id="fxNext"></div>
+    <div class="fx-act"><button class="btn pri sm" id="fxGo">查看归因卡片与证据</button><span class="fx-src" id="fxSrc"></span></div>
+  </div>
+  <div class="minis">
+    <div><div class="lab">badcase</div><div class="val bad" id="cBad">—</div><div class="sub">占可评分 <b id="cBadRate">—</b> · <b id="cClusters">—</b> 类</div></div>
+    <div><div class="lab">trace 总数</div><div class="val" id="cTraces">—</div><div class="sub">环境排除 <b id="cEnv">—</b> · 可评分 <b id="cScorable">—</b></div></div>
+    <div><div class="lab">裁判一致率</div><div class="val" id="cAgree">—</div><div class="sub">仲裁 <b id="cArb">—</b> 条 · 降级 <b id="cDeg">—</b> 次</div></div>
+  </div>
 </div>
+</section>
 
-<div class="two w" style="margin-top:14px">
+<section id="scene">
+<div class="sec-h">一、分场景错误原因及占比 <small>场景 = 被评 Agent 执行的任务；错误原因 = badcase 聚类后的失败类型</small></div>
+<div class="two w">
+  <div class="card flush">
+    <div class="chead"><p class="ct">错误原因占比</p><p class="cs">全部 badcase 按失败类型聚簇；点击可查看该类的成员 trace</p></div>
+    <div class="bars" id="clusterBars"><div class="empty" style="padding:10px 0">暂无聚类结果</div></div>
+    <div class="subrow"><span>badcase<b id="bBad">—</b></span><span>占可评分<b id="bRate">—</b></span><span>簇<b id="bClusters">—</b></span><span>噪声<b id="bNoise">—</b></span><span>经当事人仲裁成立<b id="bContested">—</b></span><span>预检提示<b id="bAdv">—</b></span></div>
+  </div>
+  <div class="card flush">
+    <div class="chead"><p class="ct">分场景可用率与错误原因</p><p class="cs">按可用率从低到高排列，先看最差的场景；点击一行查看该场景的第一条 badcase</p></div>
+    <div class="tbl-wrap"><table class="lt sc" id="sceneTbl"><thead><tr><th>场景</th><th>试验</th><th>达成</th><th>可用率</th><th>badcase</th><th>错误原因</th></tr></thead><tbody><tr><td colspan="6" class="empty">暂无数据</td></tr></tbody></table></div>
+  </div>
+</div>
+</section>
+
+<section id="s4">
+  <div class="sec-h">二、典型错误 case 归因卡片 <small>每类错误一张：问题是什么、证据在哪一步、裁判怎么说、怎么改；由 PM 确认优先修复的类型，决策记入账本</small></div>
+  <div class="card"><div id="card"><div class="empty">暂无卡片</div></div></div>
+</section>
+
+<section id="judges">
+<div class="sec-h">三、裁判与仲裁 <small>三家族裁判按四个维度打分，分歧送仲裁；降级如实标出</small></div>
+<div class="two w">
   <div class="card">
     <p class="ct">裁决来源分布</p>
     <p class="cs" id="srcSub">按维度统计：每条 trace 的四个维度各产生一个裁决</p>
@@ -314,24 +390,6 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     <div class="cfoot" id="dimFoot"><span class="empty">四个维度的平均分（0–4）：—</span></div>
   </div>
 </div>
-
-<div class="sec-h">二、badcase 情况 <small>统计口径为裁判判定失败的 trace 条数，与基准结果无关</small></div>
-<div class="two w">
-  <div class="card flush">
-    <div class="chead"><p class="ct">badcase 规模</p></div>
-    <div class="bignums"><div><div class="lab">badcase 条数</div><div class="val" id="bBad">—</div></div><div><div class="lab">badcase 率</div><div class="val" id="bRate">—</div></div></div>
-    <div class="subrow"><span>簇<b id="bClusters">—</b></span><span>噪声<b id="bNoise">—</b></span><span>经当事人仲裁成立<b id="bContested">—</b></span><span>预检提示<b id="bAdv">—</b></span></div>
-  </div>
-  <div class="card flush">
-    <div class="chead"><p class="ct">失败归因</p><p class="cs">按失败类型聚簇，用于定位共性问题；点击可查看簇明细</p></div>
-    <div class="bars" id="clusterBars"><div class="empty" style="padding:10px 0">暂无聚类结果</div></div>
-  </div>
-</div>
-</section>
-
-<section id="s4">
-  <div class="sec-h">三、证据卡片 <small>最终产物：由 PM 确认优先修复的失败类型，决策记入账本</small></div>
-  <div class="card"><div id="card"><div class="empty">暂无卡片</div></div></div>
 </section>
 
 <div class="sec-h">四、运行 <small>七个阶段按顺序点亮；点击带 trace 编号的事件可查看三位裁判的理由</small></div>
@@ -408,6 +466,10 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
   const DIM_ZH={outcome:"结果",tool_use:"工具使用",efficiency:"效率",safety:"安全"};
   const DIM_DESC={outcome:"任务目标达成情况",tool_use:"工具选择与调用的正确性",efficiency:"步数与重复调用开销",safety:"未验证身份的写操作与越权行为"};
   const SRC_ZH={panel:"合议一致",jev:"云端 Jev 仲裁",local:"本地仲裁",panel_fallback:"本地回退"};
+  // 失败类型（cluster/taxonomy.py 的 FailureLabel）与改法的中文；后端字段保持英文，前端只做展示翻译
+  const FAIL_ZH={wrong_tool:"工具选择错误",wrong_args:"工具参数错误",missing_lookup:"未先查询即操作",missing_confirmation:"未获用户确认即执行",unauthenticated_action:"未验证身份即执行写操作",hallucinated_info:"编造工具结果之外的事实",loop:"重复调用与空转",premature_stop:"提前终止未完成任务",policy_violation:"违反业务策略",other:"未归类"};
+  const SUGG_ZH={wrong_tool:"改写工具描述，把订单级与账户级操作的边界写清楚；在 system prompt 里加一个路由示例。",wrong_args:"收紧每个工具的参数 schema，并在工具描述里各加一个带参数的完整示例。",missing_lookup:"任何状态陈述或写操作之前必须先读一次记录；在 prompt 里加「先查后答」的硬规则。",missing_confirmation:"把确认步骤写成显式流程：复述将要执行的操作，等到用户明确回复「是」再执行。",unauthenticated_action:"所有写操作工具都要求已验证的用户 id；在工具层直接拒绝没有验证的调用，而不是靠 prompt 约束。",hallucinated_info:"要求 Agent 只陈述工具结果里出现过的事实；可增加一道事后引用核对。",loop:"加最大重试次数规则；同一操作连续失败或被拒两次后，转为向用户提问而不是再试。",premature_stop:"给 Agent 一份结束前必须满足的完成清单，未满足不得结束对话。",policy_violation:"把被违反的策略条款连同一个具体示例写进 prompt。",other:"人工逐条查看代表 trace，本类没有识别出主导模式。"};
+  const failZh=l=>FAIL_ZH[l]||l;const suggZh=l=>SUGG_ZH[l]||"";
   const SRC_COLOR={panel:"var(--ink)",jev:"var(--cloud)",local:"var(--faint)",panel_fallback:"var(--bad)"};
   const VERDICT_ZH={improved:"改善",regressed:"退步",mixed:"互有升降",unchanged:"无变化"};
   const LABEL_ZH={pass:"通过",fail:"失败"};
@@ -464,10 +526,36 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     $("dimCols").innerHTML=DIMS.map(d=>{const c=counts[d]||0;const p=nBad?c/nBad:null;return `<div><div class="lab">${esc(dimZh(d))}<span>${c} 条</span></div><div class="val ${c?"bad":""}">${p==null?"—":(p*100).toFixed(1)+"%"}</div><div class="d">${esc(DIM_DESC[d])}</div></div>`;}).join("");
     $("dimFoot").innerHTML=means?`<span>四个维度的平均分（0–4）</span>${DIMS.map(d=>`<span>${esc(dimZh(d))}<b>${num(means[d],1)}</b></span>`).join("")}`:`<span class="empty">四个维度的平均分（0–4）：—</span>`;
   }
+  let cardCache=null;
   function resetOverview(){
     ["cTraces","cEnv","cScorable","cPass","cPassK","cBench","cBad","cClusters","cBadRate","cAgree","cArb","cDeg","bBad","bRate","bClusters","bNoise","bContested","bAdv"].forEach(id=>setText(id,"—"));
-    $("cCloudNote").textContent="";setSources({});setDims({},0,null);
+    $("cCloudNote").textContent="";setSources({});setDims({},0,null);cardCache=null;
     $("clusterBars").innerHTML=`<div class="empty" style="padding:10px 0">暂无聚类结果</div>`;
+    $("fxTitle").textContent="—";$("fxMeta").textContent="等待本轮聚类结果";$("fxHow").textContent="—";$("fxNext").textContent="";$("fxSrc").textContent="";
+    $("sceneTbl").querySelector("tbody").innerHTML=`<tr><td colspan="6" class="empty">暂无数据</td></tr>`;
+  }
+  // 先修什么：卡片 rank #1 的簇翻成中文，配改法；其次的那一类也带一句
+  function renderFix(c){
+    const cls=(c.clusters||[]).filter(cl=>cl.cluster_id!==-1);
+    if(!cls.length){$("fxTitle").textContent="本轮没有可归类的 badcase";$("fxMeta").textContent="";$("fxHow").textContent="不需要修改；换一批 trace 或放宽判据再评";$("fxNext").textContent="";return;}
+    const top=cls[0];
+    $("fxTitle").textContent=failZh(top.label);
+    $("fxMeta").textContent=`#1 · ${top.size} 条 badcase · 占 ${(top.share*100).toFixed(0)}% · 优先级 ${num(top.priority,1)}${top.taxonomy_id?" · "+top.taxonomy_id:""}`;
+    $("fxHow").textContent=suggZh(top.label)||top.suggestion||"—";
+    $("fxNext").textContent=cls.length>1?`其次：${cls.slice(1,3).map(x=>`${failZh(x.label)}（${x.size} 条）`).join("、")}。改完后对同一批任务重跑，用「回归对比」看 pass^3 有没有涨。`:"改完后对同一批任务重跑，用「回归对比」看 pass^3 有没有涨。";
+    $("fxSrc").textContent=`标签来源 ${top.label_source==="jev"?"云端 Jev":"本地启发式"}`;
+  }
+  // 分场景：任务 = 场景。可用率按该任务的试验算，错误原因来自簇成员归属
+  function renderScenes(){
+    const tb=$("sceneTbl").querySelector("tbody");
+    if(!cardCache||!traceRows.length){tb.innerHTML=`<tr><td colspan="6" class="empty">暂无数据</td></tr>`;return;}
+    const label={};for(const cl of cardCache.clusters||[])for(const tid of (cl.member_trace_ids||[]))label[tid]=cl.cluster_id===-1?"other":cl.label;
+    const by={};
+    for(const r of traceRows){const k=r.task_id||"?";const s=by[k]||(by[k]={task:k,n:0,ok:0,env:0,bad:{},badIds:[],first:null});s.n++;if(r.env_failure)s.env++;else if(r.success===true)s.ok++;const l=label[r.trace_id];if(l){s.bad[l]=(s.bad[l]||0)+1;s.badIds.push(r.trace_id);}if(!s.first)s.first=r.trace_id;}
+    const rows=Object.values(by).map(s=>Object.assign(s,{rate:(s.n-s.env)?s.ok/(s.n-s.env):null})).sort((a,b)=>(a.rate??2)-(b.rate??2)||b.n-a.n);
+    tb.innerHTML=rows.map(s=>{const cls=s.rate==null?"":(s.rate<0.5?"lo":(s.rate<0.8?"mid":"hi"));const reasons=Object.entries(s.bad).sort((a,b)=>b[1]-a[1]).map(x=>`<span class="pill bad" style="margin:0 6px 2px 0">${esc(failZh(x[0]))} ${x[1]}</span>`).join("");
+      return `<tr class="click" data-t="${esc(s.badIds[0]||s.first||"")}" title="查看该场景的 trace"><td>${esc(s.task)}${s.env?`<div style="font-size:11.5px;color:var(--faint)">环境排除 ${s.env}</div>`:""}</td><td class="num">${s.n}</td><td class="num">${s.ok}</td><td><span class="rate ${cls}">${s.rate==null?"—":(s.rate*100).toFixed(0)+"%"}</span><div class="rb"><i style="width:${s.rate==null?0:(s.rate*100).toFixed(0)}%"></i></div></td><td class="num">${s.badIds.length||"—"}</td><td>${reasons||'<span class="empty">无</span>'}</td></tr>`;}).join("");
+    tb.querySelectorAll("tr[data-t]").forEach(tr=>tr.onclick=()=>{if(tr.dataset.t)openTrace(tr.dataset.t);});
   }
   // live=true only for events arriving from the SSE stream / polling of a running run: a replayed run_end must not reload the run again (that looped forever)
   function addEv(ev,live){
@@ -551,9 +639,11 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     const t=c.totals||{},q=c.quality||{};
     // 概览四块与分布：都从卡片取，卡片是 REPORT 阶段的最终口径
     setText("cTraces",t.n_traces);setText("cEnv",t.n_env_failures);setText("cScorable",t.n_scorable);
+    cardCache=c;
     setText("cPass",pct(q.pass_rate));const pk=q.pass_k||{};const kmax=Object.keys(pk).map(Number).filter(k=>k>1).sort((a,b)=>b-a)[0];
-    setText("cPassK",kmax?pct(pk[kmax]):"—");$("cPassNote").textContent=kmax?`pass^${kmax}：同一任务 ${kmax} 次试验全部通过`:"pass^k：同一任务 k 次试验全部通过";
-    setText("cBench",q.n_benchmark_result!=null?`${q.n_benchmark_success??"—"} / ${q.n_benchmark_result} 条`:"—");
+    setText("cPassK",kmax?pct(pk[kmax]):"—");$("cPassNote").textContent=kmax?` · 同一任务 ${kmax} 次全过才算稳定可用`:" · 同一任务 k 次全过才算稳定可用";
+    setText("cBench",q.n_benchmark_result!=null?`${q.n_benchmark_success??"—"} / ${q.n_benchmark_result}`:"—");
+    renderFix(c);renderScenes();
     setText("cBad",t.n_badcases);setText("bBad",t.n_badcases);setText("cClusters",t.n_clusters);setText("bClusters",t.n_clusters);
     const rate=t.n_scorable?t.n_badcases/t.n_scorable:null;setText("cBadRate",pct(rate));setText("bRate",pct(rate));
     setText("bNoise",t.n_unclustered??0);setText("bContested",q.n_badcases_contested??0);setText("bAdv",t.n_precheck_advisories??0);
@@ -564,18 +654,23 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     setDims(dimCounts,t.n_badcases,q.mean_scores);
     // 失败归因：每个簇一条黑条，宽度是它在 badcase 里的占比
     const cls=(c.clusters||[]).filter(cl=>cl.cluster_id!==-1);
-    $("clusterBars").innerHTML=cls.length?cls.map(cl=>`<div class="brow" data-m="${cl.cluster_id}" title="查看簇明细"><div class="bh"><span class="bl" style="font-family:var(--sans);color:var(--ink);font-size:14px">${esc(cl.label)}${cl.n_contested_members?`<em class="note-red" style="font-style:normal">（${cl.n_contested_members} 条经当事人仲裁成立）</em>`:""}</span><span>${cl.size} 条 · ${(cl.share*100).toFixed(1)}%</span></div><div class="bbar"><i style="width:${Math.max(2,cl.share*100).toFixed(1)}%"></i></div></div>`).join(""):`<div class="empty" style="padding:10px 0">无可聚类的 badcase</div>`;
+    $("clusterBars").innerHTML=cls.length?cls.map(cl=>`<div class="brow" data-m="${cl.cluster_id}" title="查看簇明细"><div class="bh"><span class="bl" style="font-family:var(--sans);color:var(--ink);font-size:15px;font-weight:600">${esc(failZh(cl.label))}<span style="font-family:var(--num);font-weight:400;font-size:12px;color:var(--faint);margin-left:8px">${esc(cl.label)}</span></span><span><b style="font-weight:700;color:var(--ink)">${(cl.share*100).toFixed(0)}%</b> · ${cl.size} 条</span></div><div class="bbar"><i style="width:${Math.max(2,cl.share*100).toFixed(1)}%"></i></div>${cl.n_contested_members?`<div class="note-red" style="margin:4px 0 0">其中 ${cl.n_contested_members} 条经当事人仲裁成立</div>`:""}</div>`).join(""):`<div class="empty" style="padding:10px 0">无可聚类的 badcase</div>`;
     $("clusterBars").querySelectorAll(".brow[data-m]").forEach(b=>b.onclick=()=>openCluster(+b.dataset.m));
     let confirmed=null;try{confirmed=await j("/runs/"+enc(id)+"/confirm");}catch(e){}
-    let h=`<div class="rec"><span class="tag">建议</span>${esc(c.recommendation)}</div><div class="disc">${esc(c.disclaimer)}</div>`;
-    h+=`<div class="tiles">${[[t.n_traces,"条 trace"],[t.n_env_failures,"环境失败"],[t.n_badcases,"badcase"],[t.n_clusters,"个簇"],[pct(q.pass_rate),"pass^1"]].concat(Object.keys(pk).filter(k=>+k>1).map(k=>[pct(pk[k]),"pass^"+k])).concat([[pct(q.judge_agreement_rate),"裁判一致率"],[q.n_degraded,"降级"]]).map(x=>`<div class="tile"><b>${esc(x[0])}</b><span>${esc(x[1])}</span></div>`).join("")}</div>`;
+    const recZh=cls.length?`先修「${failZh(cls[0].label)}」：${cls[0].size} 条，占 badcase ${(cls[0].share*100).toFixed(0)}%，优先级 ${num(cls[0].priority,1)}。${suggZh(cls[0].label)}${cls.length>1?` 其次：${failZh(cls[1].label)}（${cls[1].size} 条）。`:""}改完后对同一批任务重跑，用「回归对比」查看 pass^3 的变化。`:"本轮没有可归类的 badcase。";
+    let h=`<div class="rec"><span class="tag">建议</span>${esc(recZh)}<div style="font-size:12px;color:var(--faint);margin-top:6px;font-family:var(--num)">${esc(c.recommendation)}</div></div><div class="disc">${esc(c.disclaimer)}</div>`;
+    h+=`<div class="tiles">${[[t.n_traces,"条 trace"],[t.n_env_failures,"环境失败"],[t.n_badcases,"badcase"],[t.n_clusters,"个簇"],[pct(q.pass_rate),"可用率 pass^1"]].concat(Object.keys(pk).filter(k=>+k>1).map(k=>[pct(pk[k]),"pass^"+k])).concat([[pct(q.judge_agreement_rate),"裁判一致率"],[q.n_degraded,"降级"]]).map(x=>`<div class="tile"><b>${esc(x[0])}</b><span>${esc(x[1])}</span></div>`).join("")}</div>`;
     h+=`<div id="dmsg" class="ok-msg"></div>`;
     for(const cl of c.clusters||[]){
-      const name=cl.cluster_id===-1?"未归类":cl.label;const sel=confirmed&&confirmed.cluster_id===cl.cluster_id;
-      h+=`<div class="cl ${sel?"sel":""}"><h3><span class="rk">#${cl.rank}</span>${esc(name)}${cl.taxonomy_id?`<span class="pill mut">${esc(cl.taxonomy_id)}</span>`:""}<span class="pill">${cl.size} 条 · ${(cl.share*100).toFixed(0)}%</span><span class="pill">优先级 ${cl.priority.toFixed(1)}</span><span class="pill mut">标签来源 ${esc(cl.label_source)}</span>${sel?'<span class="pill good">已确认</span>':""}</h3>`;
-      h+=`<div class="sug">${esc(cl.suggestion)}</div>`;
-      for(const r of cl.representatives.slice(0,2)){h+=`<pre><button class="lnk" data-t="${esc(r.trace_id)}">${esc(r.trace_id)}</button> · 失败维度：${esc((r.failed_dimensions||[]).map(dimZh).join("、"))||"—"}\n${esc(r.excerpt)}</pre>`;
+      const name=cl.cluster_id===-1?"未归类":failZh(cl.label);const sel=confirmed&&confirmed.cluster_id===cl.cluster_id;
+      const dims=Object.entries(cl.failed_dimension_counts||{}).sort((a,b)=>b[1]-a[1]).map(x=>`${dimZh(x[0])}×${x[1]}`).join("、");
+      h+=`<div class="cl ${sel?"sel":""}" id="card-cl-${cl.cluster_id}"><h3><span class="rk">#${cl.rank}</span><span class="zh">${esc(name)}</span><span class="en">${esc(cl.label)}</span>${cl.taxonomy_id?`<span class="pill mut">${esc(cl.taxonomy_id)}</span>`:""}<span class="pill">${cl.size} 条 · ${(cl.share*100).toFixed(0)}%</span><span class="pill">优先级 ${cl.priority.toFixed(1)}</span><span class="pill mut">标签来源 ${cl.label_source==="jev"?"云端 Jev":(cl.label_source==="heuristic"?"本地启发式":esc(cl.label_source))}</span>${sel?'<span class="pill good">已确认</span>':""}</h3>`;
+      h+=`<div class="seg"><span class="k">问题</span><div class="prob">${cl.size} 条 trace 归入此类，占全部 badcase 的 ${(cl.share*100).toFixed(0)}%；失败维度：${esc(dims)||"—"}${cl.n_contested_members?`；其中 ${cl.n_contested_members} 条经当事人仲裁成立`:""}。</div></div>`;
+      h+=`<div class="seg"><span class="k">证据</span><div>`;
+      for(const r of cl.representatives.slice(0,2)){h+=`<pre style="margin-top:0"><button class="lnk" data-t="${esc(r.trace_id)}">${esc(r.trace_id)}</button> · 失败维度：${esc((r.failed_dimensions||[]).map(dimZh).join("、"))||"—"}\n${esc(r.excerpt)}</pre>`;
         h+=(r.opinions||[]).slice(0,3).map(o=>`<div class="op">${esc(dimZh(o.dimension))} · ${esc(o.judge)}：${o.score}${o.label?" "+esc(LABEL_ZH[o.label]||o.label):""} — ${esc(o.rationale)}</div>`).join("");}
+      h+=`</div></div>`;
+      h+=`<div class="seg"><span class="k fixk">改法</span><div class="how">${esc(suggZh(cl.label)||cl.suggestion)}${suggZh(cl.label)?`<small>${esc(cl.suggestion)}</small>`:""}</div></div>`;
       h+=`<div class="act">`;
       if(cl.cluster_id!==-1){
         h+=`<button class="btn sm ${sel?"":"pri"}" data-c="${cl.cluster_id}" ${sel?"disabled":""}>${sel?"已确认优先修复":"确认优先修复"}</button>`;
@@ -619,6 +714,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
   document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>showTab(t.dataset.tab));
   document.querySelectorAll("a[data-go]").forEach(a=>a.addEventListener("click",()=>showTab(a.dataset.go)));
   $("btnToVerdicts").onclick=()=>{showTab("verdicts");$("s5").scrollIntoView({behavior:"smooth",block:"start"});};
+  $("fxGo").onclick=()=>{const first=$("card").querySelector(".cl");(first||$("s4")).scrollIntoView({behavior:"smooth",block:"start"});};
 
   // 1. 裁判理由并排：四维 x 三裁判 + 最终裁决，下面是对话记录，证据步骤高亮
   let traceRows=[];
@@ -628,6 +724,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
     traceRows.sort((a,b)=>order(a)-order(b)||String(a.trace_id).localeCompare(String(b.trace_id)));
     $("trSel").innerHTML=traceRows.map(r=>`<option value="${esc(r.trace_id)}">${esc(r.trace_id)} · ${esc(r.task_id)} · ${r.env_failure?"环境失败":(r.success===false?"失败":(r.success===true?"通过":"?"))}${r.degraded?" · 降级":""}</option>`).join("");
     $("verdicts").innerHTML=`<div class="empty">${traceRows.length?"请选择一条 trace，或点击时间线中带 trace 编号的事件":"暂无打分结果"}</div>`;$("trMeta").textContent="";
+    renderScenes();
   }
   async function openTrace(tid){
     showTab("verdicts");$("trSel").value=tid;
@@ -746,7 +843,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);bo
   }
   // 侧栏高亮跟着滚动走
   const NAV=[...document.querySelectorAll(".nav a")];
-  const onScroll=()=>{const y=window.scrollY+window.innerHeight*.3;let cur="overview";for(const id of ["overview","s4","s2","s3","s5"]){const s=$(id);if(s&&s.offsetTop<=y)cur=id;}const tab=(document.querySelector(".tab.on")||{dataset:{}}).dataset.tab;NAV.forEach(a=>{const href=a.getAttribute("href");a.classList.toggle("on",cur==="s5"?(a.dataset.grp==="insp"&&a.dataset.go===tab):(href==="#"+cur&&!a.dataset.go));});};
+  const onScroll=()=>{const y=window.scrollY+window.innerHeight*.3;let cur="overview";for(const id of ["overview","scene","s4","judges","s2","s3","s5"]){const s=$(id);if(s&&s.offsetTop<=y)cur=id;}const tab=(document.querySelector(".tab.on")||{dataset:{}}).dataset.tab;NAV.forEach(a=>{const href=a.getAttribute("href");a.classList.toggle("on",cur==="s5"?(a.dataset.grp==="insp"&&a.dataset.go===tab):(href==="#"+cur&&!a.dataset.go));});};
   window.addEventListener("scroll",onScroll,{passive:true});onScroll();
   $("runSel").onchange=()=>loadRun($("runSel").value);
   $("btnDemo").onclick=async()=>{$("btnDemo").disabled=true;$("btnDemo").textContent="演示运行中…";try{const r=await j("/runs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({demo:true})});await loadRuns();$("runSel").value=r.run_id;await loadRun(r.run_id);}finally{$("btnDemo").disabled=false;$("btnDemo").textContent="▷ 执行离线演示";}};
