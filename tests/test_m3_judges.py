@@ -162,15 +162,20 @@ def test_mock_judge_jitter_is_deterministic(traces):
 # ---- LLM judge with a stubbed backend ------------------------------------------------
 
 class _Stub(OpenAICompatJudge):
-    def __init__(self, replies):
+    def __init__(self, replies, finish_reasons=None):
         # 走一遍真构造函数，别手抄默认值：新增字段（prompt 预算等）抄漏了就会在打分时炸
         super().__init__("stub", "stub-model", "http://x", max_tokens=100)
         self._replies = list(replies)
+        self._finish_reasons = list(finish_reasons or [])
         self.calls = 0
+        self.budgets = []        # 每次调用实际用的 max_tokens，用来断言重问时预算真的变大了
 
-    def _chat(self, messages):
+    def _chat(self, messages, max_tokens=None):
         self.calls += 1
+        self.budgets.append(max_tokens if max_tokens is not None else self.max_tokens)
         r = self._replies.pop(0)
+        # 没说就当作自然写完；真实现里这两个值由后端给（stop / length）
+        self._last_finish_reason = self._finish_reasons.pop(0) if self._finish_reasons else "stop"
         if isinstance(r, Exception):
             raise r
         return r
@@ -197,6 +202,50 @@ def test_openai_judge_parses_and_nudges(traces):
     j = _Stub([RuntimeError("connection refused")])
     v = j.score(t, Dimension.SAFETY)
     assert not v.ok and "connection refused" in v.error and v.score is None
+
+
+def test_empty_answer_is_retried_with_a_bigger_budget(traces):
+    """思维模型把输出预算全花在推理上时，content 是空串（真批实测 32 个维度废掉 17 个）。
+    空答案拿同样的预算再问一遍没用，得加大预算 —— 这条守着那次重问和它用的预算。"""
+    t = traces["retail_task_001-t0"]
+    j = _Stub(["", '{"score": 4, "label": "pass", "confidence": 1.0, "evidence_steps": [3], "rationale": "ok"}'])
+    v = j.score(t, Dimension.OUTCOME)
+    assert v.ok and v.score == 4
+    assert j.budgets == [100, 400]              # 重问时预算放大 4 倍（上限 8000）
+    assert v.raw.startswith('{"score"')         # raw 留的是这次真拿到的输出
+
+
+def test_last_words_of_the_model_survive_a_parse_failure(traces):
+    """解析失败时 verdict.raw 要留着模型最后说的话。上次这类失败查不出来，就是因为库里
+    只剩一句 no JSON object in judge output，看不到模型到底回了什么。"""
+    t = traces["retail_task_001-t0"]
+    j = _Stub(["I cannot judge this.", "Still cannot, sorry."])
+    v = j.score(t, Dimension.SAFETY)
+    assert not v.ok and "no JSON object" in v.error
+    assert v.raw == "Still cannot, sorry."      # 不是第一次的那句
+
+
+def test_a_cut_off_answer_is_retried_with_a_bigger_budget(traces):
+    """模型被 token 上限截断时（finish_reason=length），追问不能再用原预算：原预算只会截在
+    同一个地方。第一句是没写完的话，进不了 JSON 解析这条路。"""
+    t = traces["retail_task_001-t0"]
+    j = _Stub(["Let me walk through the transcript step by step. The user first asked",
+               '{"score": 3, "label": "pass", "confidence": 0.8, "evidence_steps": [2], "rationale": "ok"}'],
+              finish_reasons=["length"])
+    v = j.score(t, Dimension.OUTCOME)
+    assert v.ok and v.score == 3
+    assert j.budgets == [100, 400]              # 追问那一问用的是放大后的预算
+
+
+def test_an_answer_that_was_not_cut_off_is_nudged_at_the_same_budget(traces):
+    """没被截断就是模型自己没照格式写，原预算再问一遍是对的——别白白放大预算拖长判定时间。"""
+    t = traces["retail_task_001-t0"]
+    j = _Stub(["I think it is fine.",
+               '{"score": 3, "confidence": 0.5, "evidence_steps": [], "rationale": "r"}'],
+              finish_reasons=["stop"])
+    v = j.score(t, Dimension.TOOL_USE)
+    assert v.ok and v.score == 3
+    assert j.budgets == [100, 100]
 
 
 # ---- agreement -----------------------------------------------------------------------

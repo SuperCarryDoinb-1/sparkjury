@@ -236,7 +236,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 |---|---|---|---|---|
 | M1 | 数据契约 + 输入适配 + 存储 | P0 | 已完成，11 个用例 | `sparkjury-clean`（导入那半） |
 | M2 | Precheck 假 badcase 打标 | P0 | 已完成，16 个用例 | `sparkjury-clean`（预检那半） |
-| M3 | 三裁判面板 | P0 | 已完成，29 个用例 | `sparkjury-score` |
+| M3 | 三裁判面板 | P0 | 已完成，33 个用例 | `sparkjury-score` |
 | M4 | 仲裁与审计 | P0 | 已完成，12 个用例 | `sparkjury-score` |
 | M5 | badcase 聚类与优先级 | P0 | 已完成，11 个用例 | `sparkjury-cluster` |
 | M6 | 证据卡片 + 回归对比 | P0 | 已完成，22 个用例 | `sparkjury-report` + `sparkjury-regress` |
@@ -305,6 +305,7 @@ run_id、总数、环境问题数、真 badcase 数、clusters[]（label / count
 - prompt 里不许出现基准算出来的金标（`include_gold` 默认关）。交给裁判等于把答案给被判的人：outcome 维度会退化成复述，三家必然一致，这一维就不再携带信息。金标留在 trace 上，只给报告算"裁判 vs 金标"的一致率用
 - transcript 按预算取：每步上限 4000 字符、整条 45000 字符。真批的 tool 返回中位 990 字符，老口径每步切 400 会把约三分之二的证据丢掉。超预算时二分收缩每步宽度，保住每条 `[n]` 骨架（裁判引用的 evidence_steps 靠它）；连最小宽度都装不下才丢中间步，并在原位留 `[... N step(s) omitted ...]`
 - 健康检查失败的裁判，只要面板里还剩两个真裁判就直接摘掉；只剩不到两个才退回 mock。启发式打分混进真模型的投票会造出假分歧，再白吃一轮仲裁
+- 裁判返回空答案时按 4 倍预算（上限 8000）重问一次，不再拿同样的预算问第二遍。思维模型（step-3.7-flash）的 `content` 会被推理挤空、`finish_reason=length`：真批实测 8 条 trace 的 32 个维度废掉 17 个，预算给到 4000 后只剩 1 个。`Verdict.raw` 留的始终是模型最后说的那句，解析失败也能直接看内容
 
 验收：mock 下 20 条 × 4 维 × 3 judge 全部产出 Verdict；接真实 vLLM 后单条延迟小于 10 秒（默认每裁判 1 路下按中位数达成：全量 63 条中位 8.3 / 8.0 秒，p90 13.1 / 11.5 秒未达标；全局 6 路时中位数也不达标）。
 
@@ -566,7 +567,7 @@ durable 那一段：
 
 ## 17. 当前进度与验证方法
 
-M1 到 M13 已完成（M10 节点执行、M11 录制待做），313 个 pytest 用例通过。一条命令跑通全流程：
+M1 到 M13 已完成（M10 节点执行、M11 录制待做），317 个 pytest 用例通过。一条命令跑通全流程：
 
 ```
 cd sparkjury

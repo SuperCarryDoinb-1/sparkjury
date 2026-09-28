@@ -88,6 +88,27 @@ n=42，一致率的标准误约 7.7 个百分点，三次的差别都在噪声�
 
 这也说明老口径（单步超 120 秒就不判）把偏差最集中的一半样本挡在了外面：被排除的 21 条金标通过率 47.6%，比留下的 42 条还高，等于给被测 Agent 报了一个比实际更低的成绩，同时让裁判看起来比实际更不准。全 63 条的一致率是 58.7%（37/63），比只在 42 条上算出来的 54.8% 还高一点。
 
+### 云端思维模型的输出预算（2026-09-28 实测）
+
+第三裁判 judge_c 用的是 step-3.7-flash，一个把答案和推理分开返回的思维模型：`content` 里是答案、`reasoning_content` 里是思考过程，而 OpenAI 兼容客户端只读 `content`。预算不够时模型把额度全花在思考上就断在那里，`content` 是空串、`finish_reason=length`，判定直接废掉——库里只留一句 `no JSON object in judge output`，看不出是这一回事。
+
+同一条真实 trace 的 outcome prompt、同一组参数、重跑 8 次：
+
+| max_tokens | 拿到完整 JSON | 实际情况 |
+|---|---|---|
+| 1200（JudgeSpec 默认，也是 9/28 之前的线上配置） | 2/8 | 6 次 content 0 字、推理 5000 多字后被截断；1 次 JSON 写在 reasoning 里而 content 为空 |
+| 4000 | 6/6 | 单次中位 5.2 秒 |
+
+放到面板上看：8 条 trace × 4 维 × 3 裁判，预算 1200 时 judge_c 的 32 个判定废掉 17 个；预算 4000 时只废 1 个，降级清单为空。
+
+顺带一条更正：废掉的那 17 个恰恰是模型想得更久、判得更严的。只统计成功的那 15 条会读出 judge_c 均分 3.87，把它补回来是 2.87——它并不是三家里面最松的那个，之前那个数是被选择性存活统计出来的。
+
+产品侧改了两处：仓库里三个带 judge_c 的配置（`deploy/run.node.toml`、`deploy/judges.example.toml`、`deploy/run.example.toml`）都给 judge_c 配上 `max_tokens = 4000`（本机那两份 gitignored 的本地配置也一并改了）；裁判客户端遇到空答案时按 4 倍预算（上限 8000）重问一次，追问那一问在上一句被截断时同样放大预算，不再拿同样的预算问第二遍。
+
+关掉思考这条路走不通：同一句话分别带 `chat_template_kwargs.enable_thinking=false` 和 `thinking={"type":"disabled"}` 发给 step-3.7-flash，`reasoning_content` 照样有（三种写法依次 76、120、297 字符），两个开关都没被认。所以只能在预算上让步。
+
+客户端这条路也在真端点上验过一次：把预算故意压到 400（真批用的是 JudgeSpec 默认的 1200），第一次 `finish_reason=length`、`content` 空；按 4 倍预算 1600 重问，拿到 492 字符的合法 JSON，verdict `ok=True`、`score=2`、耗时 9.7 秒。修复前这一次会直接记成 `no JSON object in judge output`。
+
 ## 比什么
 
 `scripts/ablation.py report` 把每条臂的这几样并列出来：
