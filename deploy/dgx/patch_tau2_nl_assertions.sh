@@ -37,10 +37,16 @@ applied() { grep -q "${MARK}" "${CONFIG}"; }
 
 # tau2 装在自己的 venv 里（默认在仓库根的 .venv-tau2），系统 python3 import 不到它；
 # 共用节点上那份 venv 常常在队友的主树里，所以允许用 TAU2_BIN / TAU2_PY 指。
+# 注意：TAU2_BIN 只有 run_tau2.sh 会设、而且可能没 export，所以这里一律用 ${TAU2_BIN:-}
+# 判空——直接跑 `check` 时它不在环境里，`set -u` 下会被当成 unbound variable 崩掉。
 tau2_python() {
   local cand="${TAU2_PY:-}"
+  if [[ -z "${cand}" && -n "${TAU2_BIN:-}" ]]; then
+    c="${TAU2_BIN%/tau2}/python"
+    [[ -x "${c}" ]] && cand="${c}"
+  fi
   if [[ -z "${cand}" ]]; then
-    for c in "${TAU2_BIN%/tau2}/python" "${HOME}/sparkjury/.venv-tau2/bin/python" "${REPO_ROOT}/.venv-tau2/bin/python"; do
+    for c in "${HOME}/sparkjury/.venv-tau2/bin/python" "${REPO_ROOT}/.venv-tau2/bin/python"; do
       [[ -x "${c}" ]] && { cand="${c}"; break; }
     done
   fi

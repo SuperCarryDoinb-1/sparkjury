@@ -12,6 +12,9 @@ NUM_TASKS="${1:-30}"; NUM_TRIALS="${2:-3}"; CONC="${3:-6}"; MAX_STEPS="${4:-60}"
 TAU2_HOME="${TAU2_HOME:-$HOME/tau2-bench}"
 TAU2_SIM_DIR="${TAU2_DATA_DIR:-$TAU2_HOME/data}/simulations"
 TAU2_BIN="${TAU2_BIN:-$REPO_ROOT/.venv-tau2/bin/tau2}"
+# 下面调 patch_tau2_nl_assertions.sh 时它是子进程：不 export 的话它看不到 TAU2_BIN，
+# 会退回 ~/sparkjury/.venv-tau2（队友的主树），补丁核对就核在别人的环境上。
+export TAU2_BIN TAU2_PY TAU2_HOME
 
 [[ -x "$TAU2_BIN" ]] || die "tau2 not installed at $TAU2_BIN; run deploy/dgx/setup_node.sh"
 [[ -d "$TAU2_HOME" ]] || die "tau2-bench checkout not found at $TAU2_HOME (set TAU2_HOME)"

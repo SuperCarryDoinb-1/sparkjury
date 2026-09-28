@@ -191,6 +191,7 @@ def test_tau2_script_points_the_eval_judge_at_a_local_endpoint():
     assert "TAU2_LLM_NL_ASSERTIONS_ARGS" in s and "api_base" in s
     assert "response_format" in s  # 本地模型的输出要能 json.loads 回来
     assert "patch_tau2_nl_assertions.sh ensure" in s  # 没打补丁就 die，而不是静默丢数据
+    assert "export TAU2_BIN" in s  # 补丁脚本是子进程：不 export 它看不到，会退回队友主树的 venv
 
 
 @pytest.mark.skipif(BASH is None, reason="没有可用的 bash（Windows 上常见：只有 WSL 启动桩、没装 Git Bash）")
@@ -233,6 +234,22 @@ def test_patch_tau2_nl_assertions_is_idempotent_and_refuses_a_silent_no_op(tmp_p
 
     rc, out = run("check", env={k: v for k, v in env.items() if k != "TAU2_LLM_NL_ASSERTIONS"})
     assert rc == 0 and "gpt-4.1-2025-04-14" in out, out  # 不设变量时默认值不变
+
+    # TAU2_PY 不设（脚本头写的用法 `patch_tau2_nl_assertions.sh check` 就是这样跑的）：tau2_python()
+    # 曾经无条件展开 ${TAU2_BIN%/tau2}，而 TAU2_BIN 只有 run_tau2.sh 会设，于是 set -u 下直接报
+    # "TAU2_BIN: unbound variable" 崩掉——只有通过 run_tau2.sh 调它才碰不到。给一个 python3 垫片，
+    # 让兜底落到测试自己的解释器上（Windows 的 Git Bash 里没有 python3）。
+    shim = tmp_path / "shim"
+    shim.mkdir()
+    py3 = shim / "python3"
+    py3.write_text(f'#!/usr/bin/env bash\nexec "{Path(sys.executable).as_posix()}" "$@"\n', encoding="utf-8")
+    py3.chmod(0o755)
+    no_py = {k: v for k, v in env.items() if k != "TAU2_PY"}
+    no_py["PATH"] = f"{shim}{os.pathsep}{no_py.get('PATH', '')}"
+    rc, out = run("check", env=no_py)
+    assert "unbound variable" not in out, out
+    if rc == 0:  # 垫片在个别平台上不一定能当解释器用；那时也该是 import 失败，而不是崩变量
+        assert "openai/local-judge" in out, out
 
     rc, out = run("revert")
     assert rc == 0 and 'DEFAULT_LLM_NL_ASSERTIONS = "gpt-4.1-2025-04-14"' in cfg.read_text(encoding="utf-8")
