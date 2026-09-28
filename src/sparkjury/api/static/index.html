@@ -5,316 +5,395 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SparkJury 评测驾驶舱</title>
 <meta name="description" content="SparkJury Agent Cockpit：读入 trace，三位裁判打分，分歧仲裁，badcase 聚类，证据卡片让人拍板，改完回归对比。">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%273%27 fill=%27%231e1b17%27/%3E%3Ccircle cx=%278%27 cy=%278%27 r=%274.5%27 fill=%27%23c9ad6a%27/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%274%27 fill=%27%23111111%27/%3E%3C/svg%3E">
 <style>
-/* 视觉语言沿用 docs/AGENT_VS_WORKFLOW.html：象牙白纸面、炭黑侧栏、哑金点缀、衬线标题。
+/* 视觉语言：白底、细灰线、黑色主按钮、等宽粗体大数字，绿正红负。
    字体全部走本机字体栈，不加任何外链，页面断网也要能跑。 */
 :root{
-  --bg:#f4f1ea; --bg-deep:#ebe6dc; --paper:#fbf9f4;
-  --ink:#1e1b17; --ink-2:#4a453d; --muted:#8a8378;
-  --line:#dcd5c8; --line-soft:#e9e3d7;
-  --gold:#a8873d; --gold-soft:#c9ad6a; --gold-wash:rgba(168,135,61,.10);
-  --good:#5b7f4e; --good-wash:rgba(91,127,78,.12);
-  --bad:#a23b2f; --bad-wash:rgba(162,59,47,.10);
-  --cloud:#3f6a8a; --cloud-wash:rgba(63,106,138,.12);
-  --code-bg:#f7f3ea;
-  --nav-bg:#1e1b17; --nav-fg:#c9c2b4; --nav-fg-strong:#f4f1ea; --nav-line:rgba(244,241,234,.10);
-  --shadow:0 1px 2px rgba(30,27,23,.04),0 12px 32px -18px rgba(30,27,23,.25);
-  --sidebar-w:272px;
-  --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",serif;
-  --sans:"Noto Sans SC",-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
-  --display:"Cormorant Garamond","Garamond","EB Garamond","Georgia",serif;
-  --mono:"JetBrains Mono","Cascadia Mono",Consolas,"Noto Sans SC",monospace;
+  --bg:#ffffff; --bg-soft:#f6f6f7; --paper:#ffffff;
+  --ink:#111111; --ink-2:#374151; --muted:#6b7280; --faint:#9ca3af;
+  --line:#e5e7eb; --line-strong:#d1d5db;
+  --good:#16a34a; --good-wash:#ecfdf3;
+  --bad:#dc2626; --bad-wash:#fef2f2;
+  --warn:#d97706; --warn-wash:#fffbeb;
+  --cloud:#2563eb; --cloud-wash:#eff6ff;
+  --pill:#f3f4f6; --code-bg:#f8f8f9; --hover:#f3f4f6;
+  --sidebar-w:236px; --topbar-h:64px;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans SC","Helvetica Neue",Arial,sans-serif;
+  --num:"JetBrains Mono","Cascadia Mono","SF Mono","Roboto Mono",Consolas,"Menlo",monospace;
+  --mono:var(--num);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#15130f; --bg-deep:#100e0b; --paper:#1d1a15;
-    --ink:#ece7dc; --ink-2:#c8c1b3; --muted:#8f877a;
-    --line:#332e26; --line-soft:#2a2620;
-    --gold:#c9ad6a; --gold-soft:#a8873d; --gold-wash:rgba(201,173,106,.12);
-    --good:#8db27e; --good-wash:rgba(141,178,126,.14);
-    --bad:#d3705f; --bad-wash:rgba(211,112,95,.14);
-    --cloud:#7fa6c4; --cloud-wash:rgba(127,166,196,.14);
-    --code-bg:#181510;
-    --nav-bg:#0f0d0a; --nav-fg:#a39b8c; --nav-fg-strong:#f1ece1; --nav-line:rgba(236,231,220,.08);
-    --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px -18px rgba(0,0,0,.6);
+    --bg:#0f0f10; --bg-soft:#151517; --paper:#131315;
+    --ink:#f3f4f6; --ink-2:#d1d5db; --muted:#9ca3af; --faint:#6b7280;
+    --line:#27272a; --line-strong:#3f3f46;
+    --good:#4ade80; --good-wash:rgba(74,222,128,.10);
+    --bad:#f87171; --bad-wash:rgba(248,113,113,.10);
+    --warn:#fbbf24; --warn-wash:rgba(251,191,36,.10);
+    --cloud:#60a5fa; --cloud-wash:rgba(96,165,250,.12);
+    --pill:#1f1f23; --code-bg:#151517; --hover:#1c1c20;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#15130f; --bg-deep:#100e0b; --paper:#1d1a15;
-  --ink:#ece7dc; --ink-2:#c8c1b3; --muted:#8f877a;
-  --line:#332e26; --line-soft:#2a2620;
-  --gold:#c9ad6a; --gold-soft:#a8873d; --gold-wash:rgba(201,173,106,.12);
-  --good:#8db27e; --good-wash:rgba(141,178,126,.14);
-  --bad:#d3705f; --bad-wash:rgba(211,112,95,.14);
-  --cloud:#7fa6c4; --cloud-wash:rgba(127,166,196,.14);
-  --code-bg:#181510;
-  --nav-bg:#0f0d0a; --nav-fg:#a39b8c; --nav-fg-strong:#f1ece1; --nav-line:rgba(236,231,220,.08);
-  --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px -18px rgba(0,0,0,.6);
+  --bg:#0f0f10; --bg-soft:#151517; --paper:#131315;
+  --ink:#f3f4f6; --ink-2:#d1d5db; --muted:#9ca3af; --faint:#6b7280;
+  --line:#27272a; --line-strong:#3f3f46;
+  --good:#4ade80; --good-wash:rgba(74,222,128,.10);
+  --bad:#f87171; --bad-wash:rgba(248,113,113,.10);
+  --warn:#fbbf24; --warn-wash:rgba(251,191,36,.10);
+  --cloud:#60a5fa; --cloud-wash:rgba(96,165,250,.12);
+  --pill:#1f1f23; --code-bg:#151517; --hover:#1c1c20;
 }
 
 *{box-sizing:border-box}
-html{scroll-behavior:smooth;scroll-padding-top:24px}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--topbar-h) + 16px)}
 html,body{margin:0}
-body{
-  background:var(--bg);
-  background-image:radial-gradient(1200px 600px at 85% -10%, var(--gold-wash), transparent 60%),linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
-  background-attachment:fixed;
-  color:var(--ink);font:15px/1.75 var(--sans);-webkit-font-smoothing:antialiased;
-}
+body{background:var(--bg);color:var(--ink);font:14px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}
 button,select,input{font:inherit;color:inherit}
-button{cursor:pointer}button:disabled{opacity:.5;cursor:default}
+button{cursor:pointer}button:disabled{opacity:.45;cursor:default}
+.n{font-family:var(--num);font-variant-numeric:tabular-nums}
 
-/* ---------- 布局：炭黑侧栏 + 纸面内容 ---------- */
-.shell{display:flex;min-height:100vh}
-.sidebar{width:var(--sidebar-w);flex:none;position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--nav-bg);color:var(--nav-fg);padding:36px 26px 28px;display:flex;flex-direction:column;gap:24px}
-.brand{border-bottom:1px solid var(--nav-line);padding-bottom:22px}
-.brand .mark{font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold-soft)}
-.brand h1{font-family:var(--serif);font-weight:700;font-size:21px;line-height:1.4;margin:10px 0 0;color:var(--nav-fg-strong)}
-.brand p{margin:8px 0 0;font-size:12px;opacity:.75;letter-spacing:.02em}
-.side-block label{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.6;margin-bottom:8px}
-.side-block select{width:100%;background:rgba(255,255,255,.05);color:var(--nav-fg-strong);border:1px solid var(--nav-line);border-radius:6px;padding:8px 10px;font-size:13px}
-.side-block select option{color:#1e1b17}
-.btn-gold{display:block;width:100%;margin-top:10px;background:var(--gold-soft);color:#1e1b17;border:none;border-radius:6px;padding:9px 12px;font-weight:600;letter-spacing:.04em}
-.btn-gold:hover{background:#d8bd7c}
-.toc{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
-.toc a{display:grid;grid-template-columns:28px 1fr;align-items:baseline;gap:6px;padding:8px 10px;border-radius:6px;font-size:14px;line-height:1.5;color:var(--nav-fg);border-left:2px solid transparent;transition:color .2s,background .2s,border-color .2s}
-.toc a .num{font-family:var(--display);font-weight:600;font-size:15px;color:var(--gold-soft);opacity:.7;letter-spacing:.05em}
-.toc a:hover{color:var(--nav-fg-strong);background:rgba(255,255,255,.04)}
-.toc a.active{color:var(--nav-fg-strong);background:rgba(201,173,106,.10);border-left-color:var(--gold-soft)}
-.side-status{font-size:12px;line-height:1.6;opacity:.8;border-top:1px solid var(--nav-line);padding-top:14px;word-break:break-all}
-.side-status b{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.6;margin-bottom:4px;font-weight:500}
-.theme-btn{background:none;border:1px solid var(--nav-line);color:var(--nav-fg);border-radius:999px;padding:5px 12px;font-size:12px;letter-spacing:.06em}
-.theme-btn:hover{color:var(--nav-fg-strong);border-color:var(--gold-soft)}
-.side-foot{margin-top:auto;font-family:var(--display);font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.5;border-top:1px solid var(--nav-line);padding-top:16px}
+/* ---------- 布局：白色侧栏 + 顶栏 + 内容 ---------- */
+.shell{display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr);min-height:100vh}
+.sidebar{position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--line);background:var(--bg);display:flex;flex-direction:column;padding:0 12px 16px}
+.brand{display:flex;align-items:center;gap:10px;height:var(--topbar-h);padding:0 10px;border-bottom:1px solid var(--line);margin:0 -12px 12px;padding-left:22px;font-weight:700;font-size:16px}
+.brand .mark{width:22px;height:22px;border-radius:6px;background:var(--ink);flex:none}
+.grp{font-size:12px;color:var(--muted);padding:14px 10px 6px}
+.nav{list-style:none;margin:0;padding:0}
+.nav a{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;font-size:14px;color:var(--ink-2);line-height:1.4}
+.nav a svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;color:var(--muted)}
+.nav a:hover{background:var(--hover);color:var(--ink)}
+.nav a.on{background:var(--hover);color:var(--ink);font-weight:600}.nav a.on svg{color:var(--ink)}
+.nav a .tag{margin-left:auto;font-size:11px;color:var(--bad)}
+.side-bottom{margin-top:auto;padding:14px 10px 0;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.side-bottom label{display:block;margin-bottom:6px}
+.side-bottom input{width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;font-size:14px;color:var(--ink);background:var(--bg)}
+.side-bottom input::placeholder{color:var(--faint)}
+.side-status{margin-top:12px;line-height:1.5;word-break:break-all}
+.theme-btn{margin-top:10px;background:none;border:1px solid var(--line-strong);color:var(--ink-2);border-radius:999px;padding:4px 12px;font-size:12px}
+.theme-btn:hover{border-color:var(--ink)}
 
-.content{flex:1;min-width:0;padding:44px 48px 88px}
-.page{max-width:1560px;margin:0 auto}
+.main{min-width:0}
+.topbar{position:sticky;top:0;z-index:5;height:var(--topbar-h);display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 28px;border-bottom:1px solid var(--line);background:var(--bg)}
+.tb-left{display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap}
+.runpick{position:relative;display:inline-flex;align-items:center}
+.runpick select{appearance:none;-webkit-appearance:none;border:none;background:none;font-size:16px;font-weight:600;padding:6px 26px 6px 4px;max-width:520px;text-overflow:ellipsis;cursor:pointer;color:var(--ink)}
+.runpick select option{color:#111;background:#fff}
+.runpick::after{content:"";position:absolute;right:8px;top:50%;width:7px;height:7px;border-right:1.6px solid var(--muted);border-bottom:1.6px solid var(--muted);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+.tb-meta{color:var(--muted);font-size:14px;white-space:nowrap}
+.st{display:inline-block;font-size:12px;padding:2px 10px;border:1px solid var(--line-strong);border-radius:6px;color:var(--ink-2);background:var(--bg)}
+.st.running{border-color:var(--ink);color:var(--ink);animation:pulse 1.4s infinite}.st.ok{color:var(--good);border-color:var(--good)}.st.failed{color:var(--bad);border-color:var(--bad)}
 
-/* ---------- 页眉 ---------- */
-.hero{margin-bottom:34px;padding-bottom:26px;border-bottom:1px solid var(--line);display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap}
-.eyebrow{font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.3em;text-transform:uppercase;color:var(--gold);margin:0 0 12px}
-.hero h2{font-family:var(--serif);font-weight:700;font-size:34px;line-height:1.25;margin:0 0 12px;letter-spacing:.01em}
-.hero p{margin:0;color:var(--ink-2);font-size:15px;max-width:720px}
-.hero .rule{width:56px;height:2px;background:var(--gold);margin:20px 0 0}
-.hero .meta{font-family:var(--display);font-size:14px;letter-spacing:.12em;color:var(--muted);text-align:right;line-height:1.9}
-.hero .meta b{display:block;font-family:var(--serif);font-size:18px;letter-spacing:.02em;color:var(--ink);font-weight:600}
+.content{padding:28px 32px 80px}
+.page{max-width:1600px;margin:0 auto}
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:8px;flex-wrap:wrap}
+.page-head h2{margin:0 0 4px;font-size:28px;font-weight:700;line-height:1.3}
+.page-head .sub{margin:0;color:var(--ink-2);font-size:15px}
+.acts{display:flex;gap:10px;flex-wrap:wrap;padding-top:8px}
+
+/* ---------- 按钮 / 药丸 ---------- */
+.btn{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;padding:7px 14px;font-size:14px;color:var(--ink);line-height:1.4;white-space:nowrap}
+.btn:hover{border-color:var(--ink)}
+.btn.pri{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600}.btn.pri:hover{opacity:.88}
+.btn.sm{padding:4px 10px;font-size:13px}
+.lnk{border:none;background:none;color:var(--ink);padding:0;font:inherit;font-size:13px;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong)}.lnk:hover{text-decoration-color:var(--ink)}
+.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:6px;background:var(--pill);color:var(--ink-2);margin-left:6px;white-space:nowrap;vertical-align:middle;line-height:1.6}
+.pill.good{background:var(--good-wash);color:var(--good)}.pill.bad{background:var(--bad-wash);color:var(--bad)}.pill.cloud{background:var(--cloud-wash);color:var(--cloud)}.pill.warn{background:var(--warn-wash);color:var(--warn)}.pill.mut{background:var(--pill);color:var(--muted)}
+.note-red{color:var(--bad);font-size:12px;margin-left:6px}
+.ok-msg{color:var(--good);font-size:12.5px}
+.empty{color:var(--muted);font-size:13px}
 
 /* ---------- 章节与卡片 ---------- */
-section{margin-bottom:40px;scroll-margin-top:24px;min-width:0}
-.sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:16px}
-.sec-head .num{font-family:var(--display);font-style:italic;font-weight:500;font-size:30px;line-height:1;color:var(--gold);min-width:40px}
-.sec-head h3{font-family:var(--serif);font-weight:700;font-size:21px;margin:0;letter-spacing:.01em}
-.sec-head .sub{font-size:12.5px;color:var(--muted);margin-left:auto}
-h4{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:18px 0 10px;font-weight:600}
-.card{background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;padding:22px 24px 18px;box-shadow:var(--shadow);min-width:0}
-.row3{display:grid;grid-template-columns:300px minmax(0,1fr) 320px;gap:22px;align-items:start}
+section{scroll-margin-top:calc(var(--topbar-h) + 12px);min-width:0}
+.sec-h{display:flex;align-items:baseline;gap:10px;font-size:14px;color:var(--ink-2);margin:26px 0 12px}
+.sec-h small{font-size:13px;color:var(--muted)}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:20px 22px;min-width:0}
+.card .ct{font-size:15px;font-weight:700;margin:0 0 2px}
+.card .cs{font-size:13px;color:var(--muted);margin:0 0 14px}
+.card.flush{padding:0}.card.flush .chead{padding:18px 22px 14px;border-bottom:1px solid var(--line)}.card.flush .chead .cs{margin-bottom:0}
 
-.kv{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:13.5px}
-.kv b{color:var(--muted);font-weight:500;flex:none}.kv span{text-align:right;word-break:break-all;color:var(--ink)}
-.counter{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
-.tile{background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;padding:14px 14px 10px;box-shadow:var(--shadow);position:relative;overflow:hidden}
-.tile::after{content:"";position:absolute;inset:auto 0 0 0;height:2px;background:linear-gradient(90deg,var(--gold),transparent)}
-.tile b{display:block;font-family:var(--display);font-weight:600;font-size:28px;line-height:1.1;color:var(--gold)}
-.tile span{display:block;font-size:12px;color:var(--muted);margin-top:4px}.tile small{display:block;font-size:12px;color:var(--ink-2);margin-top:2px}
-.tile.up b{color:var(--good)}.tile.down b{color:var(--bad)}.tile.flat b{color:var(--ink-2)}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.kpi{border:1px solid var(--line);border-radius:10px;padding:18px 22px 16px;background:var(--paper)}
+.kpi .lab{font-size:13px;color:var(--ink-2)}
+.kpi .val{font:700 34px/1.25 var(--num);margin:4px 0 4px;letter-spacing:-.01em}
+.kpi.good .val{color:var(--good)}.kpi.bad .val{color:var(--bad)}
+.kpi .sub{font-size:13px;color:var(--ink-2)}.kpi .sub b{font-family:var(--num);font-weight:600}
+.kpi .note{font-size:12px;color:var(--faint);margin-top:2px}
 
-/* 七个阶段的状态灯，沿用参考页的 flow 药丸 */
-.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
-.flow .stage{font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.12em;border:1px solid var(--line);border-radius:999px;padding:4px 13px;color:var(--muted);background:var(--paper)}
-.flow .stage em{font-style:normal;font-family:var(--sans);font-size:12px;letter-spacing:0;margin-left:6px;color:inherit}
-.flow .stage.run{border-color:var(--gold);color:var(--gold);animation:pulse 1.2s infinite}
-.flow .stage.ok{background:var(--gold-wash);color:var(--ink);border-color:var(--gold-soft)}
-.flow .stage.fail{background:var(--bad-wash);color:var(--bad);border-color:var(--bad)}
-.flow i{color:var(--gold);font-style:normal;font-size:12px}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
-#timeline{height:50vh;overflow:auto;background:var(--code-bg);border:1px solid var(--line-soft);border-radius:8px;padding:10px 12px;font:12.5px/1.6 var(--mono)}
-.ev{display:flex;gap:12px;padding:1px 0;color:var(--ink-2)}.ev .t{color:var(--muted);flex:0 0 78px}.ev .k{flex:0 0 68px;color:var(--muted)}
-.ev.stage_start .k,.ev.stage_end .k{color:var(--gold)}.ev.stage_end .m{color:var(--ink)}.ev.degraded .k,.ev.warning .k{color:var(--gold)}.ev.degraded .m,.ev.warning .m{color:var(--gold)}.ev.error .k,.ev.error .m{color:var(--bad)}
-.ev.click{cursor:pointer;border-radius:4px}.ev.click:hover{background:var(--gold-wash)}.ev.click .m{text-decoration:underline dotted}.ev.dis .m{color:var(--bad)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.two.w{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr)}
+.row-run{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px}
+.stack{display:flex;flex-direction:column;gap:14px}
 
-.gpu{margin-bottom:12px}.bar{height:6px;background:var(--line-soft);border-radius:3px;overflow:hidden;margin:6px 0}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-soft))}
-.ep{display:flex;align-items:center;gap:10px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line-soft)}.ep:last-child{border-bottom:none}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--bad);flex:none}.dot.ok{background:var(--good)}
-.ep .r{color:var(--muted);margin-left:auto;font-size:12px;text-align:right;word-break:break-all}
+/* 环图 + 图例 */
+.donut-wrap{display:flex;align-items:center;gap:28px;padding:6px 0 0;flex-wrap:wrap}
+.donut-wrap svg{flex:none}
+.donut-wrap .dn{font:700 21px var(--num);fill:var(--ink)}.donut-wrap .ds{font-size:11px;fill:var(--muted)}
+.legend{display:flex;flex-direction:column;gap:10px;min-width:220px}
+.legend div{display:grid;grid-template-columns:10px 84px 76px 1fr;align-items:baseline;gap:10px;font-size:14px}
+.legend i{width:9px;height:9px;border-radius:50%;display:inline-block;transform:translateY(-1px)}
+.legend b{font:700 20px var(--num)}.legend span{color:var(--muted);font-size:13px;font-family:var(--num)}
 
-.pill{display:inline-block;font-size:11px;padding:1px 9px;border-radius:999px;background:var(--gold-wash);color:var(--gold);margin-left:6px;white-space:nowrap;vertical-align:middle;font-weight:500}
-.pill.good{background:var(--good-wash);color:var(--good)}.pill.bad{background:var(--bad-wash);color:var(--bad)}.pill.cloud{background:var(--cloud-wash);color:var(--cloud)}.pill.mut{background:var(--line-soft);color:var(--ink-2)}
+/* 四栏分布 */
+.cols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+.cols>div{padding:16px 22px 14px;border-right:1px solid var(--line)}.cols>div:last-child{border-right:none}
+.cols .lab{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;font-weight:600}
+.cols .lab span{font-family:var(--num);font-weight:400;color:var(--muted);font-size:13px}
+.cols .val{font:700 30px/1.3 var(--num);margin:4px 0 2px}.cols .val.bad{color:var(--bad)}
+.cols .d{font-size:12px;color:var(--muted)}
+.cfoot{border-top:1px solid var(--line);padding:12px 22px;font-size:13px;color:var(--muted);display:flex;gap:18px;flex-wrap:wrap}
+.cfoot b{color:var(--ink);font-family:var(--num);font-weight:600;margin-left:4px}
+
+/* 大数字两列 */
+.bignums{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px 22px 14px}
+.bignums .lab{font-size:14px;color:var(--ink-2)}.bignums .val{font:700 30px/1.3 var(--num);color:var(--bad)}
+.bignums.neutral .val{color:var(--ink)}
+.subrow{border-top:1px solid var(--line);padding:12px 22px;font-size:13px;color:var(--muted);display:flex;gap:18px;flex-wrap:wrap}
+.subrow b{color:var(--ink);font-family:var(--num);font-weight:600;margin-left:4px}
+
+/* 条形归因 */
+.bars{padding:6px 22px 10px}
+.brow{padding:10px 0 4px;cursor:pointer;border-radius:6px}.brow:hover .bl{text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.brow .bh{display:flex;justify-content:space-between;align-items:baseline;font-size:14px}.brow .bh span{font-family:var(--num);color:var(--muted);font-size:13px}
+.brow .bbar{height:8px;background:var(--line);border-radius:4px;margin-top:8px;overflow:hidden}.brow .bbar i{display:block;height:100%;background:var(--ink);border-radius:4px}
 
 /* 证据卡片 */
-.rec{position:relative;background:var(--gold-wash);border:1px solid var(--line);border-radius:8px;padding:14px 18px 14px 22px;margin:0 0 12px;color:var(--ink);font-size:15px}
-.rec::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;background:var(--gold);border-radius:2px}
-.rec .tag{font-family:var(--display);font-style:italic;font-weight:500;font-size:15px;color:var(--gold);margin-right:10px;letter-spacing:.05em}
-.disc{color:var(--muted);font-size:12.5px;margin:0 0 16px}
-.cl{background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;padding:16px 20px 14px;margin-top:12px;box-shadow:var(--shadow)}
-.cl.sel{border-color:var(--gold)}
-.cl h3{margin:0 0 6px;font-family:var(--serif);font-size:17px;font-weight:700;display:flex;align-items:center;flex-wrap:wrap;gap:2px}
-.cl h3 .rk{font-family:var(--display);font-style:italic;font-weight:500;color:var(--gold);margin-right:10px;font-size:20px}
+.rec{border:1px solid var(--line);border-left:3px solid var(--ink);border-radius:8px;padding:14px 18px;margin:0 0 8px;font-size:15px;line-height:1.7}
+.rec .tag{display:inline-block;font-size:12px;font-weight:600;background:var(--ink);color:var(--bg);border-radius:4px;padding:0 7px;margin-right:10px;vertical-align:middle;line-height:1.7}
+.disc{color:var(--muted);font-size:12.5px;margin:0 0 14px}
+.cl{border:1px solid var(--line);border-radius:10px;padding:16px 20px 14px;margin-top:12px;background:var(--paper)}
+.cl.sel{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.cl h3{margin:0 0 6px;font-size:15px;font-weight:700;display:flex;align-items:center;flex-wrap:wrap;gap:2px}
+.cl h3 .rk{font-family:var(--num);color:var(--muted);margin-right:8px;font-weight:600}
 .cl .sug{font-size:13.5px;color:var(--ink-2)}
-.cl pre,pre.tx{background:var(--code-bg);border:1px solid var(--line-soft);border-radius:6px;padding:8px 10px;font:12.5px/1.5 var(--mono);white-space:pre-wrap;max-height:140px;overflow:auto;margin:8px 0}
+.cl pre,pre.tx{background:var(--code-bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:12.5px/1.55 var(--mono);white-space:pre-wrap;max-height:140px;overflow:auto;margin:8px 0;color:var(--ink-2)}
 .cl .op{font-size:12.5px;color:var(--muted);padding-left:4px}
-.cl .act{display:flex;gap:12px;align-items:center;margin-top:10px;flex-wrap:wrap}
-.maker{display:flex;gap:10px;align-items:center;margin:0 0 14px;font-size:13px;color:var(--muted)}
-.maker input{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:13px;min-width:200px;color:var(--ink)}
-.btn{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:6px 14px;font-size:13px;color:var(--ink)}
-.btn:hover{border-color:var(--gold)}.btn.pri{background:var(--gold);color:#fbf9f4;border-color:transparent;font-weight:600}.btn.pri:hover{background:#96782f}
-.lnk{border:none;background:none;color:var(--gold);padding:0;font:inherit;font-size:13px;text-decoration:underline dotted;text-underline-offset:3px}.lnk:hover{color:var(--ink)}
-.ok-msg{color:var(--good);font-size:12.5px}
+.cl .act{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.cl .members{margin-top:4px}
 
-/* 检查台：三个页签 */
-.tabs{display:flex;gap:8px;margin-bottom:16px;align-items:center;flex-wrap:wrap}
-.tab{font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.12em;border:1px solid var(--line);border-radius:999px;padding:6px 16px;color:var(--ink-2);background:var(--paper)}
-.tab em{font-style:normal;font-family:var(--sans);font-size:13px;letter-spacing:0;margin-left:6px}
-.tab.on{background:var(--gold-wash);color:var(--ink);border-color:var(--gold)}
+/* 时间线与阶段 */
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 12px}
+.flow .stage{font-size:12px;border:1px solid var(--line-strong);border-radius:6px;padding:2px 9px;color:var(--muted);background:var(--bg);font-family:var(--num)}
+.flow .stage em{font-style:normal;font-family:var(--sans);margin-left:5px}
+.flow .stage.run{border-color:var(--ink);color:var(--ink);animation:pulse 1.2s infinite}
+.flow .stage.ok{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.flow .stage.fail{background:var(--bad-wash);color:var(--bad);border-color:var(--bad)}
+.flow i{color:var(--faint);font-style:normal;font-size:12px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+#timeline{height:360px;overflow:auto;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:12.5px/1.6 var(--mono)}
+.ev{display:flex;gap:12px;padding:1px 0;color:var(--ink-2)}.ev .t{color:var(--faint);flex:0 0 78px}.ev .k{flex:0 0 40px;color:var(--muted)}
+.ev.stage_start .k,.ev.stage_end .k{color:var(--ink)}.ev.stage_end .m{color:var(--ink);font-weight:600}.ev.degraded .k,.ev.warning .k,.ev.degraded .m,.ev.warning .m{color:var(--warn)}.ev.error .k,.ev.error .m{color:var(--bad)}
+.ev.click{cursor:pointer;border-radius:4px}.ev.click:hover{background:var(--hover)}.ev.click .m{text-decoration:underline dotted}.ev.dis .m{color:var(--bad)}
+
+.kv{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.kv:last-child{border-bottom:none}
+.kv b{color:var(--muted);font-weight:500;flex:none}.kv span{text-align:right;word-break:break-all;color:var(--ink)}
+.gpu{margin-bottom:12px}.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:6px 0}.bar i{display:block;height:100%;background:var(--ink)}
+.ep{display:flex;align-items:center;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px solid var(--line)}.ep:last-child{border-bottom:none}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--bad);flex:none}.dot.ok{background:var(--good)}
+.ep .r{color:var(--muted);margin-left:auto;font-size:12px;text-align:right;word-break:break-all}
+.mini{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.mini div{border:1px solid var(--line);border-radius:8px;padding:10px 14px}.mini b{display:block;font:700 24px/1.2 var(--num)}.mini span{font-size:12px;color:var(--muted)}
+h4{font-size:12px;color:var(--muted);margin:16px 0 8px;font-weight:600}
+
+/* 检查台 */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin:0 0 16px;padding:0 22px}
+.tab{background:none;border:none;border-bottom:2px solid transparent;padding:12px 4px 10px;margin-right:24px;font-size:14px;color:var(--muted);margin-bottom:-1px}
+.tab em{font-style:normal;color:var(--faint);font-size:12px;margin-left:6px}
+.tab.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:600}.tab.on em{color:var(--muted)}
+.pane{padding:0 22px 20px}
 .bar-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px;font-size:13.5px;color:var(--ink-2)}
-.bar-row select,.bar-row .btn{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:13px;max-width:460px}
-.bar-row .lab{color:var(--muted);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
-table.vt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;overflow:hidden;box-shadow:var(--shadow)}
-.vt th,.vt td{border-bottom:1px solid var(--line-soft);border-right:1px solid var(--line-soft);padding:10px 12px;vertical-align:top;text-align:left}
+.bar-row select,.bar-row .btn{background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;padding:6px 10px;font-size:13px;max-width:460px;color:var(--ink)}
+.bar-row .lab{color:var(--muted);font-size:12px}
+table.vt{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:13px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.vt th,.vt td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:10px 12px;vertical-align:top;text-align:left}
 .vt th:last-child,.vt td:last-child{border-right:none}.vt tr:last-child td{border-bottom:none}
-.vt th{font-size:12px;letter-spacing:.12em;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line);background:transparent}
-.vt th .mdl{display:block;font-family:var(--mono);font-size:11px;letter-spacing:0;color:var(--ink-2);font-weight:400;margin-top:2px}
-.vt th.dim,.vt td.dim{width:160px}.vt th.fin,.vt td.fin{background:var(--gold-wash)}
-.vt td.dim b{font-family:var(--serif);font-size:15px;color:var(--ink)}.vt td.dim .en{font-family:var(--mono);font-size:11px;color:var(--muted)}
-.vt td .sc{font-family:var(--display);font-size:26px;font-weight:600;line-height:1.05}
-.vt td .sc.s0,.vt td .sc.s1{color:var(--bad)}.vt td .sc.s2{color:var(--gold)}.vt td .sc.s3,.vt td .sc.s4{color:var(--good)}.vt td .sc.sn{color:var(--muted)}
+.vt th{font-size:12px;color:var(--muted);font-weight:600;background:var(--bg-soft)}
+.vt th .mdl{display:block;font-family:var(--mono);font-size:11px;color:var(--ink-2);font-weight:400;margin-top:2px}
+.vt th.dim,.vt td.dim{width:160px}.vt th.fin,.vt td.fin{background:var(--bg-soft)}
+.vt td.dim b{font-size:14px;color:var(--ink)}.vt td.dim .en{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.vt td .sc{font:700 26px/1.1 var(--num)}
+.vt td .sc.s0,.vt td .sc.s1{color:var(--bad)}.vt td .sc.s2{color:var(--warn)}.vt td .sc.s3,.vt td .sc.s4{color:var(--good)}.vt td .sc.sn{color:var(--faint)}
 .vt td .meta{font-size:11.5px;color:var(--muted);margin:2px 0 5px}.vt td .rat{color:var(--ink);white-space:pre-wrap;font-size:13px;line-height:1.6}.vt td .err{color:var(--bad)}
-.vt tr.dis td.dim{border-left:3px solid var(--gold)}
-pre.tx{max-height:320px}pre.tx .hl{background:var(--gold-wash);color:var(--ink);display:inline-block;width:100%;border-left:2px solid var(--gold);padding-left:6px;margin-left:-8px}
-table.lt{width:100%;border-collapse:collapse;font-size:13px}.lt th,.lt td{border-bottom:1px solid var(--line-soft);padding:8px 10px;text-align:left;vertical-align:top}
-.lt th{font-size:11.5px;letter-spacing:.12em;color:var(--muted);font-weight:600;white-space:nowrap}.lt tr:last-child td{border-bottom:none}
-.lt tr.click{cursor:pointer}.lt tr.click:hover{background:var(--gold-wash)}.lt td.num{font-family:var(--mono)}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.blk{background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;padding:14px 18px;box-shadow:var(--shadow)}
-.blk h3{margin:0 0 8px;font-family:var(--serif);font-size:15px;font-weight:700;color:var(--ink)}
-.verdict{display:inline-block;font-family:var(--serif);font-size:16px;font-weight:700;padding:5px 16px;border-radius:999px;margin-right:12px;border:1px solid transparent}
+.vt tr.dis td.dim{box-shadow:inset 3px 0 0 var(--bad)}
+pre.tx{max-height:320px}pre.tx .hl{background:var(--warn-wash);color:var(--ink);display:inline-block;width:100%;border-left:2px solid var(--warn);padding-left:6px;margin-left:-8px}
+table.lt{width:100%;border-collapse:collapse;font-size:13px}.lt th,.lt td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+.lt th{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap}.lt tr:last-child td{border-bottom:none}
+.lt tr.click{cursor:pointer}.lt tr.click:hover{background:var(--hover)}.lt td.num{font-family:var(--num);white-space:nowrap}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.tile{border:1px solid var(--line);border-radius:8px;padding:12px 14px 10px}
+.tile b{display:block;font:700 22px/1.2 var(--num);color:var(--ink)}.tile span{display:block;font-size:12px;color:var(--muted);margin-top:4px}.tile small{display:block;font-size:12px;color:var(--ink-2);margin-top:2px}
+.tile.up b{color:var(--good)}.tile.down b{color:var(--bad)}.tile.flat b{color:var(--ink-2)}
+.blk{border:1px solid var(--line);border-radius:10px;padding:14px 18px}
+.blk h3{margin:0 0 8px;font-size:14px;font-weight:700;color:var(--ink)}
+.verdict{display:inline-block;font-size:14px;font-weight:700;padding:3px 12px;border-radius:6px;margin-right:12px;border:1px solid transparent}
 .verdict.improved{background:var(--good-wash);color:var(--good);border-color:var(--good)}.verdict.regressed{background:var(--bad-wash);color:var(--bad);border-color:var(--bad)}
-.verdict.mixed{background:var(--gold-wash);color:var(--gold);border-color:var(--gold)}.verdict.unchanged{background:var(--line-soft);color:var(--ink-2)}
-.empty{color:var(--muted);font-size:13px}
-code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-soft);border-radius:6px;padding:8px 10px;font:12.5px var(--mono);margin-top:12px;white-space:pre-wrap;color:var(--ink-2)}
-.foot{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.verdict.mixed{background:var(--warn-wash);color:var(--warn);border-color:var(--warn)}.verdict.unchanged{background:var(--pill);color:var(--ink-2)}
+code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:12.5px var(--mono);margin-top:12px;white-space:pre-wrap;color:var(--ink-2)}
+.foot{margin-top:48px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--faint);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 
-@media(max-width:1280px){.row3{grid-template-columns:1fr 1fr}.row3 section:nth-child(2){grid-column:1/-1;order:-1}}
-@media(max-width:900px){.shell{display:block}.sidebar{position:static;height:auto;width:auto}.content{padding:28px 16px 56px}.row3{grid-template-columns:1fr}.two{grid-template-columns:1fr}.hero h2{font-size:26px}}
+@media(max-width:1280px){.kpis{grid-template-columns:1fr 1fr}.cols{grid-template-columns:1fr 1fr}.cols>div:nth-child(2){border-right:none}.cols>div:nth-child(-n+2){border-bottom:1px solid var(--line)}.row-run{grid-template-columns:1fr}}
+@media(max-width:900px){.shell{display:block}.sidebar{position:static;height:auto}.content{padding:20px 16px 56px}.two,.two.w,.kpis{grid-template-columns:1fr}.page-head h2{font-size:24px}.topbar{height:auto;padding:10px 16px;flex-wrap:wrap}.runpick select{max-width:70vw}}
 </style>
 </head>
 <body>
 <div class="shell">
 <aside class="sidebar" id="sidebar">
-  <div class="brand">
-    <div class="mark">SparkJury</div>
-    <h1>评测驾驶舱</h1>
-    <p>Agent Cockpit · DGX Spark 节点</p>
-  </div>
-  <div class="side-block">
-    <label for="runSel">当前运行</label>
-    <select id="runSel" title="选择一次运行"></select>
-    <button id="btnDemo" class="btn-gold">跑一次离线演示</button>
-  </div>
-  <nav aria-label="目录">
-    <ul class="toc" id="toc">
-      <li><a href="#s1"><span class="num">I</span><span>本轮任务</span></a></li>
-      <li><a href="#s2"><span class="num">II</span><span>Agent 时间线</span></a></li>
-      <li><a href="#s3"><span class="num">III</span><span>DGX Spark</span></a></li>
-      <li><a href="#s4"><span class="num">IV</span><span>证据卡片</span></a></li>
-      <li><a href="#s5"><span class="num">V</span><span>检查台</span></a></li>
+  <div class="brand"><span class="mark"></span><span>SparkJury</span></div>
+  <nav aria-label="导航">
+    <div class="grp">评测</div>
+    <ul class="nav" id="toc">
+      <li><a href="#overview" class="on"><svg viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>项目概览</a></li>
+      <li><a href="#s4"><svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M5 7h6M5 10h4"/></svg>证据卡片</a></li>
+      <li><a href="#s5" data-go="verdicts"><svg viewBox="0 0 16 16"><path d="M3 4h10M3 8h10M3 12h6"/></svg>分 trace 明细</a></li>
+    </ul>
+    <div class="grp">检查台</div>
+    <ul class="nav">
+      <li><a href="#s5" data-go="verdicts" data-grp="insp"><svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M6 3v10M10 3v10"/></svg>裁判理由并排</a></li>
+      <li><a href="#s5" data-go="clusters" data-grp="insp"><svg viewBox="0 0 16 16"><circle cx="5" cy="5" r="2"/><circle cx="11" cy="5" r="2"/><circle cx="8" cy="11" r="2"/></svg>簇明细下钻</a></li>
+      <li><a href="#s5" data-go="regress" data-grp="insp"><svg viewBox="0 0 16 16"><path d="M2 12l4-4 3 3 5-6"/><path d="M11 5h3v3"/></svg>回归对比</a></li>
+    </ul>
+    <div class="grp">运行</div>
+    <ul class="nav">
+      <li><a href="#s2"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>Agent 时间线</a></li>
+      <li><a href="#s3"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1.5"/><rect x="6" y="6" width="4" height="4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>DGX Spark</a></li>
     </ul>
   </nav>
-  <div class="side-status"><b>状态</b><span id="status">空闲</span></div>
-  <div><button class="theme-btn" id="themeBtn">切换深色 / 浅色</button></div>
-  <div class="side-foot">DGX Spark Hackathon III</div>
+  <div class="side-bottom">
+    <label for="actor">拍板人（决策账本署名）</label>
+    <input id="actor" placeholder="你的名字" autocomplete="off">
+    <div class="side-status" id="status">空闲</div>
+    <button class="theme-btn" id="themeBtn">切换深色 / 浅色</button>
+  </div>
 </aside>
+
+<div class="main">
+<header class="topbar">
+  <div class="tb-left">
+    <div class="runpick"><select id="runSel" title="选择一次运行"></select></div>
+    <span class="st" id="tbStatus">—</span>
+    <span class="tb-meta" id="tbMeta"></span>
+  </div>
+  <button id="btnDemo" class="btn pri">▷ 跑一次离线演示</button>
+</header>
 
 <div class="content">
 <div class="page">
 
-<header class="hero">
+<section id="overview">
+<div class="page-head">
   <div>
-    <p class="eyebrow">Agent Cockpit</p>
-    <h2>SparkJury 评测驾驶舱</h2>
-    <p>读入 trace，本地三家模型打分，分歧交云端 Jev 仲裁，badcase 聚类排优先级，出一张证据卡片让人拍板，改完回归对比 pass^3。</p>
-    <div class="rule"></div>
+    <h2>项目概览</h2>
+    <p class="sub" id="pageSub">尚未选择运行</p>
   </div>
-  <div class="meta"><b id="tRun">尚未选择运行</b><span id="tTitle">—</span></div>
-</header>
-
-<div class="row3">
-<section id="s1">
-  <div class="sec-head"><span class="num">I</span><h3>本轮任务</h3></div>
-  <div class="card">
-    <div class="kv"><b>被评 Agent</b><span id="tAgent">—</span></div>
-    <div class="kv"><b>三位裁判</b><span id="tJudges">—</span></div>
-    <div class="kv"><b>仲裁者</b><span id="tArb">—</span></div>
-    <div class="kv"><b>向量模型</b><span id="tEmb">—</span></div>
-    <div class="kv"><b>降级次数</b><span id="tDeg">—</span></div>
-    <div class="counter">
-      <div class="tile"><b id="cTraces">—</b><span>条 trace</span></div>
-      <div class="tile"><b id="cEnv">—</b><span>环境失败被排除</span></div>
-      <div class="tile"><b id="cArb">—</b><span>进入仲裁</span></div>
-      <div class="tile"><b id="cBad">—</b><span>真 badcase</span></div>
-    </div>
+  <div class="acts">
+    <a class="btn" id="btnCardHtml" href="#s4" target="_blank" rel="noopener">查看卡片报告</a>
+    <button class="btn pri" id="btnToVerdicts">分 trace 明细</button>
   </div>
-</section>
-<section id="s2">
-  <div class="sec-head"><span class="num">II</span><h3>Agent 时间线</h3><span class="sub">七个阶段依次亮起；点带 trace 编号的行可查看三位裁判的理由</span></div>
-  <div class="card">
-    <div class="flow" id="stages"></div>
-    <div id="timeline"></div>
-  </div>
-</section>
-<section id="s3">
-  <div class="sec-head"><span class="num">III</span><h3>DGX Spark</h3></div>
-  <div class="card">
-    <h4 style="margin-top:0">统一内存与 GPU</h4>
-    <div id="gpus"><div class="empty">正在读取 nvidia-smi…</div></div>
-    <h4>模型端点</h4>
-    <div id="eps"><div class="empty">—</div></div>
-    <div class="counter">
-      <div class="tile"><b id="cLocal">—</b><span>本地裁决</span></div>
-      <div class="tile"><b id="cCloud">—</b><span>云端 Jev 裁决</span></div>
-    </div>
-  </div>
-</section>
 </div>
 
+<div class="sec-h">一、评测总览</div>
+<div class="kpis">
+  <div class="kpi"><div class="lab">trace 总数</div><div class="val" id="cTraces">—</div><div class="sub">环境失败排除 <b id="cEnv">—</b> · 可评分 <b id="cScorable">—</b></div><div class="note">环境的错不算 Agent 的，预检阶段排除</div></div>
+  <div class="kpi good"><div class="lab">pass^1 通过率</div><div class="val" id="cPass">—</div><div class="sub">pass^3 <b id="cPassK">—</b> · 基准通过 <b id="cBench">—</b></div><div class="note" id="cPassNote">pass^3 要求同一任务三次全过</div></div>
+  <div class="kpi bad"><div class="lab">badcase</div><div class="val" id="cBad">—</div><div class="sub">聚成 <b id="cClusters">—</b> 簇 · 占可评分 <b id="cBadRate">—</b></div><div class="note">裁判判失败且不是环境原因的 trace</div></div>
+  <div class="kpi"><div class="lab">裁判一致率</div><div class="val" id="cAgree">—</div><div class="sub">进入仲裁 <b id="cArb">—</b> 条 · 降级 <b id="cDeg">—</b> 次</div><div class="note" id="cAgreeNote">三票一致的不用仲裁</div></div>
+</div>
+
+<div class="two w" style="margin-top:14px">
+  <div class="card">
+    <p class="ct">裁决来源分布</p>
+    <p class="cs" id="srcSub">按维度计：每条 trace 四个维度各出一个裁决</p>
+    <div class="donut-wrap"><div id="donut"></div><div class="legend" id="srcLegend"><div class="empty">—</div></div></div>
+  </div>
+  <div class="card flush">
+    <div class="chead"><p class="ct">失败维度分布</p><p class="cs">按 badcase 命中的维度切分，一条 badcase 可同时命中多维，四项之和可能超过 100%</p></div>
+    <div class="cols" id="dimCols"></div>
+    <div class="cfoot" id="dimFoot"><span class="empty">四个维度的平均分（0–4）：—</span></div>
+  </div>
+</div>
+
+<div class="sec-h">二、badcase 情况 <small>只与裁判判失败的 trace 条数有关，与基准结果无关</small></div>
+<div class="two w">
+  <div class="card flush">
+    <div class="chead"><p class="ct">badcase 规模</p></div>
+    <div class="bignums"><div><div class="lab">badcase 条数</div><div class="val" id="bBad">—</div></div><div><div class="lab">badcase 率</div><div class="val" id="bRate">—</div></div></div>
+    <div class="subrow"><span>簇<b id="bClusters">—</b></span><span>噪声<b id="bNoise">—</b></span><span>当事人仲裁成立<b id="bContested">—</b></span><span>被预检提示<b id="bAdv">—</b></span></div>
+  </div>
+  <div class="card flush">
+    <div class="chead"><p class="ct">失败归因</p><p class="cs">按失败类型聚簇，用于定位共性问题；点一行进簇明细</p></div>
+    <div class="bars" id="clusterBars"><div class="empty" style="padding:10px 0">还没有聚类结果</div></div>
+  </div>
+</div>
+</section>
+
 <section id="s4">
-  <div class="sec-head"><span class="num">IV</span><h3>证据卡片</h3><span class="sub">最终产物：先修哪一类，由 PM 确认</span></div>
+  <div class="sec-h">三、证据卡片 <small>最终产物：先修哪一类，由 PM 拍板；决策写进账本</small></div>
   <div class="card"><div id="card"><div class="empty">还没有卡片</div></div></div>
 </section>
 
+<div class="sec-h">四、运行 <small>七个阶段依次亮起；点带 trace 编号的行可查看三位裁判的理由</small></div>
+<div class="row-run">
+<section id="s2" class="card">
+  <p class="ct">Agent 时间线</p>
+  <p class="cs">INGEST → PRECHECK → EVALSET → SCORE → ARBITRATE → CLUSTER → REPORT</p>
+  <div class="flow" id="stages"></div>
+  <div id="timeline"></div>
+</section>
+<div class="stack">
+<section id="s3" class="card">
+  <p class="ct">DGX Spark</p>
+  <p class="cs">统一内存与 GPU · 模型端点</p>
+  <div id="gpus"><div class="empty">正在读取 nvidia-smi…</div></div>
+  <h4>模型端点</h4>
+  <div id="eps"><div class="empty">—</div></div>
+  <div class="mini"><div><b id="cLocal">—</b><span>本地裁决</span></div><div><b id="cCloud">—</b><span>云端 Jev 裁决 <em class="note-red" id="cCloudNote" style="font-style:normal"></em></span></div></div>
+</section>
+<section id="s1" class="card">
+  <p class="ct">本轮配置</p>
+  <div class="kv"><b>被评 Agent</b><span id="tAgent">—</span></div>
+  <div class="kv"><b>三位裁判</b><span id="tJudges">—</span></div>
+  <div class="kv"><b>仲裁者</b><span id="tArb">—</span></div>
+  <div class="kv"><b>向量模型</b><span id="tEmb">—</span></div>
+  <div class="kv"><b>降级</b><span id="tDeg">—</span></div>
+</section>
+</div>
+</div>
+
 <section id="s5">
-  <div class="sec-head"><span class="num">V</span><h3>检查台</h3><span class="sub">以前要切终端才能看的三样，都搬到了这里</span></div>
-  <div class="card" id="inspector">
+  <div class="sec-h">五、检查台 <small>以前要切终端才能看的三样，都搬到了这里</small></div>
+  <div class="card flush" id="inspector">
     <div class="tabs">
-      <button class="tab on" data-tab="verdicts">Verdicts<em>裁判理由并排</em></button>
-      <button class="tab" data-tab="clusters">Clusters<em>簇明细下钻</em></button>
-      <button class="tab" data-tab="regress">Regression<em>回归对比</em></button>
+      <button class="tab on" data-tab="verdicts">裁判理由并排<em>Verdicts</em></button>
+      <button class="tab" data-tab="clusters">簇明细下钻<em>Clusters</em></button>
+      <button class="tab" data-tab="regress">回归对比<em>Regression</em></button>
     </div>
-    <div id="pane-verdicts">
+    <div id="pane-verdicts" class="pane">
       <div class="bar-row">
         <span class="lab">trace</span><select id="trSel"></select>
-        <button id="trPrev" class="btn" title="上一条">‹</button><button id="trNext" class="btn" title="下一条">›</button>
+        <button id="trPrev" class="btn sm" title="上一条">‹</button><button id="trNext" class="btn sm" title="下一条">›</button>
         <span id="trMeta" class="empty"></span>
       </div>
       <div id="verdicts"><div class="empty">选一条 trace，或者点时间线里带 trace 编号的行</div></div>
     </div>
-    <div id="pane-clusters" style="display:none">
+    <div id="pane-clusters" class="pane" style="display:none">
       <div id="clusters"><div class="empty">还没有聚类结果</div></div>
     </div>
-    <div id="pane-regress" style="display:none">
+    <div id="pane-regress" class="pane" style="display:none">
       <div class="bar-row">
         <span class="lab">改前</span><select id="rgBefore"></select>
         <span class="lab">改后</span><b id="rgAfter" style="font-weight:500">—</b>
-        <button id="rgGo" class="btn pri">对比</button>
+        <button id="rgGo" class="btn pri sm">对比</button>
       </div>
       <div id="regress"><div class="empty">选一个更早的运行，和当前运行对比</div></div>
     </div>
   </div>
 </section>
 
-<div class="foot"><span>SparkJury</span><span>NVIDIA DGX Spark Hackathon III</span><span id="footVer">Cockpit</span></div>
+<div class="foot"><span>SparkJury · Agent Cockpit</span><span>NVIDIA DGX Spark Hackathon III</span><span id="footVer">Cockpit</span></div>
+</div>
 </div>
 </div>
 </div>
@@ -327,13 +406,18 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
   const KIND_ZH={run_start:"开始",run_end:"结束",stage_start:"阶段",stage_end:"完成",progress:"进度",degraded:"降级",warning:"警告",error:"错误"};
   const DIMS=["outcome","tool_use","efficiency","safety"];
   const DIM_ZH={outcome:"结果",tool_use:"工具使用",efficiency:"效率",safety:"安全"};
+  const DIM_DESC={outcome:"任务目标有没有达成",tool_use:"该调的工具有没有调对",efficiency:"步数与重复调用",safety:"未验证身份就写、越权"};
   const SRC_ZH={panel:"合议一致",jev:"云端 Jev 仲裁",local:"本地仲裁",panel_fallback:"本地兜底"};
+  const SRC_COLOR={panel:"var(--ink)",jev:"var(--cloud)",local:"var(--faint)",panel_fallback:"var(--bad)"};
   const VERDICT_ZH={improved:"改善",regressed:"退步",mixed:"有好有坏",unchanged:"无变化"};
   const LABEL_ZH={pass:"通过",fail:"失败"};
   let current=null, es=null, pollTimer=null, stageState={}, runsCache=[];
   // 主题：跟随系统，按钮手动切换后记在浏览器里
   try{const th=localStorage.getItem("sparkjury_theme");if(th)document.documentElement.setAttribute("data-theme",th);}catch(e){}
   $("themeBtn").onclick=()=>{const cur=document.documentElement.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");const next=cur==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",next);try{localStorage.setItem("sparkjury_theme",next);}catch(e){}};
+  // 拍板人：账本里的每一条决策都要能追溯到人，空着后端直接 400。存在 localStorage 里，不用每次填。
+  try{$("actor").value=localStorage.getItem("sj_actor")||"";}catch(e){}
+  $("actor").onchange=()=>{try{localStorage.setItem("sj_actor",$("actor").value.trim());}catch(e){}};
   // API token: ?token=... in the URL once, then remembered in this browser; fetches send it as a Bearer header, only EventSource uses the query param
   let TOKEN="";try{const q=new URLSearchParams(location.search).get("token");if(q){localStorage.setItem("sparkjury_token",q);history.replaceState(null,"",location.pathname);}TOKEN=(localStorage.getItem("sparkjury_token")||"");}catch(e){}
   const enc=encodeURIComponent;
@@ -347,6 +431,8 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
   const dimZh=d=>DIM_ZH[d]||d;
   const labelPill=l=>l?` <span class="pill ${l==="fail"?"bad":"good"}">${esc(LABEL_ZH[l]||l)}</span>`:"";
   const statusZh=s=>({ok:"完成",failed:"失败",running:"运行中"})[s]||s;
+  const fmtTs=s=>{if(!s)return "—";const m=/^(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d)/.exec(s);return m?`${m[2]}-${m[3]} ${m[4]}:${m[5]}`:s;};
+  const setText=(id,v)=>{const el=$(id);if(el)el.textContent=v==null?"—":v;};
   // 后端事件文案是英文，常见几种翻成中文，其余原样显示
   function msgZh(ev){
     const m=ev.message||"";let r;
@@ -362,6 +448,27 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
   function renderStages(){
     $("stages").innerHTML=STAGES.map((s,i)=>`${i?"<i>→</i>":""}<span class="stage ${stageState[s]||""}">${s}<em>${STAGE_ZH[s]}</em></span>`).join("");
   }
+  function setSources(bs){
+    bs=bs||{};const total=Object.values(bs).reduce((a,b)=>a+(+b||0),0);
+    setText("cLocal",(bs.panel||0)+(bs.local||0)+(bs.panel_fallback||0));setText("cCloud",bs.jev||0);
+    const keys=["panel","jev","local","panel_fallback"].filter(k=>bs[k]!=null).concat(Object.keys(bs).filter(k=>!SRC_ZH[k]));
+    const R=54,C=2*Math.PI*R;let off=0,paths="";
+    for(const k of keys){const v=+bs[k]||0;if(!v)continue;const len=C*v/total;paths+=`<circle r="${R}" cx="70" cy="70" fill="none" style="stroke:${SRC_COLOR[k]||"var(--warn)"}" stroke-width="20" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"/>`;off+=len;}
+    const share=total?(bs.panel||0)/total:null;
+    $("donut").innerHTML=`<svg viewBox="0 0 140 140" width="150" height="150" role="img" aria-label="裁决来源分布">${total?paths:`<circle r="${R}" cx="70" cy="70" fill="none" style="stroke:var(--line)" stroke-width="20"/>`}<text x="70" y="66" text-anchor="middle" class="dn">${share==null?"—":(share*100).toFixed(1)+"%"}</text><text x="70" y="84" text-anchor="middle" class="ds">合议一致</text></svg>`;
+    $("srcLegend").innerHTML=total?keys.map(k=>`<div><i style="background:${SRC_COLOR[k]||"var(--warn)"}"></i><span style="color:var(--ink);font-family:var(--sans)">${esc(SRC_ZH[k]||k)}</span><b>${((+bs[k]||0)/total*100).toFixed(1)}%</b><span>${bs[k]} 个</span></div>`).join(""):`<div class="empty">还没有裁决</div>`;
+    $("srcSub").textContent=total?`按维度计：${total} 个裁决 = ${total/4} 条 trace × 4 维`:"按维度计：每条 trace 四个维度各出一个裁决";
+  }
+  function setDims(counts,nBad,means){
+    counts=counts||{};
+    $("dimCols").innerHTML=DIMS.map(d=>{const c=counts[d]||0;const p=nBad?c/nBad:null;return `<div><div class="lab">${esc(dimZh(d))}<span>${c} 条</span></div><div class="val ${c?"bad":""}">${p==null?"—":(p*100).toFixed(1)+"%"}</div><div class="d">${esc(DIM_DESC[d])}</div></div>`;}).join("");
+    $("dimFoot").innerHTML=means?`<span>四个维度的平均分（0–4）</span>${DIMS.map(d=>`<span>${esc(dimZh(d))}<b>${num(means[d],1)}</b></span>`).join("")}`:`<span class="empty">四个维度的平均分（0–4）：—</span>`;
+  }
+  function resetOverview(){
+    ["cTraces","cEnv","cScorable","cPass","cPassK","cBench","cBad","cClusters","cBadRate","cAgree","cArb","cDeg","bBad","bRate","bClusters","bNoise","bContested","bAdv"].forEach(id=>setText(id,"—"));
+    $("cCloudNote").textContent="";setSources({});setDims({},0,null);
+    $("clusterBars").innerHTML=`<div class="empty" style="padding:10px 0">还没有聚类结果</div>`;
+  }
   // live=true only for events arriving from the SSE stream / polling of a running run: a replayed run_end must not reload the run again (that looped forever)
   function addEv(ev,live){
     const el=document.createElement("div");el.className="ev "+ev.kind;
@@ -375,11 +482,11 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
     if(ev.kind==="stage_end"||ev.kind==="degraded")renderStages();
     if(ev.kind==="stage_end"){
       const d=ev.data||{};
-      if(ev.stage==="INGEST")$("cTraces").textContent=d.n_in_store??d.n_ingested??"—";
-      if(ev.stage==="PRECHECK")$("cEnv").textContent=d.n_env_failures??"—";
-      if(ev.stage==="SCORE")$("cArb").textContent=d.n_needing_arbitration??"—";
-      if(ev.stage==="CLUSTER")$("cBad").textContent=d.n_badcases??"—";
-      if(ev.stage==="ARBITRATE"){const bs=d.by_source||{};$("cLocal").textContent=(bs.panel||0)+(bs.local||0)+(bs.panel_fallback||0);$("cCloud").textContent=bs.jev||0;}
+      if(ev.stage==="INGEST")setText("cTraces",d.n_in_store??d.n_ingested);
+      if(ev.stage==="PRECHECK"){setText("cEnv",d.n_env_failures);setText("cScorable",d.n_scorable);}
+      if(ev.stage==="SCORE"){setText("cArb",d.n_needing_arbitration);if(d.agreement_rate!=null)setText("cAgree",pct(d.agreement_rate));}
+      if(ev.stage==="CLUSTER"){setText("cBad",d.n_badcases);setText("bBad",d.n_badcases);setText("cClusters",d.n_clusters);setText("bClusters",d.n_clusters);setText("bNoise",d.n_noise);}
+      if(ev.stage==="ARBITRATE")setSources(d.by_source);
     }
     if(ev.kind==="run_end"&&live){$("status").textContent="运行 "+ev.run_id+" "+statusZh(ev.data&&ev.data.status);loadRun(ev.run_id);}
   }
@@ -387,25 +494,36 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
   async function loadRuns(){
     const runs=await j("/runs");runsCache=runs;
     const sel=$("runSel");const prev=sel.value;
-    sel.innerHTML=runs.map(r=>`<option value="${esc(r.run_id)}">${esc(r.run_id)} · ${esc(statusZh(r.status))}${r.pass_rate!=null?" · pass^1 "+pct(r.pass_rate):""}</option>`).join("");
+    sel.innerHTML=runs.map(r=>`<option value="${esc(r.run_id)}">${r.title?esc(r.title)+" · ":""}${esc(r.run_id)}${r.pass_rate!=null?" · pass^1 "+pct(r.pass_rate):""}</option>`).join("");
     if(runs.length&&!runs.some(r=>r.run_id===prev)){sel.value=runs[0].run_id;}else sel.value=prev||(runs[0]&&runs[0].run_id)||"";
     fillBefore();
     return runs;
   }
   async function loadRun(id){
-    if(!id)return;current=id;
+    if(!id)return;const sameRun=current===id;current=id;
     const m=await j("/runs/"+enc(id));
-    $("tRun").textContent=id;$("tTitle").textContent=(m.config&&m.config.report&&m.config.report.title)||"—";
+    resetOverview();
+    const st=m.stages||{};
+    const stObj=$("tbStatus");stObj.textContent=m.running?"运行中":statusZh(m.status);stObj.className="st "+(m.running?"running":(m.status||""));
+    const nTr=(st.INGEST&&st.INGEST.n_in_store)??null;
+    $("tbMeta").textContent=`· ${nTr==null?"—":nTr} 条 trace · 降级 ${(m.degradations||[]).length} 次${m.duration_s!=null?" · 耗时 "+num(m.duration_s,1)+" 秒":""}`;
+    $("pageSub").textContent=`数据截止 ${fmtTs(m.finished_at)} · 运行 ${id}${m.pack_id?" · 判据包 "+m.pack_id:""}`;
+    $("btnCardHtml").href=withTok("/runs/"+enc(id)+"/card.html");
     const mo=m.models||{};
     $("tAgent").textContent=mo.agent?Object.keys(mo.agent).join(", "):"—";
     $("tJudges").textContent=mo.judges?Object.values(mo.judges).join(" / "):"—";
     $("tArb").textContent=mo.arbiter?(mo.arbiter.jev?mo.arbiter.jev+"，本地兜底":"仅本地"):"—";
     $("tEmb").textContent=mo.embedder||"—";
-    $("tDeg").textContent=(m.degradations||[]).length;
-    const st=m.stages||{};stageState={};for(const s in st)stageState[s]=st[s].status==="ok"?"ok":(st[s].status==="failed"?"fail":"run");renderStages();
-    if(st.INGEST)$("cTraces").textContent=st.INGEST.n_in_store??"—";if(st.PRECHECK)$("cEnv").textContent=st.PRECHECK.n_env_failures??"—";
-    if(st.SCORE)$("cArb").textContent=st.SCORE.n_needing_arbitration??"—";if(st.CLUSTER)$("cBad").textContent=st.CLUSTER.n_badcases??"—";
-    if(st.ARBITRATE){const bs=st.ARBITRATE.by_source||{};$("cLocal").textContent=(bs.panel||0)+(bs.local||0)+(bs.panel_fallback||0);$("cCloud").textContent=bs.jev||0;}
+    const degs=m.degradations||[];
+    $("tDeg").innerHTML=degs.length?degs.map(d=>`<span class="pill warn" style="margin:0 0 2px 4px">${esc(d.stage)} · ${esc(d.component)}：${esc(d.reason)}</span>`).join("<br>"):"无";
+    setText("cDeg",degs.length);
+    if(degs.some(d=>d.component==="jev"&&d.stage==="ARBITRATE"))$("cCloudNote").textContent="（本轮降级）";
+    stageState={};for(const s in st)stageState[s]=st[s].status==="ok"?"ok":(st[s].status==="failed"?"fail":"run");renderStages();
+    if(st.INGEST)setText("cTraces",st.INGEST.n_in_store);
+    if(st.PRECHECK){setText("cEnv",st.PRECHECK.n_env_failures);setText("cScorable",st.PRECHECK.n_scorable);setText("bAdv",st.PRECHECK.n_traces_with_advisory??0);}
+    if(st.SCORE){setText("cArb",st.SCORE.n_needing_arbitration);if(st.SCORE.agreement_rate!=null)setText("cAgree",pct(st.SCORE.agreement_rate));}
+    if(st.CLUSTER){setText("cBad",st.CLUSTER.n_badcases);setText("bBad",st.CLUSTER.n_badcases);setText("cClusters",st.CLUSTER.n_clusters);setText("bClusters",st.CLUSTER.n_clusters);setText("bNoise",st.CLUSTER.n_noise);}
+    if(st.ARBITRATE)setSources(st.ARBITRATE.by_source);
     $("timeline").innerHTML="";
     if(es){es.close();es=null;}
     if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
@@ -417,38 +535,52 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
       const startPolling=()=>{if(pollTimer)return;pollTimer=setInterval(async()=>{try{const evs=await j("/runs/"+enc(id)+"/events.json?since="+lastSeq);evs.forEach(seen);if(evs.some(e=>e.kind==="run_end")){clearInterval(pollTimer);pollTimer=null;}}catch(e){}},2000);};
       try{
         es=new EventSource(withTok("/runs/"+enc(id)+"/events"));
-        ["run_start","run_end","stage_start","stage_end","progress","degraded","warning","error"].forEach(k=>es.addEventListener(k,e=>seen(JSON.parse(e.data))));
+        ["run_start","run_end","stage_start","stage_end","progress","degraded","warning","error"].forEach(k=>es.addEventListener(k,e=>{let ev;try{ev=JSON.parse(e.data);}catch(_){return;}seen(ev);}));
         es.addEventListener("end",()=>{if(es){es.close();es=null;}});
         es.onerror=()=>{if(es){es.close();es=null;}startPolling();};
       }catch(e){startPolling();}
     }
-    $("status").textContent="运行 "+id+" · "+statusZh(m.status);
+    $("status").textContent="运行 "+id+" · "+statusZh(m.running?"running":m.status);
     $("rgAfter").textContent=id;fillBefore();
-    $("regress").innerHTML=`<div class="empty">选一个更早的运行，和 ${esc(id)} 对比</div>`;
+    // 同一个 run 跑完后的重载（SSE run_end）不清掉用户已经点出来的对比结果
+    if(!sameRun)$("regress").innerHTML=`<div class="empty">选一个更早的运行，和 ${esc(id)} 对比</div>`;
     loadCard(id);loadTraceList(id);loadClusters(id);
   }
   async function loadCard(id){
     let c;try{c=await j("/runs/"+enc(id)+"/card");}catch(e){$("card").innerHTML=`<div class="empty">还没有卡片（${esc(e.message)}）</div>`;return;}
-    const t=c.totals,q=c.quality;
-    const tiles=[[t.n_traces,"条 trace"],[t.n_env_failures,"环境失败"],[t.n_badcases,"badcase"],[t.n_clusters,"个簇"],[pct(q.pass_rate),"pass^1"]];
-    for(const k in (q.pass_k||{}))if(+k>1)tiles.push([pct(q.pass_k[k]),"pass^"+k]);
-    tiles.push([pct(q.judge_agreement_rate),"裁判一致率"],[q.n_degraded,"降级"]);
+    const t=c.totals||{},q=c.quality||{};
+    // 概览四块与分布：都从卡片取，卡片是 REPORT 阶段的最终口径
+    setText("cTraces",t.n_traces);setText("cEnv",t.n_env_failures);setText("cScorable",t.n_scorable);
+    setText("cPass",pct(q.pass_rate));const pk=q.pass_k||{};const kmax=Object.keys(pk).map(Number).filter(k=>k>1).sort((a,b)=>b-a)[0];
+    setText("cPassK",kmax?pct(pk[kmax]):"—");$("cPassNote").textContent=kmax?`pass^${kmax} 要求同一任务 ${kmax} 次全过`:"pass^k 要求同一任务 k 次全过";
+    setText("cBench",q.n_benchmark_result!=null?`${q.n_benchmark_success??"—"} / ${q.n_benchmark_result} 条`:"—");
+    setText("cBad",t.n_badcases);setText("bBad",t.n_badcases);setText("cClusters",t.n_clusters);setText("bClusters",t.n_clusters);
+    const rate=t.n_scorable?t.n_badcases/t.n_scorable:null;setText("cBadRate",pct(rate));setText("bRate",pct(rate));
+    setText("bNoise",t.n_unclustered??0);setText("bContested",q.n_badcases_contested??0);setText("bAdv",t.n_precheck_advisories??0);
+    setText("cAgree",pct(q.judge_agreement_rate));setText("cArb",q.n_needing_arbitration);
+    if(q.n_audited)$("cAgreeNote").textContent=`审计 ${q.n_audited} 个裁决，${q.n_audit_disagreements||0} 个不同意`;
+    if(q.decisions_by_source)setSources(q.decisions_by_source);
+    const dimCounts={};for(const cl of c.clusters||[])for(const k in (cl.failed_dimension_counts||{}))dimCounts[k]=(dimCounts[k]||0)+cl.failed_dimension_counts[k];
+    setDims(dimCounts,t.n_badcases,q.mean_scores);
+    // 失败归因：每个簇一条黑条，宽度是它在 badcase 里的占比
+    const cls=(c.clusters||[]).filter(cl=>cl.cluster_id!==-1);
+    $("clusterBars").innerHTML=cls.length?cls.map(cl=>`<div class="brow" data-m="${cl.cluster_id}" title="进簇明细"><div class="bh"><span class="bl" style="font-family:var(--sans);color:var(--ink);font-size:14px">${esc(cl.label)}${cl.n_contested_members?`<em class="note-red" style="font-style:normal">（${cl.n_contested_members} 条靠当事人仲裁成立）</em>`:""}</span><span>${cl.size} 条 · ${(cl.share*100).toFixed(1)}%</span></div><div class="bbar"><i style="width:${Math.max(2,cl.share*100).toFixed(1)}%"></i></div></div>`).join(""):`<div class="empty" style="padding:10px 0">没有可聚类的 badcase</div>`;
+    $("clusterBars").querySelectorAll(".brow[data-m]").forEach(b=>b.onclick=()=>openCluster(+b.dataset.m));
     let confirmed=null;try{confirmed=await j("/runs/"+enc(id)+"/confirm");}catch(e){}
-    let h=`<div class="tiles">${tiles.map(x=>`<div class="tile"><b>${esc(x[0])}</b><span>${esc(x[1])}</span></div>`).join("")}</div>`;
-    h+=`<div class="rec"><span class="tag">建议</span>${esc(c.recommendation)}</div><div class="disc">${esc(c.disclaimer)}</div>`;
-    // 拍板人：账本里的每一条决策都要能追溯到人，空着后端直接 400。存在 localStorage 里，不用每次填。
-    h+=`<div class="maker"><label for="actor">拍板人</label><input id="actor" placeholder="你的名字（必填）" value="${esc(localStorage.getItem("sj_actor")||"")}"><span id="dmsg" class="ok-msg"></span></div>`;
-    for(const cl of c.clusters){
+    let h=`<div class="rec"><span class="tag">建议</span>${esc(c.recommendation)}</div><div class="disc">${esc(c.disclaimer)}</div>`;
+    h+=`<div class="tiles">${[[t.n_traces,"条 trace"],[t.n_env_failures,"环境失败"],[t.n_badcases,"badcase"],[t.n_clusters,"个簇"],[pct(q.pass_rate),"pass^1"]].concat(Object.keys(pk).filter(k=>+k>1).map(k=>[pct(pk[k]),"pass^"+k])).concat([[pct(q.judge_agreement_rate),"裁判一致率"],[q.n_degraded,"降级"]]).map(x=>`<div class="tile"><b>${esc(x[0])}</b><span>${esc(x[1])}</span></div>`).join("")}</div>`;
+    h+=`<div id="dmsg" class="ok-msg"></div>`;
+    for(const cl of c.clusters||[]){
       const name=cl.cluster_id===-1?"未归类":cl.label;const sel=confirmed&&confirmed.cluster_id===cl.cluster_id;
-      h+=`<div class="cl ${sel?"sel":""}"><h3><span class="rk">#${cl.rank}</span>${esc(name)}${cl.taxonomy_id?`<span class="pill mut">${esc(cl.taxonomy_id)}</span>`:""}<span class="pill">${cl.size} 条 · ${(cl.share*100).toFixed(0)}%</span><span class="pill">优先级 ${cl.priority.toFixed(1)}</span><span class="pill mut">标签来源 ${esc(cl.label_source)}</span></h3>`;
+      h+=`<div class="cl ${sel?"sel":""}"><h3><span class="rk">#${cl.rank}</span>${esc(name)}${cl.taxonomy_id?`<span class="pill mut">${esc(cl.taxonomy_id)}</span>`:""}<span class="pill">${cl.size} 条 · ${(cl.share*100).toFixed(0)}%</span><span class="pill">优先级 ${cl.priority.toFixed(1)}</span><span class="pill mut">标签来源 ${esc(cl.label_source)}</span>${sel?'<span class="pill good">已拍板</span>':""}</h3>`;
       h+=`<div class="sug">${esc(cl.suggestion)}</div>`;
       for(const r of cl.representatives.slice(0,2)){h+=`<pre><button class="lnk" data-t="${esc(r.trace_id)}">${esc(r.trace_id)}</button> · 失败维度：${esc((r.failed_dimensions||[]).map(dimZh).join("、"))||"—"}\n${esc(r.excerpt)}</pre>`;
         h+=(r.opinions||[]).slice(0,3).map(o=>`<div class="op">${esc(dimZh(o.dimension))} · ${esc(o.judge)}：${o.score}${o.label?" "+esc(LABEL_ZH[o.label]||o.label):""} — ${esc(o.rationale)}</div>`).join("");}
       h+=`<div class="act">`;
       if(cl.cluster_id!==-1){
-        h+=`<button class="btn ${sel?"":"pri"}" data-c="${cl.cluster_id}" ${sel?"disabled":""}>${sel?"已确认：先修这一类":"PM 确认：先修这一类"}</button>`;
-        h+=`<button class="btn" data-o="${cl.cluster_id}" ${cl.taxonomy_id?"":"disabled title=\"这一类没有 pack 类目映射，换类目排不出结果\""}>换这一类优先</button>`;
-        h+=`<button class="btn" data-r="${cl.cluster_id}">这一类不修</button>`;
+        h+=`<button class="btn sm ${sel?"":"pri"}" data-c="${cl.cluster_id}" ${sel?"disabled":""}>${sel?"已确认：先修这一类":"PM 确认：先修这一类"}</button>`;
+        h+=`<button class="btn sm" data-o="${cl.cluster_id}" ${cl.taxonomy_id?"":"disabled title=\"这一类没有 pack 类目映射，换类目排不出结果\""}>换这一类优先</button>`;
+        h+=`<button class="btn sm" data-r="${cl.cluster_id}">这一类不修</button>`;
       }
       h+=`<button class="lnk" data-m="${cl.cluster_id}">查看 ${cl.size} 条成员 trace ›</button>${sel?`<span class="ok-msg">${esc(confirmed.next)}</span>`:""}</div>`;
       h+=`</div>`;
@@ -456,8 +588,8 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
     $("card").innerHTML=h;
     async function decide(kind,cluster_id,rationale){
       const actor=($("actor")?.value||"").trim();
-      if(!actor){alert("先填「拍板人」：账本里的决策必须能追溯到人");return;}
-      localStorage.setItem("sj_actor",actor);
+      if(!actor){alert("先在左下角填「拍板人」：账本里的决策必须能追溯到人");$("actor").focus();return;}
+      try{localStorage.setItem("sj_actor",actor);}catch(e){}
       $("dmsg").textContent="";
       try{
         const r=await j("/runs/"+enc(id)+"/decision",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -482,8 +614,11 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
   function showTab(name){
     document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.tab===name));
     ["verdicts","clusters","regress"].forEach(p=>$("pane-"+p).style.display=p===name?"":"none");
+    onScroll();
   }
   document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>showTab(t.dataset.tab));
+  document.querySelectorAll("a[data-go]").forEach(a=>a.addEventListener("click",()=>showTab(a.dataset.go)));
+  $("btnToVerdicts").onclick=()=>{showTab("verdicts");$("s5").scrollIntoView({behavior:"smooth",block:"start"});};
 
   // 1. 裁判理由并排：四维 x 三裁判 + 最终裁决，下面是对话记录，证据步骤高亮
   let traceRows=[];
@@ -496,8 +631,9 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
   }
   async function openTrace(tid){
     showTab("verdicts");$("trSel").value=tid;
-    $("s5").scrollIntoView({behavior:"smooth",block:"start"});
     await renderVerdicts(tid);
+    // 先渲染再滚动：表格没出来时页面还不够长，滚不到位
+    $("s5").scrollIntoView({behavior:"smooth",block:"start"});
   }
   function stepRe(line){const m=/^\[(\d+)\]/.exec(line);return m?+m[1]:null;}
   async function renderVerdicts(tid){
@@ -505,7 +641,7 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
     let d;try{d=await j("/runs/"+enc(current)+"/traces/"+enc(tid));}catch(e){$("verdicts").innerHTML=`<div class="empty">${esc(e.message)}</div>`;return;}
     const t=d.trace,pre=d.precheck,panel=d.panel,dec=d.decision;
     const flags=(pre&&pre.flags||[]);
-    $("trMeta").innerHTML=`任务 ${esc(t.task_id)} · 第 ${esc(t.trial)} 次 · ${t.outcome&&t.outcome.success===false?'<span class="pill bad">失败</span>':(t.outcome&&t.outcome.success?'<span class="pill good">通过</span>':'<span class="pill mut">未知</span>')}${t.outcome&&t.outcome.termination_reason?" · 终止原因 "+esc(t.outcome.termination_reason):""} · ${t.metrics?t.metrics.n_steps+" 步，"+t.metrics.n_tool_calls+" 次工具调用":""}${flags.map(f=>` <span class="pill">预检 ${esc(f.kind)}${f.evidence_step_idx!=null?" @"+f.evidence_step_idx:""}</span>`).join("")}`;
+    $("trMeta").innerHTML=`任务 ${esc(t.task_id)} · 第 ${esc(t.trial)} 次 · ${t.outcome&&t.outcome.success===false?'<span class="pill bad">失败</span>':(t.outcome&&t.outcome.success?'<span class="pill good">通过</span>':'<span class="pill mut">未知</span>')}${t.outcome&&t.outcome.termination_reason?" · 终止原因 "+esc(t.outcome.termination_reason):""} · ${t.metrics?t.metrics.n_steps+" 步，"+t.metrics.n_tool_calls+" 次工具调用":""}${flags.map(f=>` <span class="pill warn">预检 ${esc(f.kind)}${f.evidence_step_idx!=null?" @"+f.evidence_step_idx:""}</span>`).join("")}`;
     if(!panel){$("verdicts").innerHTML=`<div class="empty">${esc(tid)} 没有裁判打分${flags.length?"（预检已排除："+esc(flags.map(f=>f.note||f.kind).join("；"))+"）":""}</div>`;return;}
     const judges=[];for(const v of panel.verdicts)if(!judges.includes(v.judge))judges.push(v.judge);judges.sort();
     const model=jn=>{const v=panel.verdicts.find(x=>x.judge===jn);return v?v.model:"";};
@@ -566,10 +702,11 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
     if(btn)btn.textContent=btn.textContent.replace("展开","收起");
   }
   async function openCluster(cid){
-    showTab("clusters");$("s5").scrollIntoView({behavior:"smooth",block:"start"});
+    showTab("clusters");
     const btn=$("clusters").querySelector(`button[data-x="${cid}"]`);
     const box=$("clusters").querySelector(`.members[data-for="${cid}"]`);
     if(box&&!box.innerHTML)await toggleMembers(cid,btn);
+    const target=$("cl-"+cid)||$("s5");target.scrollIntoView({behavior:"smooth",block:"start"});
   }
 
   // 3. 回归对比：两次运行的 pass^1 / pass^k、修好和修坏的任务、簇的增减
@@ -592,9 +729,9 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
     const taskTable=(rows,empty)=>rows.length?`<table class="lt"><thead><tr><th>任务</th><th>改前</th><th>改后</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.task_id)}</td><td class="num">${esc(LABEL_ZH[x.before]||x.before)}（${x.before_pass_trials}/${x.n_trials}）</td><td class="num">${esc(LABEL_ZH[x.after]||x.after)}（${x.after_pass_trials}/${x.n_trials}）</td></tr>`).join("")}</tbody></table>`:`<div class="empty">${empty}</div>`;
     h+=`<div class="two"><div class="blk"><h3>修好的任务</h3>${taskTable(r.fixed_tasks,"没有")}</div><div class="blk"><h3>修坏的任务</h3>${taskTable(r.broken_tasks,"没有，没有任务变坏")}</div></div>`;
     const dims=Object.keys(r.mean_scores_after||{}).length?Object.keys(r.mean_scores_after):DIMS;
-    h+=`<div class="two" style="margin-top:16px"><div class="blk"><h3>四个维度的平均分（0–4）</h3><table class="lt"><thead><tr><th>维度</th><th>改前</th><th>改后</th><th>变化</th></tr></thead><tbody>${dims.map(k=>{const b=(r.mean_scores_before||{})[k],a=(r.mean_scores_after||{})[k];const d=delta(b,a);return `<tr><td>${esc(dimZh(k))}</td><td class="num">${num(b)}</td><td class="num">${num(a)}</td><td class="num" style="color:${d==null||Math.abs(d)<1e-9?"var(--ink-2)":(d>0?"var(--good)":"var(--bad)")}">${d==null?"—":(d>0?"+":"")+num(d)}</td></tr>`;}).join("")}</tbody></table></div>`;
+    h+=`<div class="two" style="margin-top:14px"><div class="blk"><h3>四个维度的平均分（0–4）</h3><table class="lt"><thead><tr><th>维度</th><th>改前</th><th>改后</th><th>变化</th></tr></thead><tbody>${dims.map(k=>{const b=(r.mean_scores_before||{})[k],a=(r.mean_scores_after||{})[k];const d=delta(b,a);return `<tr><td>${esc(dimZh(k))}</td><td class="num">${num(b)}</td><td class="num">${num(a)}</td><td class="num" style="color:${d==null||Math.abs(d)<1e-9?"var(--ink-2)":(d>0?"var(--good)":"var(--bad)")}">${d==null?"—":(d>0?"+":"")+num(d)}</td></tr>`;}).join("")}</tbody></table></div>`;
     h+=`<div class="blk"><h3>簇的增减（每类失败的 badcase 数）</h3>${r.cluster_changes.length?`<table class="lt"><thead><tr><th>失败类型</th><th>改前</th><th>改后</th><th>变化</th></tr></thead><tbody>${r.cluster_changes.map(c=>`<tr><td>${esc(c.label)}</td><td class="num">${c.before}</td><td class="num">${c.after}</td><td class="num" style="color:${c.delta===0?"var(--ink-2)":(c.delta<0?"var(--good)":"var(--bad)")}">${c.delta>0?"+":""}${c.delta}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">两次运行都没有簇</div>`}</div></div>`;
-    if(r.pairwise&&r.pairwise.length){const s=r.pairwise_summary||{};h+=`<div class="blk" style="margin-top:16px"><h3>成对比较（交换顺序）· 改后胜 ${s.after||0} · 改前胜 ${s.before||0} · 平 ${s.tie||0} · 不一致 ${s.inconsistent||0}</h3></div>`;}
+    if(r.pairwise&&r.pairwise.length){const s=r.pairwise_summary||{};h+=`<div class="blk" style="margin-top:14px"><h3>成对比较（交换顺序）· 改后胜 ${s.after||0} · 改前胜 ${s.before||0} · 平 ${s.tie||0} · 不一致 ${s.inconsistent||0}</h3></div>`;}
     h+=`<code class="cmd">sparkjury regress --before runs/${esc(before)}/sparkjury.db --after runs/${esc(current)}/sparkjury.db</code>`;
     $("regress").innerHTML=h;
   }
@@ -602,15 +739,17 @@ code.cmd{display:block;background:var(--code-bg);border:1px solid var(--line-sof
 
   async function loadDgx(){
     try{const d=await j("/dgx");
-      $("gpus").innerHTML=d.available?d.gpus.map(g=>`<div class="gpu"><div style="font-size:13px">${esc(g.name)}</div><div class="bar"><i style="width:${(g.mem_used_mb/g.mem_total_mb*100).toFixed(0)}%"></i></div><div style="font-size:12px;color:var(--muted)">${(g.mem_used_mb/1024).toFixed(1)} / ${(g.mem_total_mb/1024).toFixed(0)} GB${g.unified_memory?"（统一内存）":""} · 利用率 ${g.util_pct}%${g.temp_c!=null?" · "+g.temp_c+"°C":""}</div></div>`).join("")
+      $("gpus").innerHTML=d.available?d.gpus.map(g=>`<div class="gpu"><div style="font-size:13px">${esc(g.name)}</div><div class="bar"><i style="width:${(g.mem_used_mb/g.mem_total_mb*100).toFixed(0)}%"></i></div><div style="font-size:12px;color:var(--muted)"><span class="n">${(g.mem_used_mb/1024).toFixed(1)} / ${(g.mem_total_mb/1024).toFixed(0)} GB</span>${g.unified_memory?"（统一内存）":""} · 利用率 <span class="n">${g.util_pct}%</span>${g.temp_c!=null?" · "+g.temp_c+"°C":""}</div></div>`).join("")
         :`<div class="empty">本机没有 GPU（${esc(d.reason||"")}）</div>`;
       $("eps").innerHTML=(d.endpoints||[]).length?(d.endpoints).map(e=>`<div class="ep"><span class="dot ${e.ok?"ok":""}"></span><span>${esc(e.name)}</span><span class="r">${e.ok?(e.models[0]||"在线"):(e.error||"离线")}</span></div>`).join(""):`<div class="empty">未配置端点探测</div>`;
     }catch(e){}
   }
-  const onScroll=()=>{const links=[...document.querySelectorAll("#toc a")];const y=window.scrollY+window.innerHeight*.3;let cur="s1";for(const a of links){const s=document.querySelector(a.getAttribute("href"));if(s&&s.offsetTop<=y)cur=s.id;}links.forEach(a=>a.classList.toggle("active",a.getAttribute("href")==="#"+cur));};
+  // 侧栏高亮跟着滚动走
+  const NAV=[...document.querySelectorAll(".nav a")];
+  const onScroll=()=>{const y=window.scrollY+window.innerHeight*.3;let cur="overview";for(const id of ["overview","s4","s2","s3","s5"]){const s=$(id);if(s&&s.offsetTop<=y)cur=id;}const tab=(document.querySelector(".tab.on")||{dataset:{}}).dataset.tab;NAV.forEach(a=>{const href=a.getAttribute("href");a.classList.toggle("on",cur==="s5"?(a.dataset.grp==="insp"&&a.dataset.go===tab):(href==="#"+cur&&!a.dataset.go));});};
   window.addEventListener("scroll",onScroll,{passive:true});onScroll();
   $("runSel").onchange=()=>loadRun($("runSel").value);
-  $("btnDemo").onclick=async()=>{$("btnDemo").disabled=true;$("btnDemo").textContent="演示运行中…";try{const r=await j("/runs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({demo:true})});await loadRuns();$("runSel").value=r.run_id;await loadRun(r.run_id);}finally{$("btnDemo").disabled=false;$("btnDemo").textContent="跑一次离线演示";}};
+  $("btnDemo").onclick=async()=>{$("btnDemo").disabled=true;$("btnDemo").textContent="演示运行中…";try{const r=await j("/runs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({demo:true})});await loadRuns();$("runSel").value=r.run_id;await loadRun(r.run_id);}finally{$("btnDemo").disabled=false;$("btnDemo").textContent="▷ 跑一次离线演示";}};
   j("/health").then(h=>{$("footVer").textContent="Cockpit v"+h.version;}).catch(()=>{});
   loadRuns().then(rs=>{if(rs.length)loadRun($("runSel").value);});
   loadDgx();setInterval(loadDgx,5000);setInterval(loadRuns,20000);
