@@ -21,7 +21,7 @@
 | 技术栈说明（NVIDIA SDK、NVIDIA 与 StepFun 模型） | [技术栈说明](#技术栈说明) |
 | Skill markdown 文件 | [Skill 说明](#skill-说明)；六份 `skills/*/SKILL.md` 与配套 `skill-card.md` |
 | 作品演示视频 | 脚本 `docs/VIDEO_SCRIPT.md`，B 站链接见 [Demo Video](#demo-video) |
-| 黑客松十日谈征文 | `docs/ESSAY_十日谈.md`，CSDN 链接见 [Docs](#docs) |
+| 黑客松十日谈征文 | 已发 CSDN：[DGX Spark 黑客松十日谈：给 Agent 做体检的 Agent（SparkJury）](https://blog.csdn.net/qq_47798402/article/details/166849086)；原文 `docs/ESSAY_十日谈.md` |
 | 团队资料 | [Team](#team) |
 
 ## 项目说明
@@ -348,7 +348,7 @@ bash deploy/dgx/status.sh          # 端点、监听地址、显存一屏看完
 - `docs/ONBOARDING.md`：新组员上手提示词（丢给自己的 Agent 就能接入开发）
 - `docs/MODULES.md`：12 个模块的验收记录与验证命令
 - `docs/ABLATION.md`：消融实验设计——云端那两条依赖各自值多少
-- `docs/ESSAY_十日谈.md`：黑客松十日谈征文
+- `docs/ESSAY_十日谈.md`：黑客松十日谈征文（CSDN：https://blog.csdn.net/qq_47798402/article/details/166849086 ）
 - `docs/VIDEO_SCRIPT.md`：演示视频脚本
 - `docs/SUBMISSION_CHECKLIST.md`：提交清单
 - `deploy/README.md`：DGX 节点部署
