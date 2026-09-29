@@ -19,8 +19,8 @@
 
 ## 3. 十日谈征文
 
-- [ ] `docs/ESSAY_十日谈.md` 补 27 到 29 日实际内容
-- [ ] 发 CSDN 或知乎，链接填表单
+- [x] `docs/ESSAY_十日谈.md` 补 27 到 29 日实际内容（2026-09-29）
+- [x] 发 CSDN，链接填表单：https://blog.csdn.net/qq_47798402/article/details/166849086
 
 ## 4. 团队资料
 
