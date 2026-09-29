@@ -6,6 +6,7 @@ import ipaddress
 import json
 import os
 import queue
+import re
 import secrets
 import time
 from pathlib import Path
@@ -20,11 +21,19 @@ from sparkjury.api import dgx as dgx_mod
 from sparkjury.api.runs import InvalidRunId, RunManager, check_run_id, resolve_within
 from sparkjury.governance import DecisionLedger, LedgerError, card_target, decision_event, priority_target
 from sparkjury.harness import EventKind, RunConfig, Stage
+from sparkjury.harness.config import InputSpec
 from sparkjury.models.cluster import clusters_payload
+from sparkjury.models.trace import TraceSource
 from sparkjury.report import build_card
 from sparkjury.store import TraceStore
 
 STATIC_DIR = Path(__file__).parent / "static"
+
+
+class InputRef(BaseModel):
+    """`POST /runs` 里可选的输入覆盖：上传件（runs_dir/uploads 下）或仓库自带样本。"""
+    path: str
+    source: str = "tau2"
 
 
 class StartRun(BaseModel):
@@ -34,6 +43,19 @@ class StartRun(BaseModel):
     db: str | None = None
     stages: list[str] | None = None
     evalset_limit: int | None = None
+    inputs: list[InputRef] | None = None   # 给了就替换 demo / config 里的 inputs（看板「上传 Trace → 新建评测任务」）
+    title: str | None = None               # 卡片与看板上显示的任务名
+
+
+class Upload(BaseModel):
+    """看板上传 trace 文件：文本 JSON 直接放请求体，不引入 multipart 依赖。"""
+    filename: str
+    content: str
+    source: str | None = None
+
+
+_UPLOAD_NAME = re.compile(r"[A-Za-z0-9_.\-]{1,80}")
+_UPLOAD_MAX_BYTES = 20_000_000
 
 
 class Confirm(BaseModel):
@@ -150,6 +172,23 @@ def create_app(runs_dir: str | Path = "runs", *, dgx_endpoints: list[dict[str, s
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
 
+    def _input_or_400(ref: InputRef) -> InputSpec:
+        """输入文件只能来自 runs_dir/uploads（看板上传）或服务进程自己的目录树（仓库样本）。"""
+        try:
+            p = resolve_within(mgr.runs_dir, ref.path, "input")
+        except ValueError:
+            try:
+                p = resolve_within(cfg_root, ref.path, "input")
+            except ValueError as e:
+                raise HTTPException(400, str(e)) from e
+        if not p.is_file():
+            raise HTTPException(400, f"input not found: {ref.path}")
+        try:
+            src = TraceSource(ref.source)
+        except ValueError as e:
+            raise HTTPException(400, f"unknown source {ref.source!r}; use one of {[s.value for s in TraceSource]}") from e
+        return InputSpec(path=str(p), source=src)
+
     def _store(run_id: str) -> TraceStore:
         _manifest_or_404(run_id)
         db = mgr.db_path(run_id)
@@ -241,6 +280,10 @@ def create_app(runs_dir: str | Path = "runs", *, dgx_endpoints: list[dict[str, s
                 raise HTTPException(400, str(e)) from e
         if body.evalset_limit:
             cfg.evalset.limit = body.evalset_limit
+        if body.inputs:
+            cfg.inputs = [_input_or_400(i) for i in body.inputs]
+        if body.title:
+            cfg.report.title = body.title[:120]
         if body.demo and not body.db:
             cfg.db = str(Path(runs_dir) / cfg.run_id / "sparkjury.db")
         try:
@@ -352,6 +395,42 @@ def create_app(runs_dir: str | Path = "runs", *, dgx_endpoints: list[dict[str, s
                     "degraded": dec.any_degraded if dec else None,
                 })
             return rows
+
+    @app.get("/runs/{run_id}/scores")
+    def run_scores(run_id: str) -> dict[str, Any]:
+        """四个维度 × 三位裁判的平均分与最终裁决分布，给看板画「各维度得分分布」。"""
+        with _store(run_id) as store:
+            return store.score_matrix()
+
+    @app.post("/uploads", status_code=201)
+    def upload_trace(body: Upload) -> dict[str, Any]:
+        """把一份 trace JSON 存到 runs_dir/uploads，回一个能直接塞进 `POST /runs` inputs 的路径。
+
+        文件名只留 basename 且只许 `[A-Za-z0-9_.-]`，落盘名再拼时间戳与随机串，所以调用方决定不了
+        写到哪、也覆盖不了别人的上传件。内容必须是合法 JSON，来源没给就按 OTel 的字段猜。
+        """
+        name = body.filename or ""
+        if not name or name != Path(name).name or name.startswith(".") or not _UPLOAD_NAME.fullmatch(name):
+            raise HTTPException(400, "filename must be a plain name (no directories) matching [A-Za-z0-9_.-]{1,80}")
+        raw = body.content.encode("utf-8")
+        if len(raw) > _UPLOAD_MAX_BYTES:
+            raise HTTPException(413, f"file too large: {len(raw)} bytes > {_UPLOAD_MAX_BYTES}")
+        try:
+            json.loads(body.content)
+        except ValueError as e:
+            raise HTTPException(400, f"content is not valid JSON: {e}") from e
+        head = body.content[:200_000]
+        source = body.source or ("otel" if ('"resourceSpans"' in head or '"spans"' in head or '"span_id"' in head or '"spanId"' in head) else "tau2")
+        try:
+            TraceSource(source)
+        except ValueError as e:
+            raise HTTPException(400, f"unknown source {source!r}") from e
+        updir = mgr.runs_dir / "uploads"
+        updir.mkdir(parents=True, exist_ok=True)
+        stem = Path(name).stem[:60] or "trace"
+        dest = updir / f"{stem}-{time.strftime('%Y%m%d-%H%M%S')}-{secrets.token_hex(3)}.json"
+        dest.write_bytes(raw)
+        return {"path": str(dest), "name": name, "n_bytes": len(raw), "source": source}
 
     @app.get("/runs/{run_id}/traces/{trace_id}")
     def get_trace(run_id: str, trace_id: str) -> dict[str, Any]:

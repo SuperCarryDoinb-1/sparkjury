@@ -285,3 +285,44 @@ def test_decision_endpoint_writes_a_governance_ledger(client, tmp_path):
     assert all(e["run_id"] == "dec-1" and e["skill"] == "report" for e in lines)
     for e in lines:
         validate_event(e)  # 消费端（PR#10 govern 的 _ledger.py）同一套规矩：target 必须带命名空间前缀
+
+
+# ---- 看板「上传 Trace → 新建评测任务」与「各维度得分分布」两条链路 --------------------------------
+
+def test_upload_trace_then_run_on_it(client, tmp_path):
+    """上传件只能落在 runs_dir/uploads、文件名不许带路径或奇怪字符、内容必须是 JSON；
+    然后 `POST /runs` 用 inputs 指向它跑一轮，来源与标题都要进 manifest。"""
+    sample = Path(__file__).resolve().parents[1] / "data" / "samples" / "otel_sample.json"
+    content = sample.read_text(encoding="utf-8")
+    assert client.post("/uploads", json={"filename": "my trace.json", "content": content}).status_code == 400
+    assert client.post("/uploads", json={"filename": "../x.json", "content": content}).status_code == 400
+    assert client.post("/uploads", json={"filename": "x.json", "content": "not json"}).status_code == 400
+    r = client.post("/uploads", json={"filename": "otel_sample.json", "content": content})
+    assert r.status_code == 201, r.text
+    up = r.json()
+    p = Path(up["path"]).resolve()
+    assert up["source"] == "otel" and p.is_file() and p.is_relative_to((tmp_path / "runs").resolve())
+
+    r = client.post("/runs", json={"demo": True, "run_id": "up-1", "title": "上传测试",
+                                   "inputs": [{"path": up["path"], "source": up["source"]}]})
+    assert r.status_code == 202, r.text
+    m = _wait(client, "up-1")
+    assert m["status"] == "ok" and m["stages"]["INGEST"]["n_ingested"] == 2
+    assert m["config"]["report"]["title"] == "上传测试"
+    # 输入路径出不了 runs_dir 与服务目录；来源写错也拒
+    assert client.post("/runs", json={"demo": True, "inputs": [{"path": str(tmp_path.parent / "elsewhere.json"), "source": "otel"}]}).status_code == 400
+    assert client.post("/runs", json={"demo": True, "inputs": [{"path": up["path"], "source": "csv"}]}).status_code == 400
+
+
+def test_scores_endpoint_gives_per_judge_per_dimension_means(client):
+    client.post("/runs", json={"demo": True, "run_id": "sc-1"})
+    _wait(client, "sc-1")
+    s = client.get("/runs/sc-1/scores").json()
+    assert s["dimensions"] == ["outcome", "tool_use", "efficiency", "safety"]
+    assert set(s["judges"]) == {"judge_a", "judge_b", "judge_c"}
+    for j in s["judges"].values():
+        assert j["model"] and set(j["by_dimension"]) == set(s["dimensions"])
+        assert all(0 <= v["mean"] <= 4 and v["n"] == 13 for v in j["by_dimension"].values())
+    f = s["final"]["outcome"]
+    assert f["n"] == 13 and f["n_pass"] + f["n_fail"] == 13 and 0 <= f["mean"] <= 4
+    assert client.get("/runs/nope/scores").status_code == 404

@@ -472,6 +472,36 @@ class TraceStore:
             "judges": judges,
         }
 
+    def score_matrix(self) -> dict[str, Any]:
+        """每个裁判在每个维度上的平均分，加最终裁决在每个维度上的平均分与通过 / 失败计数。
+
+        给看板画「各维度得分分布」用：四个维度 × 三位裁判 + 仲裁结果。只统计 score 非空的票，
+        错票单独计数（n_errors），不混进平均分里。
+        """
+        order = ["outcome", "tool_use", "efficiency", "safety"]
+        judges: dict[str, dict[str, Any]] = {}
+        for r in self._conn.execute(
+            "SELECT judge, model, dimension, AVG(score) AS mean, COUNT(score) AS n, "
+            "SUM(CASE WHEN error IS NOT NULL AND error != '' THEN 1 ELSE 0 END) AS n_errors "
+            "FROM verdicts GROUP BY judge, model, dimension"
+        ):
+            j = judges.setdefault(r["judge"], {"model": r["model"], "by_dimension": {}})
+            j["by_dimension"][r["dimension"]] = {"mean": r["mean"], "n": r["n"], "n_errors": r["n_errors"]}
+        final: dict[str, dict[str, Any]] = {}
+        for r in self._conn.execute(
+            "SELECT dimension, AVG(final_score) AS mean, COUNT(final_score) AS n, "
+            "SUM(CASE WHEN final_label = 'pass' THEN 1 ELSE 0 END) AS n_pass, "
+            "SUM(CASE WHEN final_label = 'fail' THEN 1 ELSE 0 END) AS n_fail, "
+            "SUM(CASE WHEN source = 'jev' THEN 1 ELSE 0 END) AS n_jev, "
+            "SUM(CASE WHEN degraded THEN 1 ELSE 0 END) AS n_degraded "
+            "FROM arbitration GROUP BY dimension"
+        ):
+            final[r["dimension"]] = {"mean": r["mean"], "n": r["n"], "n_pass": r["n_pass"], "n_fail": r["n_fail"],
+                                     "n_jev": r["n_jev"], "n_degraded": r["n_degraded"]}
+        seen = set(final) | {d for j in judges.values() for d in j["by_dimension"]}
+        dims = [d for d in order if d in seen] + sorted(d for d in seen if d not in order)
+        return {"dimensions": dims, "judges": judges, "final": final}
+
     # ---- arbitration ------------------------------------------------------
 
     def put_decisions(self, decisions: Iterable[TraceDecision]) -> int:
